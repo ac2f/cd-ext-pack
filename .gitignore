@@ -1,0 +1,14 @@
+# Yapı çıktısı (tools/build.ps1 veya tools/build.sh üretir)
+build/
+
+# Derlenmiş / paketlenmiş makro projeleri
+*.gms
+*.gms.bak
+
+# CorelDRAW ve Office geçici dosyaları
+~$*
+*.cdr.bak
+
+# İşletim sistemi
+Thumbs.db
+.DS_Store

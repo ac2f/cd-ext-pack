@@ -1,0 +1,8 @@
+# Kaynak dosyalar depoda UTF-8 + LF olarak tutulur.
+# CorelDRAW VBA'ya aktarmadan önce tools/build.ps1 (veya build.sh) ile
+# Windows-1254 + CRLF'e çevrilir.
+*.bas   text eol=lf diff
+*.md    text eol=lf
+*.ps1   text eol=crlf
+*.sh    text eol=lf
+*.gms   binary
