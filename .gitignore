@@ -12,3 +12,7 @@ build/
 # İşletim sistemi
 Thumbs.db
 .DS_Store
+
+# Python
+__pycache__/
+*.pyc
