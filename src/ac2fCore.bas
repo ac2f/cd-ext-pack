@@ -14,7 +14,7 @@ Option Explicit
 ' Package identity
 '---------------------------------------------------------------------
 Public Const AC2F_NAME    As String = "ac2f pack"
-Public Const AC2F_VERSION As String = "1.3.0"
+Public Const AC2F_VERSION As String = "1.4.0"
 Public Const AC2F_REG_APP As String = "ac2fPack"
 Public Const AC2F_REG_SEC As String = "Ayarlar"
 Public Const AC2F_REG_PROF As String = "Profiles"

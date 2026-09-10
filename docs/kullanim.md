@@ -15,8 +15,9 @@
   5  -  Box letter strip
   6  -  Box letter strip (pick profile, tweak, draw)
   7  -  Box letter report (no drawing)
-  8  -  Settings and profiles
-  9  -  About
+  8  -  ACP panel V-grooves
+  9  -  Settings and profiles
+ 10  -  About
 ```
 
 Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
@@ -253,9 +254,101 @@ Bulduğunuz değer o malzeme + kalınlık için kalıcıdır.
 
 ---
 
-## 5. Ayarlar — tek sayfa
+## 5. ACP panel V derzi
 
-Ana menüden `8` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
+Alüminyum kompozit kutu/harf panellerinde, CAM programında V bıçağıyla
+açılacak derz çizgilerini üretir.
+
+Dörtgeni seçin, `ac2fPanelGroove` çalıştırın, tek satır yazın:
+
+```
+5cm out
+```
+
+### Yerleşim
+
+100×200 bir dörtgen, 5 cm derz, `out`:
+
+```
+        <------------- 110 ------------->
+    +---+---------------------------+---+  ^
+    |   |             2             |   |  |
+    +---o===========================+---+  |    o = baslangic noktasi
+    |   #                           #   |  |    # ve = : derz cizgisi
+    |   #                           #   |  |
+    | 1 #                           # 3 | 210
+    |   #                           #   |  |
+    |   #                           #   |  |
+    +---+===========================o---+  |
+    |   |             4             |   |  |
+    +---o---------------------------+---+  v
+        ^ 1 numarali derz ALTTAN baslar
+```
+
+Plaka **110×210** olur. Dört çizgi plakayı boydan boya geçer;
+kesişimleri tam **100×200** üzerine, yani asıl ölçüye düşer.
+
+### Sıra ve başlangıç noktaları
+
+Saat yönünde. **Nesne sırası = kesim sırası** — çizgiler bu sırayla
+oluşturulur ve adlandırılır.
+
+| # | Ad | Konum | Başlangıç | Boy |
+|---|---|---|---|---|
+| 1 | `ac2f groove 1 left` | Sol, kenardan 5 içeride | **Alttan** yukarı | 210 |
+| 2 | `ac2f groove 2 top` | Üst, kenardan 5 aşağıda | **Soldan** sağa | 110 |
+| 3 | `ac2f groove 3 right` | Sağ, kenardan 5 içeride | **Üstten** aşağı | 210 |
+| 4 | `ac2f groove 4 bottom` | Alt, kenardan 5 yukarıda | **Sağdan** sola | 110 |
+
+Başlangıç noktası, CAM programının bıçağı daldıracağı uçtur; çizgi bu
+yönde oluşturulur.
+
+### İki yön
+
+| Giriş | Seçim ne demek | 100×200 + 5 sonucu |
+|---|---|---|
+| `5cm out` | **Bitmiş** ölçü — plaka her yandan bir derz büyür | plaka 110×210, katlanınca 100×200 |
+| `5cm in` | **Plaka** ölçüsü — derzler içeri kaçar | plaka 100×200, katlanınca 90×190 |
+
+Ölçüyü `5cm`, `50mm` ya da düz `50` (= mm) yazabilirsiniz. Yön
+yazmazsanız son kullandığınız yön geçerli olur. Yazdığınız değerler ayar
+sayfasına kaydedilir.
+
+### Renkler ve gruplama
+
+| Renk | Anlamı |
+|---|---|
+| Siyah | Plaka dış hattı (kesim) |
+| Mavi | V derz çizgisi |
+
+```
+ac2f ACP panel 110x210        (dis grup)
+├── ac2f ACP sheet 110x210    (plaka dortgeni)
+└── ac2f ACP grooves          (derz grubu)
+    ├── ac2f groove 1 left
+    ├── ac2f groove 2 top
+    ├── ac2f groove 3 right
+    └── ac2f groove 4 bottom
+```
+
+### Bilinmesi gerekenler
+
+- **Eksene paralel sınırlayıcı kutu kullanılır.** Döndürülmüş bir
+  dörtgen seçerseniz onun sınırlayıcı kutusu alınır, döndürülmüş hâli
+  değil. Önce döndürmeyi sıfırlayın.
+- **Kaynak dörtgeniniz silinmez** (ayar 25 ile değiştirilebilir).
+  `in` modunda yeni plaka dış hattı tam sizin dörtgeninizin üstüne
+  düşer; CAM'in aynı yeri iki kez kesmemesi için ya kaynağı silin ya da
+  ayarı `0` yapın.
+- Birden çok dörtgen seçebilirsiniz; her biri ayrı panel olur.
+- `in` modunda derz, kenar uzunluğunun yarısından büyük olamaz; öyle bir
+  dörtgen atlanır ve raporda belirtilir.
+
+---
+
+## 6. Ayarlar — tek sayfa
+
+Ana menüden `9` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
 
 ```
 SETTINGS  (profile: Aluminium 2mm)
@@ -284,6 +377,10 @@ SETTINGS  (profile: Aluminium 2mm)
 20 Coil length          3000 mm
 21 Joint allowance        20 mm
 22 Strip gap              10 mm
+-- ACP PANEL --
+23 Fold size            50.00 mm
+24 Fold direction           1
+25 Keep source              1
 
 N=value   change        ?N   explain
 P         profiles      R    reset
@@ -343,7 +440,7 @@ Range    : 0.01 and up
 
 ---
 
-## 6. Profiller
+## 7. Profiller
 
 Ayar sayfasında `P`, ya da doğrudan `ac2fProfiles`.
 
@@ -388,7 +485,7 @@ tanınmayan anahtarlar sessizce atlanır.
 
 ---
 
-## 7. Profille çalıştırma ve geçici değişiklik
+## 8. Profille çalıştırma ve geçici değişiklik
 
 Ana menü `6` (`ac2fBoxLetterStripProfile`). Üç adım:
 
@@ -413,7 +510,7 @@ Enter     run
 Geçici değerler **kayıtlı ayarlarınıza yazılmaz** ve çizim biter bitmez
 silinir. Aynı profille tek bir kalınlığı deneyip görmek için budur.
 
-Kalıcı olmasını istiyorsanız ayar sayfasından (`8`) değiştirin, sonra
+Kalıcı olmasını istiyorsanız ayar sayfasından (`9`) değiştirin, sonra
 `P` → `S <ad>` ile profile kaydedin.
 
 ---

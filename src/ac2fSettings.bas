@@ -27,7 +27,9 @@ Private Const CAPTION_ As String = "Settings"
 Public Const AC2F_KIND_NUM  As Long = 0
 Public Const AC2F_KIND_INT  As Long = 1
 
-Private Const LAB_W As Long = 18
+' 25 settings at label width 18 render a 1007 character sheet, which is
+' too close to the ~1024 character InputBox prompt limit. 16 gives 957.
+Private Const LAB_W As Long = 16
 Private Const VAL_W As Long = 6
 
 Public Type ac2fSetting
@@ -293,6 +295,41 @@ Private Sub ac2fBuildTable()
         "Purely a layout convenience with no effect on any " & _
         "calculation. Raise it if the labels above each strip run " & _
         "into the strip above."
+
+    '--- ACP panel ----------------------------------------------------
+    ac2fAddSetting AC2F_K_ACP_FOLD, "ACP PANEL", "Fold size", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_ACP_FOLD, 0.1, 0, _
+        "How far the V-groove sits from the edge of the sheet, which " & _
+        "is also the depth of the side wall once the panel is folded." & _
+        vbCrLf & vbCrLf & _
+        "The macro asks for this each run and accepts a unit, so you " & _
+        "can type 5cm or 50mm; a bare number is millimetres. What " & _
+        "you type is stored back here as the new default." & _
+        vbCrLf & vbCrLf & _
+        "The four grooves always span the full sheet and cross each " & _
+        "other, so their intersections mark the folded size exactly."
+
+    ac2fAddSetting AC2F_K_ACP_DIR, "ACP PANEL", "Fold direction", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_ACP_DIR), 1, 2, _
+        "What the rectangle you select stands for." & vbCrLf & vbCrLf & _
+        "1 = out. The selection is the FINISHED size. The sheet is " & _
+        "drawn larger by one fold on every side, so a 100x200 " & _
+        "rectangle with a 5 fold gives a 110x210 sheet and the " & _
+        "grooves cross on the original 100x200." & vbCrLf & vbCrLf & _
+        "2 = in. The selection is the SHEET. The grooves are set one " & _
+        "fold in from each edge, so the same 100x200 rectangle folds " & _
+        "down to 90x190." & vbCrLf & vbCrLf & _
+        "The run prompt overrides this; type out or in after the size."
+
+    ac2fAddSetting AC2F_K_ACP_KEEP, "ACP PANEL", "Keep source", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_ACP_KEEP), 0, 1, _
+        "Whether the rectangle you selected stays on the page after " & _
+        "the panel is drawn." & vbCrLf & vbCrLf & _
+        "1 = keep. Nothing of yours is touched." & vbCrLf & vbCrLf & _
+        "0 = delete. Useful with fold direction in, where the new " & _
+        "sheet outline lands exactly on your rectangle and you would " & _
+        "otherwise be left with two lines on top of each other, which " & _
+        "a CAM program would cut twice."
 End Sub
 
 Private Sub ac2fAddSetting(ByVal key As String, ByVal grp As String, _

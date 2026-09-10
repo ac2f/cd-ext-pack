@@ -3,8 +3,9 @@
 CorelDRAW için VBA eklenti paketi.
 
 Vektörlerin çevresindeki çizgilerin toplam uzunluğunu ölçer, bu ölçüme
-dayanarak 3'lü LED modül yerleşimi için gereken adetleri hesaplar ve kutu
-harf yan bordürünün açınımını çıkarıp kesime hazır derzli şeritler çizer.
+dayanarak 3'lü LED modül yerleşimi için gereken adetleri hesaplar, kutu
+harf yan bordürünün açınımını çıkarıp kesime hazır derzli şeritler çizer
+ve alüminyum kompozit paneller için V derz çizgilerini üretir.
 
 | Modül | İş |
 |---|---|
@@ -12,6 +13,7 @@ harf yan bordürünün açınımını çıkarıp kesime hazır derzli şeritler 
 | `ac2fLength` | **Uzunluk ölçümü** — toplam kontur uzunluğu |
 | `ac2fLedModule` | **3'lü LED modül hesabı** — modül, LED, güç, güç kaynağı adedi |
 | `ac2fBoxLetter` | **Kutu harf şeridi** — bordür açınımı ve derz yerleşimi |
+| `ac2fPanel` | **ACP panel derzi** — alüminyum kompozit V derz yerleşimi |
 | `ac2fSettings` | **Ayar sayfası ve profiller** — tüm ayarlar tek yerde |
 | `ac2fMenu` | Ana menü, hakkında |
 
@@ -30,6 +32,7 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fBoxLetterStrip` | Kutu harf bordürünün açınımını hesaplar ve derzli şeridi çizer |
 | `ac2fBoxLetterStripProfile` | Profil seçip, istenen değeri o seferliğine değiştirip çizer |
 | `ac2fBoxLetterReport` | Aynı hesabı yapar, çizim yapmaz |
+| `ac2fPanelGroove` | Dörtgen çevresine ACP V derz çizgilerini çizer |
 | `ac2fSettings` | **Tüm ayarlar ve profiller — tek sayfa** |
 | `ac2fProfiles` | Doğrudan profil yönetimi |
 | `ac2fResetAllSettings` | Ayarları varsayılana döndürür |
@@ -74,9 +77,67 @@ Gerekli güç = toplam güç × (1 + güvenlik payı)
 Güç kaynağı = yukarı_yuvarla(gerekli güç / kaynak kapasitesi)
 ```
 
+## ACP panel V derzi
+
+Dörtgeni seçin, `ac2fPanelGroove` çalıştırın ve **`5cm out`** yazın.
+
+100×200 bir dörtgen + 5 cm derz → **110×210** plaka. Dört derz çizgisi
+plakayı boydan boya geçer ve kesişimleri tam **100×200** üzerine düşer:
+
+```
+        <------------- 110 ------------->
+    +---+---------------------------+---+  ^
+    |   |            2              |   |  |
+    +---o===========================+---+  |     o = baslangic noktasi
+    |   #                           #   |  |     2 = derz sirasi
+    |   #                           #   |  |
+    | 1 #                           # 3 | 210
+    |   #                           #   |  |
+    |   #                           #   |  |
+    +---+===========================o---+  |
+    |   |            4              |   |  |
+    +---o---------------------------+---+  v
+        ^ 1 alttan baslar
+```
+
+Saat yönünde, **nesne sırası = kesim sırası**:
+
+| # | Derz | Başlangıç | Boy |
+|---|---|---|---|
+| 1 | Sol | **Alttan** | 210 (tam yükseklik) |
+| 2 | Üst | Soldan | 110 (tam genişlik) |
+| 3 | Sağ | Üstten | 210 |
+| 4 | Alt | Sağdan | 110 |
+
+Her çizgi adlandırılır (`ac2f groove 1 left` …), böylece sıra Nesne
+Yöneticisi'nden görülebilir.
+
+### İki yön
+
+| Giriş | Anlamı | 100×200 + 5 |
+|---|---|---|
+| `5cm out` | Seçim **bitmiş** ölçü, plaka büyür | plaka 110×210, katlanmış 100×200 |
+| `5cm in` | Seçim **plaka**, derzler içeri kaçar | plaka 100×200, katlanmış 90×190 |
+
+Ölçü `5cm`, `50mm` ya da düz `50` (= mm) yazılabilir.
+
+### Renk ve gruplama
+
+Siyah = plaka dış hattı (kesim), mavi = V derz. Yapı:
+
+```
+ac2f ACP panel 110x210        (grup)
+├── ac2f ACP sheet 110x210    (dörtgen)
+└── ac2f ACP grooves          (grup)
+    ├── ac2f groove 1 left
+    ├── ac2f groove 2 top
+    ├── ac2f groove 3 right
+    └── ac2f groove 4 bottom
+```
+
 ## Ayarlar ve profiller
 
-**Tüm ayarlar tek sayfada.** Ana menüden `8` ile açılır; 22 ayarın hepsi
+**Tüm ayarlar tek sayfada.** Ana menüden `9` ile açılır; 25 ayarın hepsi
 numaralı olarak listelenir:
 
 ```
@@ -177,4 +238,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.3.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.4.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

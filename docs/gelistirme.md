@@ -106,7 +106,8 @@ VBA derleyicisinin yerini **tutmaz**. Asıl doğrulama CorelDRAW'da
 ```
 ac2fMenu ────┬──> ac2fLength ─────┐
              ├──> ac2fLedModule ──┤
-             ├──> ac2fBoxLetter ──┼──> ac2fCore
+             ├──> ac2fBoxLetter ──┤
+             ├──> ac2fPanel ──────┼──> ac2fCore
              └──> ac2fSettings ───┘
 ```
 
@@ -245,6 +246,13 @@ rows = 22 ; print(2 + 22*32 + 160)   # ~ satir sayisi x satir genisligi
 EOF
 ```
 
+### Sayfa uzunluğu denetlenir
+
+`tools/lint.py` ayar sayfasını `ac2fSheet` ile aynı biçimde yeniden kurup
+uzunluğunu ölçer ve 1000 karakteri aşarsa hata verir. Ayar eklerken bu
+kendiliğinden yakalanır: 25 ayarla sayfa 942 karakter, etiket sütunu 16.
+18'de 1007 çıkıyordu ve sınıra fazla yakındı.
+
 ### Geçici değer katmanı
 
 `ac2fCore` içinde küçük bir örtme katmanı vardır:
@@ -291,6 +299,35 @@ olarak verilir.
 
 Form eklenecekse VBE içinde çizilip `.frm` + `.frx` **birlikte**
 depoya konmalıdır.
+
+## ACP panel yerleşimi (`ac2fPanel`)
+
+Dörtgenin eksene paralel sınırlayıcı kutusundan plakayı ve dört derz
+çizgisini üretir. `out` modunda plaka her yandan bir derz büyür, `in`
+modunda plaka seçimin kendisidir.
+
+```
+1  sol    x = X0+d      alttan -> ustten   boy H
+2  ust    y = Y0+H-d    soldan -> saga     boy W
+3  sag    x = X0+W-d    ustten -> asagi    boy H
+4  alt    y = Y0+d      sagdan -> sola     boy W
+```
+
+Çizgiler plakayı **boydan boya** geçer; kesişimleri katlanmış ölçüyü
+verir. Sıra saat yönüdür ve **oluşturma sırası kesim sırasıdır**, bu
+yüzden çizgiler tek tek adlandırılır.
+
+Başlangıç noktası `CreateLineSegment`'in ilk koordinat çiftidir; CAM
+bıçağı orada daldırır, dolayısıyla çift sırası önemlidir ve
+değiştirilmemelidir.
+
+**Sınırlayıcı kutular önce toplanır.** Şekil oluşturmak ve gruplamak
+seçimi değiştirdiği için, çizime başlandıktan sonra kaynak `ShapeRange`
+üzerinde gezinilemez.
+
+Gruplama `ClearSelection` + `AddToSelection` + `ShapeRange.Group()` ile
+yapılır ve başarısız olursa çizgiler sayfada serbest kalır; makro bunu
+raporlar, geometri kaybolmaz.
 
 ## Yeni bir araç eklemek
 

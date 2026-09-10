@@ -58,6 +58,40 @@ def preprocess(raw):
 OPENERS = {'sub': 'Sub', 'function': 'Function', 'type': 'Type'}
 
 
+SHEET_LIMIT = 1000   # VBA InputBox prompt tops out around 1024 characters
+
+
+def settings_sheet_length():
+    """Rebuilds the ac2fSettings sheet the way ac2fSheet does and returns
+    its length. The sheet is passed to InputBox as the prompt, so it must
+    stay under the VBA limit; adding a setting is what pushes it over."""
+    src = 'src/ac2fSettings.bas'
+    try:
+        raw = open(src, encoding='utf-8').read()
+    except OSError:
+        return None, 0
+    joined = ' '.join(c for _, c in preprocess(raw.split('\n')))
+    lab_w = int(re.search(r'LAB_W\s+As\s+Long\s*=\s*(\d+)', joined).group(1))
+    val_w = int(re.search(r'VAL_W\s+As\s+Long\s*=\s*(\d+)', joined).group(1))
+
+    calls = re.findall(
+        r'ac2fAddSetting\s+\w+\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"', joined)
+    if not calls:
+        return None, 0
+
+    lines = ['SETTINGS  (profile: ' + 'M' * 20 + ')', '']
+    group = None
+    for i, (grp, label, unit) in enumerate(calls, 1):
+        if grp != group:
+            group = grp
+            lines.append('-- %s --' % grp)
+        lines.append('%2d %s %s %s' % (i, label.ljust(lab_w)[:lab_w],
+                                       '0.00'.rjust(val_w), unit))
+    lines += ['', 'N=value   change        ?N   explain',
+              'P         profiles      R    reset', 'Enter     close']
+    return len('\r\n'.join(lines)), len(calls)
+
+
 def main():
     files = sorted(glob.glob('src/*.bas'))
     errors, defs, calls = [], {}, collections.defaultdict(list)
@@ -163,7 +197,17 @@ def main():
         if name not in known and not name.startswith('AC2F_'):
             errors.append(f'{where[0]} tanimsiz ac2f sembolu: {name}')
 
-    print(f'{len(files)} dosya, {len(defs)} yordam')
+    sheet_len, n_set = settings_sheet_length()
+    if sheet_len is not None:
+        if sheet_len > SHEET_LIMIT:
+            errors.append(f'ac2fSettings sayfasi {sheet_len} karakter '
+                          f'({n_set} ayar) - InputBox siniri asilir, '
+                          f'LAB_W kucultun veya etiketleri kisaltin')
+
+    print(f'{len(files)} dosya, {len(defs)} yordam', end='')
+    if sheet_len is not None:
+        print(f', ayar sayfasi {sheet_len} karakter ({n_set} ayar)', end='')
+    print()
     if errors:
         print('\nSORUNLAR:')
         for e in errors:

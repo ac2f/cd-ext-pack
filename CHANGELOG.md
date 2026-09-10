@@ -2,6 +2,50 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.4.0] - 2026-09-10
+
+### Eklendi
+
+- **`ac2fPanel`** — alüminyum kompozit (ACP) paneller için V derz
+  yerleşimi (`ac2fPanelGroove`, ana menü 8).
+
+  Seçilen dörtgenden düz plakayı ve dört derz çizgisini üretir. Çizgiler
+  plakayı boydan boya geçer, **saat yönünde** ve **kesim sırasıyla**
+  oluşturulur; her birinin başlangıç noktası operatörün beklediği uçtadır:
+
+  | # | Derz | Başlangıç | Boy |
+  |---|---|---|---|
+  | 1 | Sol | alttan | tam yükseklik |
+  | 2 | Üst | soldan | tam genişlik |
+  | 3 | Sağ | üstten | tam yükseklik |
+  | 4 | Alt | sağdan | tam genişlik |
+
+  Çizgiler tek tek adlandırılır, böylece sıra Nesne Yöneticisi'nde
+  görünür.
+
+- İki yön: `out` (seçim bitmiş ölçü, plaka her yandan bir derz büyür)
+  ve `in` (seçim plaka, derzler içeri kaçar). Ölçü `5cm`, `50mm` ya da
+  düz sayı (mm) olarak girilebilir.
+- Renk kodu: siyah = plaka dış hattı, mavi = V derz. Derz çizgileri bir
+  grupta, o grup da plaka dörtgeniyle birlikte dış bir grupta toplanır.
+- Üç yeni ayar: derz ölçüsü, yön, kaynak dörtgeni koru/sil.
+- `tools/lint.py` artık **ayar sayfasının uzunluğunu** ölçüyor ve VBA'nın
+  ~1024 karakterlik `InputBox` sınırı aşılırsa hata veriyor. 25 ayarla
+  sayfa 942 karakter; etiket sütunu 18'den 16'ya indirildi (18'de 1007
+  karakter çıkıyordu, sınıra fazla yakın).
+
+### Doğrulama
+
+Yerleşim Python'a taşınıp ölçüldü:
+
+| Ölçüt | Sonuç |
+|---|---|
+| 100×200 + 5 `out` → plaka | 110×210 |
+| Derz kesişimleri | tam **100×200** (asıl ölçü) |
+| Başlangıç noktalarının dönüş yönü | −360° = **saat yönü** |
+| Çizgi boyları | 210 / 110 / 210 / 110 |
+| `in` modu, 100×200 + 5 | plaka 100×200, katlanmış 90×190 |
+
 ## [1.3.0] - 2026-09-10
 
 ### Eklendi
