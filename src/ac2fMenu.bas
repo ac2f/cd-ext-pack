@@ -26,8 +26,11 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Ana menu"
         "  2  -  Uzunluk ölçümü + sayfaya etiket" & vbCrLf & _
         "  3  -  3'lü LED modül hesabı" & vbCrLf & _
         "  4  -  3'lü LED modül hesabı (aralığı sorarak)" & vbCrLf & _
-        "  5  -  Ayarlar" & vbCrLf & _
-        "  6  -  Hakkında" & vbCrLf
+        "  5  -  Kutu harf şeridi (hesapla ve çiz)" & vbCrLf & _
+        "  6  -  Kutu harf raporu (çizim yok)" & vbCrLf & _
+        "  7  -  Ayarlar - LED modül" & vbCrLf & _
+        "  8  -  Ayarlar - Kutu harf" & vbCrLf & _
+        "  9  -  Hakkında" & vbCrLf
 
     secim = InputBox(m, ac2fTitle(CAPTION_), "1")
     If StrPtr(secim) = 0 Then Exit Sub          ' İptal
@@ -39,8 +42,11 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Ana menu"
         Case "2": ac2fUzunlukEtiketle
         Case "3": ac2fLedModulHesapla
         Case "4": ac2fLedHizliHesap
-        Case "5": ac2fAyarlar
-        Case "6": ac2fHakkinda
+        Case "5": ac2fKutuHarfSerit
+        Case "6": ac2fKutuHarfRapor
+        Case "7": ac2fAyarlar
+        Case "8": ac2fKutuHarfAyarlar
+        Case "9": ac2fHakkinda
         Case Else
             ac2fWarn "Geçersiz seçim: " & secim, CAPTION_
     End Select
@@ -107,7 +113,11 @@ Attribute ac2fHakkinda.VB_Description = "ac2f pack: Surum ve icerik bilgisi"
     s = s & "   • 3'lü LED modül hesabı" & vbCrLf
     s = s & "     Ölçülen uzunluğa göre gereken modül, LED," & vbCrLf
     s = s & "     güç ve güç kaynağı adedini çıkarır." & vbCrLf & vbCrLf
-    s = s & "GEÇERLİ AYARLAR" & vbCrLf & ac2fAyarOzeti()
+    s = s & "   • Kutu harf şeridi" & vbCrLf
+    s = s & "     Yan bordürün açınımını ve derz yerleşimini" & vbCrLf
+    s = s & "     çıkarıp kesime hazır düz şerit çizer." & vbCrLf & vbCrLf
+    s = s & "LED AYARLARI" & vbCrLf & ac2fAyarOzeti() & vbCrLf
+    s = s & "KUTU HARF AYARLARI" & vbCrLf & ac2fBLAyarOzeti()
 
     ac2fInfo s, "Hakkında"
 End Sub

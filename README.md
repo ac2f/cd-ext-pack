@@ -2,14 +2,16 @@
 
 CorelDRAW için VBA eklenti paketi.
 
-Vektörlerin çevresindeki çizgilerin toplam uzunluğunu ölçer ve bu ölçüme
-dayanarak 3'lü LED modül yerleşimi için gereken adetleri hesaplar.
+Vektörlerin çevresindeki çizgilerin toplam uzunluğunu ölçer, bu ölçüme
+dayanarak 3'lü LED modül yerleşimi için gereken adetleri hesaplar ve kutu
+harf yan bordürünün açınımını çıkarıp kesime hazır derzli şeritler çizer.
 
 | Modül | İş |
 |---|---|
 | `ac2fCore` | Ortak çekirdek: ayarlar, birim/sayı yardımcıları, ölçüm motoru |
 | `ac2fLength` | **Uzunluk ölçümü** — toplam kontur uzunluğu |
 | `ac2fLedModule` | **3'lü LED modül hesabı** — modül, LED, güç, güç kaynağı adedi |
+| `ac2fBoxLetter` | **Kutu harf şeridi** — bordür açınımı ve derz yerleşimi |
 | `ac2fMenu` | Ana menü, ayarlar, hakkında |
 
 ## Makrolar
@@ -23,7 +25,10 @@ Makro Yöneticisi'nde `ac2fPack` projesi altında görünürler.
 | `ac2fUzunlukEtiketle` | Aynı ölçümü yapıp sonucu sayfaya metin olarak koyar |
 | `ac2fLedModulHesapla` | Kayıtlı ayarlarla 3'lü LED modül adedini hesaplar |
 | `ac2fLedHizliHesap` | Modül aralığını sorarak tek seferlik hesaplar |
-| `ac2fAyarlar` | Ayarları düzenler |
+| `ac2fKutuHarfSerit` | Kutu harf bordürünün açınımını hesaplar ve derzli şeridi çizer |
+| `ac2fKutuHarfRapor` | Aynı hesabı yapar, çizim yapmaz |
+| `ac2fKutuHarfAyarlar` | Malzeme ve derz ayarları |
+| `ac2fAyarlar` | LED modül ayarlarını düzenler |
 | `ac2fAyarlariSifirla` | Ayarları varsayılana döndürür |
 | `ac2fHakkinda` | Sürüm ve içerik bilgisi |
 
@@ -43,7 +48,7 @@ Adım adım anlatım ve ekran yolları: **[docs/kurulum.md](docs/kurulum.md)**
 ## Kullanım
 
 ```
-Nesneleri seç  →  ac2fPack  →  1 (uzunluk)  veya  3 (LED modül)
+Nesneleri seç  →  ac2fPack  →  1 (uzunluk) / 3 (LED modül) / 5 (kutu harf şeridi)
 ```
 
 Ayrıntılı kullanım, ayarların anlamı ve hesap yöntemleri:
@@ -66,6 +71,37 @@ Gerekli güç = toplam güç × (1 + güvenlik payı)
 Güç kaynağı = yukarı_yuvarla(gerekli güç / kaynak kapasitesi)
 ```
 
+## Kutu harf şeridi
+
+Harf konturunu seçip `ac2fKutuHarfSerit` çalıştırın; sağ tarafa her kontur
+için düz bir şerit çizilir:
+
+```
+mavi = eğri derzi      pembe = köşe derzi      kırmızı = rulo kesim yeri
+```
+
+**Açınım boyu** nötr eksenden hesaplanır. Basit kapalı bir eğride toplam
+dönüş 2π olduğundan (Steiner), açınım `P ∓ 2π·g` olur — `g`, nötr eksenin
+vektörden malzemeye doğru ötelenmesidir. Delik (counter) konturlarında
+işaret ters çevrilir.
+
+**Derz aralığı** her segment için ayrı ayrı, üç sınırın en küçüğüdür:
+
+```
+s₁ = R × (derz ağzı / derz derinliği) × esneklik oranı    ← derz kapanma sınırı
+s₂ = √(8 × R × yüzey toleransı)                            ← düzlük (sehim) sınırı
+s₃ = en çok derz aralığı                                   ← tavan
+```
+
+Sonuç `en az derz aralığı`na kırpılır. Köşelerde dönüş açısı tek derzin
+karşılayabileceğinden büyükse birden çok derz açılır.
+
+**Esneklik oranı** kalibrasyon içindir: ilk işten sonra gerçek sonucunuza
+göre büyütüp küçültün. Malzeme ön ayarları (alüminyum/galvaniz/kalın/paslanmaz)
+ölçülmüş değer değil, başlangıç noktasıdır.
+
+Ayrıntı ve sınırlar: **[docs/kullanim.md](docs/kullanim.md)**
+
 ## Geliştirme
 
 ```bash
@@ -84,4 +120,4 @@ Kaynak dosyalar depoda **UTF-8 + LF**, VBE'ye aktarılan kopyalar
 
 ## Sürüm
 
-1.0.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.1.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

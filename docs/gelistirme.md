@@ -76,15 +76,23 @@ python3 tools/lint.py
 - VBA küresel ad alanında çakışan yordam adı var mı
 - Tanımsız `ac2f*` sembolü çağrılıyor mu
 
+Denetleyici satır devamlarını (` _`) birleştirerek çok satırlı `If ... Then`
+bloklarını doğru sayar, ve yorum ayıklaması dize farkındadır — `"3'lü"`
+içindeki kesme işareti yorum başlatmaz.
+
+> Satır devamı **boşluk + alt çizgi**dir. Yalnız `_` ile biten bir
+> tanımlayıcı (`CAPTION_`) devam işareti değildir; bu ayrım gözetilmezse
+> denetleyici sağlam dosyalarda yanlış alarm verir.
+
 VBA derleyicisinin yerini **tutmaz**. Asıl doğrulama CorelDRAW'da
 `Debug > Compile ac2fPack` ile yapılır.
 
 ## Mimari
 
 ```
-ac2fMenu ────┐
-             ├──> ac2fLength ─────┐
-             └──> ac2fLedModule ──┴──> ac2fCore
+ac2fMenu ────┬──> ac2fLength ─────┐
+             ├──> ac2fLedModule ──┤
+             └──> ac2fBoxLetter ──┴──> ac2fCore
 ```
 
 `ac2fCore` hiçbir üst modüle bağlı değildir; kullanıcı arayüzü içermez
@@ -119,6 +127,86 @@ adet, toplam uzunluktan değil **her kontur için ayrı** hesaplanır.
 
 Diziler 64/256 kapasiteyle başlar ve dolunca ikiye katlanır.
 
+## Kutu harf geometri modeli (`ac2fBoxLetter`)
+
+Bu modülün tasarımını belirleyen kısıt: **CorelDRAW'dan bezier kontrol
+noktalarını güvenilir biçimde okuyamıyoruz.** `Segment.GetPointPositionAt`
+gibi çağrıların sürümden sürüme varlığı belirsiz, ve bu depoda VBA
+derlenip test edilemiyor. Bu yüzden model yalnızca v1.0.0'da zaten
+kullanılan sağlam yüzeye dayanır:
+
+```
+SubPath.Length / .Closed / .Segments / .Nodes
+Segment.Length / .StartNode / .EndNode  ->  .PositionX / .PositionY
+```
+
+### Her segment dairesel yay kabul edilir
+
+Kiriş `c` ve yay `L` bilindiğinde dönüş açısı `t`, şu bağıntıdan çözülür:
+
+```
+c / L = 2·sin(t/2) / t
+```
+
+Sağ taraf `(0, 2π)` aralığında kesin azalandır, bu yüzden ikiye bölme ile
+60 adımda çözülür (`ac2fBLTheta`). Yarıçap `R = L / t`.
+
+Yan fayda: **düzlük geometriden anlaşılır** (`c ≈ L`), `cdrLineSegment`
+sabitine bağımlılık yok.
+
+### Açınım: Steiner
+
+Basit kapalı bir eğride toplam dönüş 2π'dir. Nötr eksen `g` kadar
+ötelenince açınım `P ∓ 2π·g` olur. Segment segment yürütülür:
+
+```
+açınım_segment = L − g·m·θ̂        m = +1 dış kontur, −1 delik
+açınım_köşe    =   − g·m·α̂        θ̂, α̂ = konturun kendi yönüne göre
+                                    normalleştirilmiş dönüşler
+```
+
+`Σθ̂ + Σα̂ = 2π` olduğundan toplam tam çıkar.
+
+### Dönüş işareti ve neden önemsiz olduğu
+
+Segmentin hangi yöne büküldüğü, kiriş yönlerinin komşu düğümlerdeki
+dönüşünden kestirilir. Bu bir **kestirimdir** ve derin loblu konturlarda
+bazı segmentlerde yanılabilir. Ölçüldü:
+
+| Ölçüt | Sonuç |
+|---|---|
+| Dairesel yayda yarıçap | tam |
+| Kübik bezier yayda yarıçap | %0,05 hata |
+| Toplam açınım boyu | **tam** — işaret hatalarından bağımsız |
+| Ara derz konumu | en kötü **0,06 mm** (3 mm kalınlık, patolojik kontur) |
+
+Toplam boyun işaretten bağımsız olmasının nedeni: köşe terimleri segment
+terimlerini birebir dengeler, çünkü ikisi de aynı teğetlerden türer.
+
+> **Aynı nedenle `m_Tau` bir doğrulama aracı DEĞİLDİR.** Kiriş yönü
+> dizisinin toplam dönüşü basit kapalı bir çokgende yapısal olarak 2π'dir,
+> yani `m_Tau` işaretler yanlışken de ±360° çıkar. Yalnız yön (saat yönü
+> mü değil mi) bilgisi için kullanılır.
+
+Tek gerçek sınır: **bir segment içinde dönüm noktası** (S kıvrımı). Model
+onu tek yönlü yay sanar ve o segmentte derzi seyreltir. Kullanıcıya çözümü
+belgelendi (düğüm ekleyip segmenti bölmek).
+
+### Derz aralığı
+
+```
+s = min( R·(ağız/derinlik)·esneklik ,  √(8·R·tolerans) ,  s_max )
+s = max( s , s_min )
+```
+
+İkinci terim sehim (sagitta) bağıntısıdır: `h ≈ s²/(8R)`.
+
+### Çizim savunması
+
+Geometri hesabı ile çizim biçimlendirmesi ayrılmıştır: renk, kalınlık ve
+yazı boyutu `On Error Resume Next` altında en iyi çaba olarak uygulanır.
+Bir biçimlendirme çağrısı desteklenmiyorsa şerit yine doğru çizilir.
+
 ## Yeni bir araç eklemek
 
 1. `src/ac2fYeniArac.bas` oluşturun, ilk satır:
@@ -140,5 +228,7 @@ Diziler 64/256 kapasiteyle başlar ve dolunca ikiye katlanır.
   nedeni, `.frm` dosyalarının yanlarında ikili bir `.frx` gerektirmesi ve
   bu ikilinin metin bir depoda güvenle üretilip sürümlenememesidir. Arayüz
   eklenecekse form VBE içinde çizilip `.frm` + `.frx` birlikte eklenmelidir.
-- **Yerleşim çizimi yok.** Paket adedi hesaplar, modülleri sayfaya
+- **LED yerleşim çizimi yok.** Paket adedi hesaplar, modülleri sayfaya
   yerleştirmez.
+- **Kutu harf şeridi tek parça çizilir.** Rulo boyu aşılıyorsa kesim
+  yerleri işaretlenir, parçalar ayrı çizilmez.

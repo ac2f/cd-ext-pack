@@ -9,8 +9,11 @@
   2  -  Uzunluk ölçümü + sayfaya etiket
   3  -  3'lü LED modül hesabı
   4  -  3'lü LED modül hesabı (aralığı sorarak)
-  5  -  Ayarlar
-  6  -  Hakkında
+  5  -  Kutu harf şeridi (hesapla ve çiz)
+  6  -  Kutu harf raporu (çizim yok)
+  7  -  Ayarlar - LED modül
+  8  -  Ayarlar - Kutu harf
+  9  -  Hakkında
 ```
 
 Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
@@ -142,7 +145,112 @@ olmak üzere iki çizgiyle çizilmiş kapalı bir şerit ise (içi boş kontur �
 
 ---
 
-## 4. Ayarlar
+## 4. Kutu harf şeridi
+
+Harf konturlarını seçin ve `ac2fKutuHarfSerit` çalıştırın. Çizimin sağ
+tarafına, her kapalı kontur için bir düz şerit çizilir.
+
+```
+SONUÇ
+   Şerit sayısı        : 3
+   Toplam açınım       : 1.842,66 mm   |   184,27 cm   |   1,843 m
+   Toplam derz         : 96 adet  (8 köşe)
+   En küçük yarıçap    : 12,40 mm
+   Rulo ihtiyacı       : ~1 parça x 3.000 mm (20 mm ek payı)
+
+ŞERİTLER
+   1. Curve 1 #1
+      açınım 1.204,18 mm (ham 1.211,22)  derz 58  min R 18,7
+   2. Curve 1 #2 [delik]
+      açınım  638,48 mm (ham  631,44)  derz 38  min R 12,4
+```
+
+Çizimdeki renkler:
+
+| Renk | Anlamı |
+|---|---|
+| Siyah | Şerit dış hattı (kesim) |
+| Mavi | Eğri derzi |
+| Pembe | Köşe derzi |
+| Kırmızı | Rulo boyu aşıldığında kesim/ek yeri |
+
+`ac2fKutuHarfRapor` aynı hesabı yapar ama hiçbir şey çizmez — ayar denemek
+için hızlıdır.
+
+> Şerit yalnızca **kapalı** konturlardan çıkarılır. Açık yollar atlanır.
+
+### Açınım boyu nereden geliyor
+
+Sac büküldüğünde uzunluğu koruyan çizgi nötr eksendir; malzemenin dış yüzü
+uzar, iç yüzü kısalır. Vektörünüz şeridin hangi yüzünü temsil ediyorsa,
+nötr eksen ondan `g` kadar ötededir:
+
+| Referans yüzey | g |
+|---|---|
+| Vektör = şeridin dış yüzü *(varsayılan)* | `(1 − K) × kalınlık` |
+| Vektör = şeridin iç yüzü | `−K × kalınlık` |
+| Vektör = nötr eksen | `0` |
+
+Basit kapalı bir eğride toplam dönüş her zaman 2π olduğu için açınım boyu
+
+```
+açınım = kontur boyu − 2π × g        (dış kontur)
+açınım = kontur boyu + 2π × g        (delik / counter)
+```
+
+Delik konturları otomatik bulunur (sınırlayıcı kutusu bir başkasının içinde
+kalan alt yol deliktir) ve raporda `[delik]` diye işaretlenir.
+
+**Büyüklük hissi:** 1 mm alüminyumda düzeltme ≈ 3,5 mm; 3 mm'de ≈ 10,6 mm.
+Kontur boyundan bağımsızdır — yalnız kalınlığa bağlıdır.
+
+### Derz aralığı nereden geliyor
+
+Her segment için üç sınırın en küçüğü alınır:
+
+| Sınır | Formül | Neyi engeller |
+|---|---|---|
+| Derz kapanması | `R × (derz ağzı / derz derinliği) × esneklik` | Derz kapanmadan malzemenin sıkışması |
+| Yüzey düzlüğü | `√(8 × R × yüzey toleransı)` | Derzler arası düz yüzün göze çarpması |
+| Tavan | `en çok derz aralığı` | Çok seyrek derz |
+
+Sonuç `en az derz aralığı`na kırpılır. Köşelerde (dönüş > köşe eşiği) dönüş
+açısı tek derzin karşılayabileceğinden büyükse birden çok derz açılır.
+
+`R` her segmentin yarıçapıdır; düz segmentlere derz açılmaz.
+
+### Esneklik oranını kalibre etmek
+
+Ön ayarlar (alüminyum, galvaniz, kalın alüminyum, paslanmaz) **ölçülmüş
+değer değildir** — başlangıç noktasıdır. Doğru yol:
+
+1. Bir harf için şeridi çıkarın ve gerçekten bükün.
+2. Derzler kapanmıyor, malzeme sıkışıyorsa → esneklik oranını **küçültün**
+   (daha sık derz).
+3. Gereğinden fazla derz varsa, kontur zaten rahat dönüyorsa → **büyütün**.
+4. Yüzeyde köşeli izler görünüyorsa esnekliğe dokunmayın, **yüzey
+   toleransını** küçültün.
+
+Bulduğunuz değer o malzeme + kalınlık için kalıcıdır.
+
+### Bu modülün sınırları
+
+- **Segmentler dairesel yay kabul edilir.** Gerçek bezier yaylarda yarıçap
+  hatası %0,05 mertebesindedir — ihmal edilebilir. Ancak tek bir segment
+  içinde dönüm noktası varsa (S kıvrımı) model onu tek yönlü yay sanar ve o
+  segmentte derzi seyrek koyar. Böyle bir yerde düğüm ekleyip segmenti
+  ikiye bölmek sorunu çözer.
+- **Toplam açınım boyu her koşulda kesindir**; yukarıdaki durum yalnız ara
+  derz konumlarını etkiler (ölçülen en kötü sapma 0,06 mm).
+- **Şerit tek parça çizilir.** Rulo boyu aşılıyorsa kesim yerleri kırmızı
+  işaretlenir; parçalar ayrı ayrı çizilmez.
+- **Derz kesiti çizilmez** — konumu çizilir. V ağzının açısı ve derinliği
+  makinenizin/bıçağınızın işidir.
+- Çok yoğun işlerde şerit başına 5.000, iş başına 200 şerit sınırı vardır.
+
+---
+
+## 5. Ayarlar
 
 `ac2fAyarlar` ayarları sırayla sorar. Herhangi bir adımda **İptal** derseniz
 o adıma kadar girdikleriniz kaydedilmiş olur, kalanı değişmez.
@@ -157,6 +265,27 @@ o adıma kadar girdikleriniz kaydedilmiş olur, kalanı değişmez.
 | Kontur başına en az modül | 1 | Kısa parçaların boş kalmaması için |
 | Hesap yöntemi | 1 | `1` = çevre, `2` = orta hat |
 | Düzeltme katsayısı | 1 | Sonucu ölçekler |
+
+### Kutu harf ayarları (`ac2fKutuHarfAyarlar`)
+
+Önce bir malzeme ön ayarı sorulur, sonra temel değerler. Gelişmiş ayarlar
+ayrıca istenir.
+
+| Ayar | Varsayılan | Anlamı |
+|---|---|---|
+| Malzeme kalınlığı | 1 mm | Sacın kalınlığı |
+| Şerit yüksekliği | 80 mm | Harfin derinliği |
+| Esneklik oranı | 1 | Büyük = daha az derz |
+| Referans yüzey | 1 | Vektör hangi yüz: 1 dış, 2 iç, 3 nötr |
+| K faktörü | 0,44 | Nötr eksenin kalınlık içindeki konumu |
+| Derz derinlik oranı | 0,7 | Derz derinliği / kalınlık |
+| Derz ağzı en çok | 1,2 mm | Kapandığında iz bırakmayan en geniş ağız |
+| Yüzey toleransı | 0,15 mm | Derzler arası düz yüzün eğriden sapması |
+| Derz aralığı | 3 - 60 mm | Alt ve üst sınır |
+| Köşe eşiği | 5° | Üstündeki dönüş köşe sayılır |
+| Rulo boyu | 3000 mm | 0 = bölme yapma |
+| Ek payı | 20 mm | Parça eklerinde bindirme |
+| Şeritler arası boşluk | 10 mm | Çizim yerleşimi |
 
 Ayarlar Windows kayıt defterinde tutulur:
 
