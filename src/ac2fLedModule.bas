@@ -41,6 +41,7 @@ End Type
 '---------------------------------------------------------------------
 Public Sub ac2fLedModuleCount()
 Attribute ac2fLedModuleCount.VB_Description = "ac2f pack: Calculate the 3-LED module count"
+    ac2fClearOverrides
     ac2fLedRun ac2fGetNum(AC2F_K_SPACING, AC2F_DEF_SPACING)
 End Sub
 
@@ -53,6 +54,7 @@ Attribute ac2fLedQuickCount.VB_Description = "ac2f pack: Calculate the LED modul
     Dim answer As String
     Dim spacing As Double
 
+    ac2fClearOverrides
     stored = ac2fGetNum(AC2F_K_SPACING, AC2F_DEF_SPACING)
 
     answer = InputBox("Module spacing (mm):", ac2fTitle(CAPTION_), ac2fNumStr(stored))

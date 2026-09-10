@@ -106,7 +106,8 @@ VBA derleyicisinin yerini **tutmaz**. Asıl doğrulama CorelDRAW'da
 ```
 ac2fMenu ────┬──> ac2fLength ─────┐
              ├──> ac2fLedModule ──┤
-             └──> ac2fBoxLetter ──┴──> ac2fCore
+             ├──> ac2fBoxLetter ──┼──> ac2fCore
+             └──> ac2fSettings ───┘
 ```
 
 `ac2fCore` hiçbir üst modüle bağlı değildir; kullanıcı arayüzü içermez
@@ -221,6 +222,76 @@ Geometri hesabı ile çizim biçimlendirmesi ayrılmıştır: renk, kalınlık v
 yazı boyutu `On Error Resume Next` altında en iyi çaba olarak uygulanır.
 Bir biçimlendirme çağrısı desteklenmiyorsa şerit yine doğru çizilir.
 
+## Ayar tablosu ve profiller (`ac2fSettings`)
+
+Her ayar **tek bir tabloda** (`ac2fBuildTable`) durur: anahtar, grup,
+etiket, birim, tür, varsayılan, alt/üst sınır ve yardım metni. Ayar
+sayfası, profil kaydı ve geçici değer ayrıştırıcısı hep bu tabloyu okur.
+
+**Yeni ayar eklemek = tabloya bir satır eklemek.** Başka hiçbir yere
+dokunulmaz; sayfada, profillerde ve `?N` yardımında kendiliğinden çıkar.
+
+### Tek sayfa ve InputBox sınırı
+
+VBA'da `InputBox` istem metni **yaklaşık 1024 karakterle** sınırlıdır.
+Sayfa bu yüzden dar biçimlendirilir (etiket 18, değer 6 karakter) ve
+kısa açıklamalar sayfaya değil `?N` altına konur. 22 ayarla sayfa
+**866 karakter** tutuyor; yeni ayar eklerken bu payı gözetin:
+
+```bash
+# sayfa uzunlugunu kabaca olcmek icin
+python3 - <<'EOF'
+rows = 22 ; print(2 + 22*32 + 160)   # ~ satir sayisi x satir genisligi
+EOF
+```
+
+### Geçici değer katmanı
+
+`ac2fCore` içinde küçük bir örtme katmanı vardır:
+
+```
+ac2fSetOverride key, value      ' yalnız bellekte
+ac2fGetOverride key, v          ' var mı?
+ac2fClearOverrides
+```
+
+`ac2fGetNum` **önce** örtmeye bakar. Tüm modüller ayarları o fonksiyondan
+okuduğu için, geçici bir değer hiçbir modüle ayrıca haber vermeden
+geçerli olur. "Profili kullan ama bu seferlik bir değeri değiştir"
+özelliği budur.
+
+Örtmeler bir çalıştırmaya aittir: profille çalıştıran makro sonunda
+temizler, profilsiz makrolar da başında temizler ki önceki çalıştırmadan
+sızıntı olmasın.
+
+### Profil biçimi
+
+Bir profil, kayıt defterinde tek bir dizedir:
+
+```
+ac2fPack\Profiles\<ad> = "ModulAraligiMM=100|KHKalinlikMM=2|..."
+```
+
+22 ayar için ~570 karakter. Yüklerken tanınmayan anahtarlar sessizce
+atlanır, böylece bir ayar paketten çıkarılsa bile eski profiller
+yüklenmeye devam eder.
+
+### Neden UserForm yok
+
+Fare üzerine gelince çıkan ipucu (`ControlTipText`) bir UserForm ister.
+VBE bir formu `.frm` + **ikili `.frx`** çifti olarak dışa aktarır; `.frm`
+içindeki `OleObjectBlob` satırı `.frx`'e işaret eder ve tüm denetim
+yerleşimi o ikilinin içindedir.
+
+O ikiliyi metin tabanlı bir depoda elle üretmek MS-OFORMS biçimini
+bayt düzeyinde doğru kurmayı gerektirir ve burada derlenip
+sınanamaz — bozuk bir `.frx` içe aktarmada çöker. Bu yüzden arayüz
+`MsgBox`/`InputBox` üzerine kuruludur ve açıklamalar `?N` ile tam metin
+olarak verilir.
+
+Form eklenecekse VBE içinde çizilip `.frm` + `.frx` **birlikte**
+depoya konmalıdır.
+
 ## Yeni bir araç eklemek
 
 1. `src/ac2fYeniArac.bas` oluşturun, ilk satır:
@@ -240,10 +311,7 @@ Bir biçimlendirme çağrısı desteklenmiyorsa şerit yine doğru çizilir.
   bir kısıttır; kodlama sorunlarını tamamen ortadan kaldırır.
 - **Windows'a özgü.** `GetSetting`/`SaveSetting` kayıt defterini kullanır.
   macOS CorelDRAW'da ayarlar kalıcı olmaz; hesaplar yine çalışır.
-- **UserForm yok.** Diyaloglar `MsgBox`/`InputBox` ile kurulmuştur. Bunun
-  nedeni, `.frm` dosyalarının yanlarında ikili bir `.frx` gerektirmesi ve
-  bu ikilinin metin bir depoda güvenle üretilip sürümlenememesidir. Arayüz
-  eklenecekse form VBE içinde çizilip `.frm` + `.frx` birlikte eklenmelidir.
+- **UserForm yok**, dolayısıyla fare ipucu da yok. Gerekçesi yukarıda.
 - **LED yerleşim çizimi yok.** Paket adedi hesaplar, modülleri sayfaya
   yerleştirmez.
 - **Kutu harf şeridi tek parça çizilir.** Rulo boyu aşılıyorsa kesim

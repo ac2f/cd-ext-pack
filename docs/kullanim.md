@@ -12,10 +12,10 @@
   2  -  Length measurement + label on page
   3  -  3-LED module count
   4  -  3-LED module count (ask for spacing)
-  5  -  Box letter strip (calculate and draw)
-  6  -  Box letter report (no drawing)
-  7  -  Settings - LED module
-  8  -  Settings - Box letter
+  5  -  Box letter strip
+  6  -  Box letter strip (pick profile, tweak, draw)
+  7  -  Box letter report (no drawing)
+  8  -  Settings and profiles
   9  -  About
 ```
 
@@ -253,56 +253,168 @@ Bulduğunuz değer o malzeme + kalınlık için kalıcıdır.
 
 ---
 
-## 5. Ayarlar
+## 5. Ayarlar — tek sayfa
 
-`ac2fLedSettings` ayarları sırayla sorar. Herhangi bir adımda **İptal** derseniz
-o adıma kadar girdikleriniz kaydedilmiş olur, kalanı değişmez.
-
-| Ayar | Varsayılan | Anlamı |
-|---|---|---|
-| Modül aralığı | 100 mm | İki modül arası mesafe |
-| Modül başına LED | 3 | 3'lü modüller için 3 |
-| Modül gücü | 0,72 W | Tek modülün çektiği güç |
-| Güç kaynağı kapasitesi | 60 W | `0` girilirse kaynak adedi hesaplanmaz |
-| Güvenlik payı | %20 | Kaynak seçiminde eklenen pay |
-| Kontur başına en az modül | 1 | Kısa parçaların boş kalmaması için |
-| Hesap yöntemi | 1 | `1` = çevre, `2` = orta hat |
-| Düzeltme katsayısı | 1 | Sonucu ölçekler |
-
-### Kutu harf ayarları (`ac2fBoxLetterSettings`)
-
-Önce bir malzeme ön ayarı sorulur, sonra temel değerler. Gelişmiş ayarlar
-ayrıca istenir.
-
-| Ayar | Varsayılan | Anlamı |
-|---|---|---|
-| Malzeme kalınlığı | 1 mm | Sacın kalınlığı |
-| Şerit yüksekliği | 80 mm | Harfin derinliği |
-| Esneklik oranı | 1 | Büyük = daha az derz |
-| Referans yüzey | 1 | Vektör hangi yüz: 1 dış, 2 iç, 3 nötr |
-| K faktörü | 0,44 | Nötr eksenin kalınlık içindeki konumu |
-| Derz derinlik oranı | 0,7 | Derz derinliği / kalınlık |
-| Derz ağzı en çok | 1,2 mm | Kapandığında iz bırakmayan en geniş ağız |
-| Yüzey toleransı | 0,15 mm | Derzler arası düz yüzün eğriden sapması |
-| Derz aralığı | 3 - 60 mm | Alt ve üst sınır |
-| Köşe eşiği | 5° | Üstündeki dönüş köşe sayılır |
-| Rulo boyu | 3000 mm | 0 = bölme yapma |
-| Ek payı | 20 mm | Parça eklerinde bindirme |
-| Şeritler arası boşluk | 10 mm | Çizim yerleşimi |
-
-Ayarlar Windows kayıt defterinde tutulur:
+Ana menüden `8` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
 
 ```
-HKCU\Software\VB and VBA Program Settings\ac2fPack\Ayarlar
+SETTINGS  (profile: Aluminium 2mm)
+
+-- LED MODULE --
+ 1 Module spacing     100.00 mm
+ 2 LEDs per module         3
+ 3 Module power         0.72 W
+ 4 Power supply           60 W
+ 5 Safety margin          20 %
+ 6 Min per outline         1
+ 7 Count method            1
+ 8 Correction factor    1.00
+-- BOX LETTER --
+ 9 Thickness            2.00 mm
+10 Strip height           80 mm
+11 Flexibility          0.80
+12 Reference face          1
+13 K factor             0.42
+14 Groove depth ratio   0.75
+15 Max groove mouth     1.20 mm
+16 Surface tolerance    0.15 mm
+17 Min groove spacing    3.0 mm
+18 Max groove spacing   60.0 mm
+19 Corner threshold     5.00 deg
+20 Coil length          3000 mm
+21 Joint allowance        20 mm
+22 Strip gap              10 mm
+
+N=value   change        ?N   explain
+P         profiles      R    reset
+Enter     close
 ```
 
-Kullanıcıya özeldir, CorelDRAW güncellemelerinden ve paket güncellemelerinden
-etkilenmez. `ac2fResetAllSettings` hepsini varsayılana döndürür.
+### Komutlar
 
-### Sayı girişi
+| Yazın | Ne olur |
+|---|---|
+| `11=0.8` | 11 numaralı ayarı 0,8 yapar |
+| `11=0.8 16=0.1` | Birden çok ayarı tek seferde değiştirir |
+| `11=0.8; 16=0.1` | Noktalı virgül de olur |
+| `?11` | 11 numaralı ayarın **ayrıntılı açıklaması** |
+| `Flexibility=0.9` | Numara yerine ayar adı |
+| `?Flexibility` | Ada göre açıklama |
+| `P` | Profil menüsü |
+| `R` | Tüm ayarları varsayılana döndür (profiller korunur) |
+| Boş + Enter | Kapat |
 
-Hem `12,5` hem `12.5` kabul edilir. **Binlik ayırıcı kullanmayın** — `1.250`
-bin iki yüz elli değil, bir virgül iki yüz elli olarak okunur.
+Hem `0.8` hem `0,8` kabul edilir. Değerler ayarın alt/üst sınırına
+kırpılır, tam sayı olması gereken ayarlar yuvarlanır.
+
+### `?N` — ayrıntılı açıklama
+
+Her ayarın uzun bir açıklaması vardır: ne işe yaradığı, hangi hesabı
+etkilediği, büyütünce/küçültünce ne olduğu ve tipik değerler. Örnek:
+
+```
+16.  Surface tolerance  (mm)
+----------------------------------------------
+
+How far the flat between two grooves may sit off
+the true curve.
+
+Grooving turns a curve into a chain of short
+straight facets. The gap at the middle of a facet
+is about s squared / (8 x R), so demanding a
+smaller gap forces the grooves closer together.
+
+This is the setting that controls how round the
+finished letter looks. Lower it when you can see
+flats on the curves; 0.1 mm or less for close
+viewing, 0.3 mm is fine for signs read from
+across a street.
+
+----------------------------------------------
+Now      : 0,15 mm
+Default  : 0.15 mm
+Range    : 0.01 and up
+```
+
+> **Fare üzerine gelince çıkan ipucu (tooltip) yok.** Bunun için UserForm
+> gerekiyor; `.frm` yanında ikili bir `.frx` ister ve o ikili bu depoda
+> güvenle üretilemiyor. Açıklamalar bunun yerine `?N` ile tam metin
+> olarak verilir.
+
+---
+
+## 6. Profiller
+
+Ayar sayfasında `P`, ya da doğrudan `ac2fProfiles`.
+
+Bir profil, **22 ayarın tamamının** bir ad altında saklanmasıdır. Farklı
+malzeme ve kalınlıklarla çalışıyorsanız her biri için bir profil tutun.
+
+```
+PROFILES
+
+   1mm galvaniz
+   2mm alu kutu harf   <- loaded
+   3mm alu vitrin
+
+S name    save the current settings under that name
+L name    load a profile
+D name    delete a profile
+M         apply a material preset
+Enter     back
+```
+
+| Yazın | Ne olur |
+|---|---|
+| `S 3mm alu` | Şu anki ayarları bu adla kaydeder |
+| `S` | Adı ayrıca sorar |
+| `L 3mm alu` | Profili yükler |
+| `L` | Profil listesinden seçtirir |
+| `D 3mm alu` | Profili siler |
+| `M` | Malzeme ön ayarı uygular (esneklik, derz derinliği, K) |
+
+Profiller kayıt defterinde saklanır:
+
+```
+HKCU\Software\VB and VBA Program Settings\ac2fPack\Profiles
+```
+
+> Profil adı serbesttir; `L` veya `S` ile başlayan adlar (`Letters3mm`
+> gibi) sorun çıkarmaz — komut sayılması için harften sonra boşluk
+> gerekir.
+
+Bir ayar ileride paketten çıkarılırsa eski profiller yine yüklenir;
+tanınmayan anahtarlar sessizce atlanır.
+
+---
+
+## 7. Profille çalıştırma ve geçici değişiklik
+
+Ana menü `6` (`ac2fBoxLetterStripProfile`). Üç adım:
+
+1. **Profil seç** — `L 2mm alu`, ya da boş Enter ile mevcut ayarlarla devam.
+2. **Bu seferliğine değiştir** — ayar sayfası açılır, `9=2.5` gibi
+   yazarsınız. Değiştirilen satırlar `*` ile işaretlenir.
+3. **Enter** — şerit çizilir.
+
+```
+RUN SETTINGS - changes apply to this run only
+
+-- BOX LETTER --
+ 9 Thickness            2.50 mm *
+11 Flexibility          0.80
+...
+
+N=value   change        ?N   explain
+Enter     run
+* = changed for this run only
+```
+
+Geçici değerler **kayıtlı ayarlarınıza yazılmaz** ve çizim biter bitmez
+silinir. Aynı profille tek bir kalınlığı deneyip görmek için budur.
+
+Kalıcı olmasını istiyorsanız ayar sayfasından (`8`) değiştirin, sonra
+`P` → `S <ad>` ile profile kaydedin.
 
 ---
 

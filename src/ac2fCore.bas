@@ -14,9 +14,10 @@ Option Explicit
 ' Package identity
 '---------------------------------------------------------------------
 Public Const AC2F_NAME    As String = "ac2f pack"
-Public Const AC2F_VERSION As String = "1.2.0"
+Public Const AC2F_VERSION As String = "1.3.0"
 Public Const AC2F_REG_APP As String = "ac2fPack"
 Public Const AC2F_REG_SEC As String = "Ayarlar"
+Public Const AC2F_REG_PROF As String = "Profiles"
 
 '---------------------------------------------------------------------
 ' Defaults (editable through ac2fLedSettings)
@@ -75,6 +76,19 @@ End Type
 ' Number of temporary duplicates created during a measurement.
 Private m_TempShapes As Long
 
+'---------------------------------------------------------------------
+' Temporary overrides.
+'
+' A run can override individual settings in memory without writing them
+' to the registry, which is what "use a profile but change one value
+' just this once" needs. Every read goes through ac2fGetNum, so an
+' override is honoured by all modules. Overrides are cleared at the
+' start of each run that does not explicitly set them.
+'---------------------------------------------------------------------
+Private m_ovrN As Long
+Private m_ovrKey() As String
+Private m_ovrVal() As Double
+
 '=====================================================================
 ' SETTINGS  (Windows registry: VB and VBA Program Settings)
 '=====================================================================
@@ -94,14 +108,69 @@ End Sub
 
 ' Numbers are always stored with a dot decimal separator so that the
 ' stored value does not depend on the machine's locale.
+'
+' A temporary override, when present, wins over the stored value.
 Public Function ac2fGetNum(ByVal key As String, ByVal defValue As Double) As Double
     Dim s As String
+    Dim v As Double
+
+    If ac2fGetOverride(key, v) Then
+        ac2fGetNum = v
+        Exit Function
+    End If
+
     s = ac2fGetStr(key, "")
     If Len(s) = 0 Then
         ac2fGetNum = defValue
     Else
         ac2fGetNum = Val(s)
     End If
+End Function
+
+'---------------------------------------------------------------------
+' Temporary override layer
+'---------------------------------------------------------------------
+
+Public Sub ac2fSetOverride(ByVal key As String, ByVal value As Double)
+    Dim i As Long
+
+    For i = 0 To m_ovrN - 1
+        If StrComp(m_ovrKey(i), key, vbTextCompare) = 0 Then
+            m_ovrVal(i) = value
+            Exit Sub
+        End If
+    Next i
+
+    If m_ovrN = 0 Then
+        ReDim m_ovrKey(0 To 15)
+        ReDim m_ovrVal(0 To 15)
+    ElseIf m_ovrN > UBound(m_ovrKey) Then
+        ReDim Preserve m_ovrKey(0 To (UBound(m_ovrKey) + 1) * 2 - 1)
+        ReDim Preserve m_ovrVal(0 To UBound(m_ovrKey))
+    End If
+
+    m_ovrKey(m_ovrN) = key
+    m_ovrVal(m_ovrN) = value
+    m_ovrN = m_ovrN + 1
+End Sub
+
+Public Function ac2fGetOverride(ByVal key As String, ByRef value As Double) As Boolean
+    Dim i As Long
+    For i = 0 To m_ovrN - 1
+        If StrComp(m_ovrKey(i), key, vbTextCompare) = 0 Then
+            value = m_ovrVal(i)
+            ac2fGetOverride = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+Public Sub ac2fClearOverrides()
+    m_ovrN = 0
+End Sub
+
+Public Function ac2fOverrideCount() As Long
+    ac2fOverrideCount = m_ovrN
 End Function
 
 Public Sub ac2fSetNum(ByVal key As String, ByVal value As Double)
@@ -181,6 +250,24 @@ Public Function ac2fFmtLength(ByVal mm As Double) As String
     ac2fFmtLength = ac2fFmt(mm) & " mm   |   " & _
                     ac2fFmt(mm / 10#) & " cm   |   " & _
                     ac2fFmt(mm / 1000#, 3) & " m"
+End Function
+
+' Pads or clips text to a fixed width, for the settings sheet.
+Public Function ac2fPad(ByVal s As String, ByVal w As Long) As String
+    If Len(s) >= w Then
+        ac2fPad = Left$(s, w)
+    Else
+        ac2fPad = s & Space$(w - Len(s))
+    End If
+End Function
+
+' Right aligns text in a fixed width.
+Public Function ac2fRPad(ByVal s As String, ByVal w As Long) As String
+    If Len(s) >= w Then
+        ac2fRPad = Left$(s, w)
+    Else
+        ac2fRPad = Space$(w - Len(s)) & s
+    End If
 End Function
 
 Public Function ac2fTitle(ByVal caption As String) As String

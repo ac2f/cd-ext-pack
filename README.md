@@ -12,7 +12,8 @@ harf yan bordürünün açınımını çıkarıp kesime hazır derzli şeritler 
 | `ac2fLength` | **Uzunluk ölçümü** — toplam kontur uzunluğu |
 | `ac2fLedModule` | **3'lü LED modül hesabı** — modül, LED, güç, güç kaynağı adedi |
 | `ac2fBoxLetter` | **Kutu harf şeridi** — bordür açınımı ve derz yerleşimi |
-| `ac2fMenu` | Ana menü, ayarlar, hakkında |
+| `ac2fSettings` | **Ayar sayfası ve profiller** — tüm ayarlar tek yerde |
+| `ac2fMenu` | Ana menü, hakkında |
 
 ## Makrolar
 
@@ -27,9 +28,10 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fLedModuleCount` | Kayıtlı ayarlarla 3'lü LED modül adedini hesaplar |
 | `ac2fLedQuickCount` | Modül aralığını sorarak tek seferlik hesaplar |
 | `ac2fBoxLetterStrip` | Kutu harf bordürünün açınımını hesaplar ve derzli şeridi çizer |
+| `ac2fBoxLetterStripProfile` | Profil seçip, istenen değeri o seferliğine değiştirip çizer |
 | `ac2fBoxLetterReport` | Aynı hesabı yapar, çizim yapmaz |
-| `ac2fBoxLetterSettings` | Malzeme ve derz ayarları |
-| `ac2fLedSettings` | LED modül ayarlarını düzenler |
+| `ac2fSettings` | **Tüm ayarlar ve profiller — tek sayfa** |
+| `ac2fProfiles` | Doğrudan profil yönetimi |
 | `ac2fResetAllSettings` | Ayarları varsayılana döndürür |
 | `ac2fAbout` | Sürüm ve içerik bilgisi |
 
@@ -71,6 +73,58 @@ Toplam güç  = modül × modül gücü
 Gerekli güç = toplam güç × (1 + güvenlik payı)
 Güç kaynağı = yukarı_yuvarla(gerekli güç / kaynak kapasitesi)
 ```
+
+## Ayarlar ve profiller
+
+**Tüm ayarlar tek sayfada.** Ana menüden `8` ile açılır; 22 ayarın hepsi
+numaralı olarak listelenir:
+
+```
+SETTINGS  (profile: Aluminium 2mm)
+
+-- LED MODULE --
+ 1 Module spacing     100.00 mm
+ ...
+-- BOX LETTER --
+ 9 Thickness            2.00 mm
+11 Flexibility          0.80
+...
+
+N=value   change        ?N   explain
+P         profiles      R    reset
+Enter     close
+```
+
+| Yazın | Ne olur |
+|---|---|
+| `11=0.8` | 11 numaralı ayarı 0,8 yapar |
+| `11=0.8 16=0.1` | Birden çok ayarı tek seferde değiştirir |
+| `?11` | 11 numaralı ayarın **ayrıntılı açıklamasını** gösterir |
+| `Flexibility=0.9` | Numara yerine ad da kullanılabilir |
+| `P` | Profil menüsü |
+| `R` | Varsayılanlara dön |
+
+Her ayarın `?N` ile açılan uzun bir açıklaması vardır: ne işe yaradığı,
+neyi etkilediği, büyütünce/küçültünce ne olduğu ve tipik değerler.
+
+### Profiller
+
+`P` ile açılır. Bir profil, 22 ayarın tamamının bir ad altında
+saklanmasıdır.
+
+| Yazın | Ne olur |
+|---|---|
+| `S 3mm alu` | Şu anki ayarları bu adla kaydeder |
+| `L 3mm alu` | Profili yükler |
+| `D 3mm alu` | Profili siler |
+| `M` | Malzeme ön ayarı uygular |
+
+### Profille çalıştırma + geçici değişiklik
+
+Ana menü `6` (`ac2fBoxLetterStripProfile`): profili seçersiniz, sonra
+istediğiniz değeri **yalnız o çalıştırma için** değiştirirsiniz. Geçici
+değiştirilen satırlar `*` ile işaretlenir ve kayıtlı ayarlarınıza
+yazılmaz.
 
 ## Kutu harf şeridi
 
@@ -123,4 +177,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.2.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.3.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

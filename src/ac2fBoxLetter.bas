@@ -9,9 +9,12 @@ Attribute VB_Name = "ac2fBoxLetter"
 '  groove positions and draws flat strips ready to cut and groove.
 '
 '  Macros:
-'    ac2fBoxLetterStrip    - calculates and draws the strips
-'    ac2fBoxLetterReport   - calculates only, draws nothing
-'    ac2fBoxLetterSettings - material and groove settings
+'    ac2fBoxLetterStrip        - calculates and draws the strips
+'    ac2fBoxLetterStripProfile - pick a profile, tweak one value, then draw
+'    ac2fBoxLetterReport       - calculates only, draws nothing
+'
+'  Settings live in one sheet shared by the whole package; see
+'  ac2fSettings.
 '
 '  GEOMETRY MODEL
 '  Every segment is treated as a circular arc. The turn angle is solved
@@ -108,12 +111,23 @@ End Type
 
 Public Sub ac2fBoxLetterStrip()
 Attribute ac2fBoxLetterStrip.VB_Description = "ac2f pack: Develop the box letter return and draw the grooved strip"
+    ac2fClearOverrides
     ac2fBLRun True
 End Sub
 
 Public Sub ac2fBoxLetterReport()
 Attribute ac2fBoxLetterReport.VB_Description = "ac2f pack: Box letter strip report (draws nothing)"
+    ac2fClearOverrides
     ac2fBLRun False
+End Sub
+
+' Choose a profile, optionally change any value for this run only, then
+' draw. Nothing typed here is written back to the stored settings.
+Public Sub ac2fBoxLetterStripProfile()
+Attribute ac2fBoxLetterStripProfile.VB_Description = "ac2f pack: Draw the strip using a profile, with one-off changes"
+    If Not ac2fPrepareRun() Then Exit Sub
+    ac2fBLRun True
+    ac2fClearOverrides
 End Sub
 
 '=====================================================================
@@ -794,147 +808,4 @@ Public Function ac2fBLRefName(ByVal r As Long) As String
         Case 3:    ac2fBLRefName = "Vector = neutral axis"
         Case Else: ac2fBLRefName = "Vector = outer face of the strip"
     End Select
-End Function
-
-'=====================================================================
-' SETTINGS
-'=====================================================================
-
-Public Sub ac2fBoxLetterSettings()
-Attribute ac2fBoxLetterSettings.VB_Description = "ac2f pack: Box letter material and groove settings"
-    Const C As String = "Settings - Box Letter"
-    Dim answer As String
-    Dim v As Double
-    Dim n As Long
-
-    ' 1) Material preset
-    answer = InputBox( _
-        "Choose a material preset:" & vbCrLf & vbCrLf & _
-        "  0  -  Set manually (leave unchanged)" & vbCrLf & _
-        "  1  -  Aluminium, thin (0.5-1.5 mm)" & vbCrLf & _
-        "  2  -  Galvanised, thin (0.5-1.2 mm)" & vbCrLf & _
-        "  3  -  Aluminium, thick (2-4 mm)" & vbCrLf & _
-        "  4  -  Stainless steel" & vbCrLf & vbCrLf & _
-        "Presets are starting points, not measured values." & vbCrLf & _
-        "Calibrate the flexibility ratio on your own first job.", _
-        ac2fTitle(C), "0")
-    If StrPtr(answer) = 0 Then Exit Sub
-    ac2fBLPreset CLng(ac2fParseNum(answer, 0))
-
-    If Not ac2fBLAsk("Material thickness (mm)", C, AC2F_K_BL_THICK, _
-                     AC2F_DEF_BL_THICK, 0.01, v) Then Exit Sub
-    If Not ac2fBLAsk("Strip height (mm)" & vbCrLf & "The depth of the letter.", C, _
-                     AC2F_K_BL_HEIGHT, AC2F_DEF_BL_HEIGHT, 1#, v) Then Exit Sub
-    If Not ac2fBLAsk("Flexibility ratio" & vbCrLf & _
-                     "Higher = fewer grooves. Calibrate on your own work.", C, _
-                     AC2F_K_BL_FLEX, AC2F_DEF_BL_FLEX, 0.05, v) Then Exit Sub
-    If Not ac2fBLAskLng("Reference face" & vbCrLf & _
-                     "1 = Vector is the outer face of the strip" & vbCrLf & _
-                     "2 = Vector is the inner face of the strip" & vbCrLf & _
-                     "3 = Vector is the neutral axis", C, _
-                     AC2F_K_BL_REF, AC2F_DEF_BL_REF, 1, 3, n) Then Exit Sub
-
-    If MsgBox("Edit the advanced settings as well?" & vbCrLf & _
-              "(K factor, groove mouth, tolerance, spacing limits, coil length)", _
-              vbQuestion + vbYesNo, ac2fTitle(C)) = vbYes Then
-
-        If Not ac2fBLAsk("K factor (neutral axis position, 0-1)", C, _
-                         AC2F_K_BL_KFAC, AC2F_DEF_BL_KFAC, 0#, v) Then GoTo Done
-        If Not ac2fBLAsk("Groove depth / thickness ratio (0-0.95)", C, _
-                         AC2F_K_BL_DEPTH, AC2F_DEF_BL_DEPTH, 0.05, v) Then GoTo Done
-        If Not ac2fBLAsk("Maximum groove mouth (mm)" & vbCrLf & _
-                         "The widest mouth that leaves no mark once closed.", C, _
-                         AC2F_K_BL_MOUTH, AC2F_DEF_BL_MOUTH, 0.05, v) Then GoTo Done
-        If Not ac2fBLAsk("Surface tolerance (mm)" & vbCrLf & _
-                         "How far the flat between grooves may sit off the curve.", C, _
-                         AC2F_K_BL_TOL, AC2F_DEF_BL_TOL, 0.01, v) Then GoTo Done
-        If Not ac2fBLAsk("Minimum groove spacing (mm)", C, _
-                         AC2F_K_BL_SMIN, AC2F_DEF_BL_SMIN, 0.5, v) Then GoTo Done
-        If Not ac2fBLAsk("Maximum groove spacing (mm)", C, _
-                         AC2F_K_BL_SMAX, AC2F_DEF_BL_SMAX, 1#, v) Then GoTo Done
-        If Not ac2fBLAsk("Corner threshold (degrees)" & vbCrLf & _
-                         "A turn above this counts as a corner groove.", C, _
-                         AC2F_K_BL_CORNER, AC2F_DEF_BL_CORNER, 0.1, v) Then GoTo Done
-        If Not ac2fBLAsk("Coil length (mm)" & vbCrLf & "0 = do not split.", C, _
-                         AC2F_K_BL_COIL, AC2F_DEF_BL_COIL, 0#, v) Then GoTo Done
-        If Not ac2fBLAsk("Joint allowance (mm)", C, _
-                         AC2F_K_BL_JOINT, AC2F_DEF_BL_JOINT, 0#, v) Then GoTo Done
-        If Not ac2fBLAsk("Gap between drawn strips (mm)", C, _
-                         AC2F_K_BL_GAP, AC2F_DEF_BL_GAP, 0#, v) Then GoTo Done
-    End If
-
-Done:
-    ac2fInfo "Box letter settings saved." & vbCrLf & vbCrLf & ac2fBLSettingsSummary(), C
-End Sub
-
-' Presets: starting values for flexibility and groove depth.
-' These are calibration starting points, not measured shop data.
-Private Sub ac2fBLPreset(ByVal p As Long)
-    Select Case p
-        Case 1      ' aluminium, thin
-            ac2fSetNum AC2F_K_BL_FLEX, 1.2
-            ac2fSetNum AC2F_K_BL_DEPTH, 0.7
-            ac2fSetNum AC2F_K_BL_KFAC, 0.44
-        Case 2      ' galvanised, thin
-            ac2fSetNum AC2F_K_BL_FLEX, 1#
-            ac2fSetNum AC2F_K_BL_DEPTH, 0.65
-            ac2fSetNum AC2F_K_BL_KFAC, 0.44
-        Case 3      ' aluminium, thick
-            ac2fSetNum AC2F_K_BL_FLEX, 0.8
-            ac2fSetNum AC2F_K_BL_DEPTH, 0.75
-            ac2fSetNum AC2F_K_BL_KFAC, 0.42
-        Case 4      ' stainless steel
-            ac2fSetNum AC2F_K_BL_FLEX, 0.7
-            ac2fSetNum AC2F_K_BL_DEPTH, 0.6
-            ac2fSetNum AC2F_K_BL_KFAC, 0.45
-    End Select
-End Sub
-
-Public Function ac2fBLSettingsSummary() As String
-    Dim s As String
-    s = "   Thickness           : " & ac2fFmt(ac2fGetNum(AC2F_K_BL_THICK, AC2F_DEF_BL_THICK)) & " mm" & vbCrLf
-    s = s & "   Strip height        : " & ac2fFmt(ac2fGetNum(AC2F_K_BL_HEIGHT, AC2F_DEF_BL_HEIGHT), 0) & " mm" & vbCrLf
-    s = s & "   Flexibility ratio   : " & ac2fFmt(ac2fGetNum(AC2F_K_BL_FLEX, AC2F_DEF_BL_FLEX)) & vbCrLf
-    s = s & "   Reference face      : " & ac2fBLRefName(ac2fGetLng(AC2F_K_BL_REF, AC2F_DEF_BL_REF)) & vbCrLf
-    s = s & "   K factor            : " & ac2fFmt(ac2fGetNum(AC2F_K_BL_KFAC, AC2F_DEF_BL_KFAC)) & vbCrLf
-    s = s & "   Groove depth ratio  : " & ac2fFmt(ac2fGetNum(AC2F_K_BL_DEPTH, AC2F_DEF_BL_DEPTH)) & vbCrLf
-    s = s & "   Max groove mouth    : " & ac2fFmt(ac2fGetNum(AC2F_K_BL_MOUTH, AC2F_DEF_BL_MOUTH)) & " mm" & vbCrLf
-    s = s & "   Surface tolerance   : " & ac2fFmt(ac2fGetNum(AC2F_K_BL_TOL, AC2F_DEF_BL_TOL)) & " mm" & vbCrLf
-    s = s & "   Groove spacing      : " & ac2fFmt(ac2fGetNum(AC2F_K_BL_SMIN, AC2F_DEF_BL_SMIN), 1) & _
-            " - " & ac2fFmt(ac2fGetNum(AC2F_K_BL_SMAX, AC2F_DEF_BL_SMAX), 1) & " mm" & vbCrLf
-    s = s & "   Coil / joint        : " & ac2fFmt(ac2fGetNum(AC2F_K_BL_COIL, AC2F_DEF_BL_COIL), 0) & _
-            " / " & ac2fFmt(ac2fGetNum(AC2F_K_BL_JOINT, AC2F_DEF_BL_JOINT), 0) & " mm" & vbCrLf
-    ac2fBLSettingsSummary = s
-End Function
-
-Private Function ac2fBLAsk(ByVal question As String, ByVal caption As String, _
-                           ByVal key As String, ByVal defValue As Double, _
-                           ByVal minVal As Double, ByRef result As Double) As Boolean
-    Dim current As Double, answer As String, v As Double
-    current = ac2fGetNum(key, defValue)
-    answer = InputBox(question & vbCrLf & vbCrLf & "(Default: " & ac2fNumStr(defValue) & ")", _
-                      ac2fTitle(caption), ac2fNumStr(current))
-    If StrPtr(answer) = 0 Then Exit Function
-    v = ac2fParseNum(answer, current)
-    If v < minVal Then v = minVal
-    ac2fSetNum key, v
-    result = v
-    ac2fBLAsk = True
-End Function
-
-Private Function ac2fBLAskLng(ByVal question As String, ByVal caption As String, _
-                              ByVal key As String, ByVal defValue As Long, _
-                              ByVal minVal As Long, ByVal maxVal As Long, _
-                              ByRef result As Long) As Boolean
-    Dim current As Long, answer As String, v As Long
-    current = ac2fGetLng(key, defValue)
-    answer = InputBox(question & vbCrLf & vbCrLf & "(Default: " & ac2fNumStr(CDbl(defValue)) & ")", _
-                      ac2fTitle(caption), ac2fNumStr(CDbl(current)))
-    If StrPtr(answer) = 0 Then Exit Function
-    v = CLng(ac2fParseNum(answer, CDbl(current)))
-    If v < minVal Then v = minVal
-    If v > maxVal Then v = maxVal
-    ac2fSetLng key, v
-    result = v
-    ac2fBLAskLng = True
 End Function

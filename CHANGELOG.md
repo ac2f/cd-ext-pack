@@ -2,6 +2,58 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.3.0] - 2026-09-10
+
+### Eklendi
+
+- **`ac2fSettings`** — paketin tüm ayarları artık **tek sayfada**
+  (`ac2fSettings`, ana menü 8). 22 ayar numaralı listelenir; `N=value`
+  ile değiştirilir, `?N` ile ayrıntılı açıklaması okunur. Birden çok
+  ayar tek satırda değiştirilebilir (`11=0.8 16=0.1`), numara yerine
+  ayar adı da kullanılabilir.
+- **Ayrıntılı açıklamalar.** Her ayar için ne işe yaradığını, neyi
+  etkilediğini, büyütüp küçültünce ne olacağını ve tipik değerleri
+  anlatan uzun metin. `?N` ile açılır.
+- **Profiller** — 22 ayarın tamamı bir ad altında kaydedilir, yüklenir,
+  silinir (`P` komutu ya da `ac2fProfiles`). Profil, kayıt defterinde tek
+  bir `key=value|...` dizesi olarak saklanır (22 ayar için ~570 karakter).
+- **`ac2fBoxLetterStripProfile`** — profili seçip, istenen değeri
+  **yalnız o çalıştırma için** değiştirip şeridi çizer. Geçici değerler
+  kayıtlı ayarlara yazılmaz, sayfada `*` ile işaretlenir.
+- **Geçici değer katmanı** (`ac2fCore`) — `ac2fSetOverride` /
+  `ac2fClearOverrides`. Her okuma `ac2fGetNum` üzerinden gittiği için
+  geçici değer tüm modüllerce görülür.
+- Malzeme ön ayarları profil menüsüne taşındı (`M`).
+
+### Değişti
+
+- **`ac2fLedSettings` ve `ac2fBoxLetterSettings` kaldırıldı.** Yerlerini
+  tek `ac2fSettings` sayfası aldı; sıralı soru zinciri yok.
+- Ana menü yeniden düzenlendi: 6 profille çizim, 7 rapor, 8 ayarlar.
+- `ac2fAbout` artık tüm ayarları ve etkin profili tek listede gösterir.
+
+### Bilinen sınır
+
+**Fare üzerine gelince açıklama (tooltip) yok.** Bunun için UserForm
+gerekir; `.frm` dosyası yanında ikili bir `.frx` ister ve bu ikili metin
+tabanlı bir depoda güvenle üretilip doğrulanamaz — bozuk bir `.frx` içe
+aktarmada çöker. Açıklamalar bunun yerine `?N` ile, tam metin olarak
+verilir.
+
+### Doğrulama
+
+| Ölçüt | Sonuç |
+|---|---|
+| Ayar sayfası uzunluğu | 866 karakter (VBA InputBox sınırı ~1024) |
+| Profil dizesi | 22 ayar için ~570 karakter |
+| Geometri/hesap yordamları | kontrol akışı değişmedi |
+| ASCII dışı karakter | yok |
+
+Düzeltilen üç kullanılabilirlik hatası: profil seçicide boş girişte
+sonsuz özyineleme; `L`/`S` ile **başlayan** profil adlarının komut
+sanılıp kırpılması (`Letters3mm` → `etters3mm`); profil adı sorulurken
+İptal ile boş adın ayırt edilmemesi.
+
 ## [1.2.0] - 2026-09-10
 
 ### Kırıcı değişiklik
