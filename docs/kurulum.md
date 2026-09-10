@@ -81,14 +81,49 @@ Aynı yerden `Kısayol Tuşları` sekmesiyle klavye kısayolu da atayabilirsiniz
 
 ## Güncelleme
 
-Yeni sürüm geldiğinde:
+**Projeyi baştan oluşturmayın.** Var olan `ac2fPack` projesine yalnızca
+değişen dosyalar aktarılır.
 
 1. `tools\build.ps1` çalıştırın.
-2. VBE'de eski modülleri sağ tıklayıp `Remove ac2f...` (dışa aktarma
-   sorusuna **No**) ile silin.
-3. Yeni `.bas` dosyalarını içe aktarın, derleyip kaydedin.
+2. **Yeni** modülleri doğrudan içe aktarın (`File > Import File`).
+3. **Değişmiş** modüller için önce eskisini silin, sonra yenisini aktarın
+   (aşağıdaki uyarıya bakın).
+4. `Debug > Compile ac2fPack`, sonra `File > Save ac2fPack`.
+
+Dokunulmayan modülleri olduğu gibi bırakın.
 
 Ayarlarınız kayıt defterinde tutulduğu için güncellemede korunur.
+
+### Önemli: içe aktarma üzerine yazmaz
+
+VBE aynı adlı bir modülü **değiştirmez**, yanına ikinci bir kopya ekler:
+`ac2fMenu` dururken `ac2fMenu.bas` aktarılırsa `ac2fMenu1` oluşur. İki
+modülde de aynı `Public Sub` adları bulunduğu için derleme şu hatayı verir:
+
+```
+Ambiguous name detected: ac2fPack
+```
+
+Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
+
+> Proje ağacında modüle sağ tıkla → `Remove ac2fMenu` →
+> "Do you want to export...?" sorusuna **No**
+
+Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
+yeniden aktarın.
+
+### Sürüm 1.0.0'dan 1.1.0'a
+
+Değişen yalnızca iki dosyadır:
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fBoxLetter.bas` | **Yeni** — doğrudan içe aktarın |
+| `ac2fMenu.bas` | **Değişti** — önce eski `ac2fMenu` modülünü silin, sonra aktarın |
+| `ac2fCore`, `ac2fLength`, `ac2fLedModule` | Değişmedi — dokunmayın |
+
+Sonra `Debug > Compile ac2fPack` ve `File > Save ac2fPack`. Ana menüde
+5-8 numaralı yeni girdiler görünür.
 
 ## Sorun giderme
 
