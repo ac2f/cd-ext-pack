@@ -3,10 +3,9 @@
     ac2f pack kaynak dosyalarini CorelDRAW VBA'ya aktarilmaya hazir hale getirir.
 
 .DESCRIPTION
-    src/*.bas dosyalari depoda UTF-8 + LF olarak tutulur. CorelDRAW'in VBA
-    editoru (VBE) "File > Import File" ile ANSI kodlu dosya bekler; Turkce
-    Windows'ta bu Windows-1254'tur. Bu betik dosyalari build/ klasorune
-    Windows-1254 + CRLF olarak kopyalar.
+    1.2.0'dan itibaren kaynak saf ASCII'dir, bu yuzden kod sayfasi donusumu
+    ZORUNLU DEGILDIR; src\*.bas dosyalari dogrudan ice aktarilabilir.
+    Bu betik yalnizca CRLF satir sonlu kopya uretmek icin kolaylik saglar.
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File tools\build.ps1

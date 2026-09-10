@@ -8,21 +8,25 @@ olmalıdır. `Alt+F11` bir pencere açmıyorsa:
 Windows *Ayarlar > Uygulamalar* → CorelDRAW → *Değiştir* → *Modify* →
 **Visual Basic for Applications** işaretle → kurulumu tamamla.
 
-## 1. Kaynağı hazırla
+## 1. Kaynağı hazırla (isteğe bağlı)
 
-`.bas` dosyaları depoda UTF-8 + LF tutulur; VBA'nın içe aktarıcısı ise ANSI
-bekler. Türkçe karakterlerin bozulmaması için önce dönüştürün:
+Sürüm 1.2.0'dan itibaren kaynak **saf ASCII**'dir — hiçbir Türkçe karakter
+içermez. Bu yüzden `src\` altındaki `.bas` dosyalarını doğrudan içe
+aktarabilirsiniz; kod sayfası dönüşümü artık gerekmiyor.
+
+Yine de satır sonlarını CRLF yapmak için betiği çalıştırabilirsiniz:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
-`build\` klasöründe dört dosya oluşur:
+`build\` klasöründe beş dosya oluşur:
 
 ```
 ac2fCore.bas
 ac2fLength.bas
 ac2fLedModule.bas
+ac2fBoxLetter.bas
 ac2fMenu.bas
 ```
 
@@ -46,7 +50,7 @@ ac2fMenu.bas
 
 ## 3. Modülleri içe aktar
 
-`ac2fPack` projesi seçiliyken, dört dosyanın **her biri** için:
+`ac2fPack` projesi seçiliyken, beş dosyanın **her biri** için:
 
 `File > Import File...` → `build\ac2*.bas` → **Open**
 
@@ -58,6 +62,7 @@ ac2fPack
     ├── ac2fCore
     ├── ac2fLength
     ├── ac2fLedModule
+    ├── ac2fBoxLetter
     └── ac2fMenu
 ```
 
@@ -112,25 +117,42 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
-### Sürüm 1.0.0'dan 1.1.0'a
+### Sürüm 1.1.0'dan 1.2.0'a — kırıcı değişiklik
 
-Değişen yalnızca iki dosyadır:
+Arayüz İngilizceye çevrildi ve **makro adları değişti**. Bu yüzden
+**beş modülün tamamı** yeniden aktarılmalıdır.
 
-| Dosya | Ne yapmalı |
+1. Beş eski modülü de silin (her birine sağ tık → `Remove ...` → **No**).
+2. `src\` (veya `build\`) altındaki beş `.bas` dosyasını aktarın.
+3. `Debug > Compile ac2fPack`, sonra `File > Save ac2fPack`.
+
+**Araç çubuğu kısayollarınız bozulur.** Makro adları değiştiği için
+eskiden atadığınız düğmeler artık bulunamayan bir makroyu gösterir;
+silip yeniden atamanız gerekir.
+
+| Eski makro adı | Yeni makro adı |
 |---|---|
-| `ac2fBoxLetter.bas` | **Yeni** — doğrudan içe aktarın |
-| `ac2fMenu.bas` | **Değişti** — önce eski `ac2fMenu` modülünü silin, sonra aktarın |
-| `ac2fCore`, `ac2fLength`, `ac2fLedModule` | Değişmedi — dokunmayın |
+| `ac2fUzunlukOlc` | `ac2fMeasureLength` |
+| `ac2fUzunlukEtiketle` | `ac2fLabelLength` |
+| `ac2fLedModulHesapla` | `ac2fLedModuleCount` |
+| `ac2fLedHizliHesap` | `ac2fLedQuickCount` |
+| `ac2fKutuHarfSerit` | `ac2fBoxLetterStrip` |
+| `ac2fKutuHarfRapor` | `ac2fBoxLetterReport` |
+| `ac2fKutuHarfAyarlar` | `ac2fBoxLetterSettings` |
+| `ac2fAyarlar` | `ac2fLedSettings` |
+| `ac2fAyarlariSifirla` | `ac2fResetAllSettings` |
+| `ac2fHakkinda` | `ac2fAbout` |
+| `ac2fPack` | `ac2fPack` *(değişmedi)* |
 
-Sonra `Debug > Compile ac2fPack` ve `File > Save ac2fPack`. Ana menüde
-5-8 numaralı yeni girdiler görünür.
+**Ayarlarınız korunur** — kayıt defteri anahtarları bilerek
+değiştirilmedi.
 
 ## Sorun giderme
 
 | Belirti | Çözüm |
 |---|---|
 | `Alt+F11` açılmıyor | VBA bileşeni kurulu değil (bkz. adım 0) |
-| Türkçe harfler bozuk görünüyor | `build\` yerine `src\` içindekiler aktarılmış; adım 1'i uygulayın |
+| Menüde eski Türkçe metinler görünüyor | Eski modüller silinmemiş; bkz. "içe aktarma üzerine yazmaz" |
 | `User-defined type not defined` | `ac2fCore` içe aktarılmamış; önce onu ekleyin |
 | Makro listede görünmüyor | Makro yalnızca **Public Sub** ve **parametresiz** ise listelenir; `Debug > Compile` ile hata olup olmadığına bakın |
 | "Makrolar devre dışı" uyarısı | `Araçlar > Makrolar > Güvenlik` → güven düzeyini düşürün |

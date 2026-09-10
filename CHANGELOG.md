@@ -2,6 +2,48 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.2.0] - 2026-09-10
+
+### Kırıcı değişiklik
+
+Arayüz tamamen İngilizceye çevrildi ve **makro adları değişti**. Araç
+çubuğuna eklediğiniz kısayollar bozulur, yeniden atanmalıdır. Beş modülün
+tamamı yeniden içe aktarılmalıdır — geçiş tablosu:
+[`docs/kurulum.md`](docs/kurulum.md#sürüm-110dan-120ya--kırıcı-değişiklik)
+
+`ac2fPack` (ana menü) adı değişmedi.
+
+**Ayarlar korunur.** Kayıt defteri anahtarlarının değerleri bilerek
+değiştirilmedi; bunlar kullanıcıya görünmeyen iç tanımlayıcılardır ve
+yeniden adlandırmak kayıtlı her ayarı sessizce sıfırlardı.
+
+### Değişti
+
+- Tüm diyalog, rapor ve ayar metinleri İngilizce. Kod yorumları da
+  İngilizceye çevrildi.
+- Kaynak artık **saf ASCII**. Windows-1254 dönüşümü zorunlu olmaktan
+  çıktı; `.bas` dosyaları her makinede doğrudan içe aktarılabilir.
+  `tools/build.{ps1,sh}` yalnız CRLF satır sonu üretir, kolaylık içindir.
+- Belgeler Türkçe kalmaya devam ediyor.
+
+### Eklendi
+
+- `tools/skeleton.py` — her yordamın kontrol akışı anahtar sözcüklerini
+  sırayla basar. Büyük çaplı yeniden adlandırma ve çeviride mantık
+  kaybını yakalamak için `diff` ile karşılaştırılır.
+
+### Doğrulama
+
+Bu sürüm beş modülün tamamının yeniden yazılmasıydı, bu yüzden çeviri
+mekanik olarak doğrulandı:
+
+| Ölçüt | Sonuç |
+|---|---|
+| Yordam sayısı | 62 → 62 |
+| Kontrol akışı iskeleti | 62 yordamın tamamı **birebir aynı** |
+| Sayısal sabitler | 395 literalin tamamı aynı |
+| ASCII dışı karakter | yok |
+
 ## [1.1.0] - 2026-09-10
 
 ### Eklendi

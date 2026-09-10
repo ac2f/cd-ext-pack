@@ -2,29 +2,29 @@ Attribute VB_Name = "ac2fLedModule"
 '=====================================================================
 '  ac2f pack  --  ac2fLedModule
 '
-'  3'lü modül LED yerleşimi için adet hesabı.
+'  Quantity calculation for 3-LED module layouts.
 '
-'  Ölçülen kontur uzunluğunu modül aralığına bölerek gereken modül
-'  sayısını, LED adedini, toplam gücü ve güç kaynağı ihtiyacını çıkarır.
+'  Divides the measured outline length by the module spacing to get the
+'  module count, LED count, total power and power supply requirement.
 '
-'  Makrolar:
-'    ac2fLedModulHesapla  - kayıtlı ayarlarla hesaplar
-'    ac2fLedHizliHesap    - modül aralığını sorup tek seferlik hesaplar
+'  Macros:
+'    ac2fLedModuleCount - calculates using the stored settings
+'    ac2fLedQuickCount  - asks for the spacing and calculates once
 '=====================================================================
 Option Explicit
 
-Private Const CAPTION_ As String = "3'lü LED Modül Hesabı"
+Private Const CAPTION_ As String = "3-LED Module Count"
 
-' Hesap yöntemleri
-Public Const AC2F_METHOD_CEVRE   As Long = 1   ' her konturun tam uzunluğu
-Public Const AC2F_METHOD_ORTAHAT As Long = 2   ' kontur uzunluğunun yarısı
+' Calculation methods
+Public Const AC2F_METHOD_PERIMETER  As Long = 1   ' full length of each outline
+Public Const AC2F_METHOD_CENTRELINE As Long = 2   ' half the outline length
 
-' Hesap sonucu
+' Calculation result
 Public Type ac2fLedResult
     Ok           As Boolean
     Message      As String
-    LengthMM     As Double   ' hesaba giren efektif uzunluk
-    RawLengthMM  As Double   ' ölçülen ham kontur uzunluğu
+    LengthMM     As Double   ' effective length used by the calculation
+    RawLengthMM  As Double   ' measured outline length
     PathCount    As Long
     ModuleCount  As Long
     LedCount     As Long
@@ -37,48 +37,47 @@ Public Type ac2fLedResult
 End Type
 
 '---------------------------------------------------------------------
-' Kayıtlı ayarlarla hesaplar.
+' Calculates using the stored settings.
 '---------------------------------------------------------------------
-Public Sub ac2fLedModulHesapla()
-Attribute ac2fLedModulHesapla.VB_Description = "ac2f pack: 3'lu LED modul adedini hesaplar"
-    ac2fLedHesapCalistir ac2fGetNum(AC2F_K_SPACING, AC2F_DEF_SPACING)
+Public Sub ac2fLedModuleCount()
+Attribute ac2fLedModuleCount.VB_Description = "ac2f pack: Calculate the 3-LED module count"
+    ac2fLedRun ac2fGetNum(AC2F_K_SPACING, AC2F_DEF_SPACING)
 End Sub
 
 '---------------------------------------------------------------------
-' Modül aralığını sorup tek seferlik hesaplar (ayarları değiştirmez).
+' Asks for the spacing and calculates once, leaving settings untouched.
 '---------------------------------------------------------------------
-Public Sub ac2fLedHizliHesap()
-Attribute ac2fLedHizliHesap.VB_Description = "ac2f pack: Modul araligini sorarak LED modul adedini hesaplar"
-    Dim varsayilan As Double
-    Dim cevap As String
-    Dim aralik As Double
+Public Sub ac2fLedQuickCount()
+Attribute ac2fLedQuickCount.VB_Description = "ac2f pack: Calculate the LED module count, asking for the spacing"
+    Dim stored As Double
+    Dim answer As String
+    Dim spacing As Double
 
-    varsayilan = ac2fGetNum(AC2F_K_SPACING, AC2F_DEF_SPACING)
+    stored = ac2fGetNum(AC2F_K_SPACING, AC2F_DEF_SPACING)
 
-    cevap = InputBox("Modül aralığı (mm):", ac2fTitle(CAPTION_), _
-                     ac2fNumStr(varsayilan))
-    If StrPtr(cevap) = 0 Then Exit Sub      ' İptal
+    answer = InputBox("Module spacing (mm):", ac2fTitle(CAPTION_), ac2fNumStr(stored))
+    If StrPtr(answer) = 0 Then Exit Sub      ' Cancel
 
-    aralik = ac2fParseNum(cevap, varsayilan)
-    If aralik <= 0 Then
-        ac2fWarn "Modül aralığı sıfırdan büyük olmalı.", CAPTION_
+    spacing = ac2fParseNum(answer, stored)
+    If spacing <= 0 Then
+        ac2fWarn "The module spacing must be greater than zero.", CAPTION_
         Exit Sub
     End If
 
-    ac2fLedHesapCalistir aralik
+    ac2fLedRun spacing
 End Sub
 
 '=====================================================================
-' İç fonksiyonlar
+' Internals
 '=====================================================================
 
-Private Sub ac2fLedHesapCalistir(ByVal aralikMM As Double)
+Private Sub ac2fLedRun(ByVal spacingMM As Double)
     Dim res As ac2fResult
     Dim led As ac2fLedResult
 
-    If aralikMM <= 0 Then
-        ac2fWarn "Modül aralığı sıfırdan büyük olmalı." & vbCrLf & _
-                 "Ayarlar menüsünden düzeltebilirsiniz.", CAPTION_
+    If spacingMM <= 0 Then
+        ac2fWarn "The module spacing must be greater than zero." & vbCrLf & _
+                 "You can correct it under Settings.", CAPTION_
         Exit Sub
     End If
 
@@ -88,86 +87,86 @@ Private Sub ac2fLedHesapCalistir(ByVal aralikMM As Double)
         Exit Sub
     End If
     If res.SubCount = 0 Then
-        ac2fWarn "Seçimde ölçülebilir bir yol bulunamadı.", CAPTION_
+        ac2fWarn "No measurable path found in the selection.", CAPTION_
         Exit Sub
     End If
 
-    led = ac2fLedHesapla(res, aralikMM)
+    led = ac2fLedCalc(res, spacingMM)
     If Not led.Ok Then
         ac2fWarn led.Message, CAPTION_
         Exit Sub
     End If
 
-    ac2fInfo ac2fLedRaporu(led), CAPTION_
+    ac2fInfo ac2fLedReport(led), CAPTION_
 End Sub
 
 '---------------------------------------------------------------------
-' Ölçüm sonucundan modül/LED/güç hesabını yapar.
+' Works out modules, LEDs and power from a measurement result.
 '---------------------------------------------------------------------
-Public Function ac2fLedHesapla(ByRef res As ac2fResult, _
-                               ByVal aralikMM As Double) As ac2fLedResult
+Public Function ac2fLedCalc(ByRef res As ac2fResult, _
+                            ByVal spacingMM As Double) As ac2fLedResult
     Dim out As ac2fLedResult
     Dim i As Long
-    Dim uzunluk As Double
-    Dim adet As Double
-    Dim toplamAdet As Double
-    Dim ledBasina As Long
-    Dim modulW As Double
+    Dim segLen As Double
+    Dim count As Double
+    Dim total As Double
+    Dim ledsPer As Long
+    Dim moduleW As Double
     Dim psuW As Double
-    Dim pay As Double
-    Dim enAz As Long
-    Dim yontem As Long
-    Dim katsayi As Double
+    Dim margin As Double
+    Dim minPer As Long
+    Dim method As Long
+    Dim factor As Double
 
-    If aralikMM <= 0 Then
-        out.Message = "Modül aralığı sıfırdan büyük olmalı."
-        ac2fLedHesapla = out
+    If spacingMM <= 0 Then
+        out.Message = "The module spacing must be greater than zero."
+        ac2fLedCalc = out
         Exit Function
     End If
 
-    ledBasina = ac2fGetLng(AC2F_K_LEDS, AC2F_DEF_LEDS)
-    modulW = ac2fGetNum(AC2F_K_MODULE_W, AC2F_DEF_MODULE_W)
+    ledsPer = ac2fGetLng(AC2F_K_LEDS, AC2F_DEF_LEDS)
+    moduleW = ac2fGetNum(AC2F_K_MODULE_W, AC2F_DEF_MODULE_W)
     psuW = ac2fGetNum(AC2F_K_PSU_W, AC2F_DEF_PSU_W)
-    pay = ac2fGetNum(AC2F_K_SAFETY, AC2F_DEF_SAFETY)
-    enAz = ac2fGetLng(AC2F_K_MINPERPATH, AC2F_DEF_MINPERPATH)
-    yontem = ac2fGetLng(AC2F_K_METHOD, AC2F_DEF_METHOD)
-    katsayi = ac2fGetNum(AC2F_K_FACTOR, AC2F_DEF_FACTOR)
+    margin = ac2fGetNum(AC2F_K_SAFETY, AC2F_DEF_SAFETY)
+    minPer = ac2fGetLng(AC2F_K_MINPERPATH, AC2F_DEF_MINPERPATH)
+    method = ac2fGetLng(AC2F_K_METHOD, AC2F_DEF_METHOD)
+    factor = ac2fGetNum(AC2F_K_FACTOR, AC2F_DEF_FACTOR)
 
-    If ledBasina < 1 Then ledBasina = AC2F_DEF_LEDS
-    If enAz < 0 Then enAz = 0
-    If katsayi <= 0 Then katsayi = 1#
-    If yontem <> AC2F_METHOD_ORTAHAT Then yontem = AC2F_METHOD_CEVRE
+    If ledsPer < 1 Then ledsPer = AC2F_DEF_LEDS
+    If minPer < 0 Then minPer = 0
+    If factor <= 0 Then factor = 1#
+    If method <> AC2F_METHOD_CENTRELINE Then method = AC2F_METHOD_PERIMETER
 
     For i = 0 To res.SubCount - 1
-        uzunluk = res.SubLenMM(i)
-        If yontem = AC2F_METHOD_ORTAHAT Then uzunluk = uzunluk / 2#
+        segLen = res.SubLenMM(i)
+        If method = AC2F_METHOD_CENTRELINE Then segLen = segLen / 2#
 
         If res.SubClosed(i) Then
-            ' Kapalı halkada modüller çevre boyunca eşit dağıtılır.
-            adet = ac2fCeil(uzunluk / aralikMM)
+            ' On a closed loop the modules are spread evenly around it.
+            count = ac2fCeil(segLen / spacingMM)
         Else
-            ' Açık yolda iki uç da modül alır.
-            adet = Int(uzunluk / aralikMM) + 1#
+            ' On an open path both ends carry a module.
+            count = Int(segLen / spacingMM) + 1#
         End If
 
-        If adet < enAz Then adet = enAz
+        If count < minPer Then count = minPer
 
-        toplamAdet = toplamAdet + adet
-        out.LengthMM = out.LengthMM + uzunluk
+        total = total + count
+        out.LengthMM = out.LengthMM + segLen
     Next i
 
-    toplamAdet = ac2fCeil(toplamAdet * katsayi)
+    total = ac2fCeil(total * factor)
 
     out.Ok = True
     out.RawLengthMM = res.TotalMM
     out.PathCount = res.SubCount
-    out.SpacingMM = aralikMM
-    out.Method = yontem
-    out.Factor = katsayi
-    out.ModuleCount = CLng(toplamAdet)
-    out.LedCount = out.ModuleCount * ledBasina
-    out.TotalWatt = out.ModuleCount * modulW
-    out.NeededWatt = out.TotalWatt * (1# + pay / 100#)
+    out.SpacingMM = spacingMM
+    out.Method = method
+    out.Factor = factor
+    out.ModuleCount = CLng(total)
+    out.LedCount = out.ModuleCount * ledsPer
+    out.TotalWatt = out.ModuleCount * moduleW
+    out.NeededWatt = out.TotalWatt * (1# + margin / 100#)
 
     If psuW > 0 Then
         out.PsuCount = CLng(ac2fCeil(out.NeededWatt / psuW))
@@ -175,57 +174,57 @@ Public Function ac2fLedHesapla(ByRef res As ac2fResult, _
         out.PsuCount = 0
     End If
 
-    ac2fLedHesapla = out
+    ac2fLedCalc = out
 End Function
 
 '---------------------------------------------------------------------
-' Hesap sonucunu okunabilir rapora çevirir.
+' Turns the calculation into a readable report.
 '---------------------------------------------------------------------
-Public Function ac2fLedRaporu(ByRef led As ac2fLedResult) As String
+Public Function ac2fLedReport(ByRef led As ac2fLedResult) As String
     Dim s As String
-    Dim ledBasina As Long
-    Dim modulW As Double
+    Dim ledsPer As Long
+    Dim moduleW As Double
     Dim psuW As Double
-    Dim pay As Double
+    Dim margin As Double
 
-    ledBasina = ac2fGetLng(AC2F_K_LEDS, AC2F_DEF_LEDS)
-    modulW = ac2fGetNum(AC2F_K_MODULE_W, AC2F_DEF_MODULE_W)
+    ledsPer = ac2fGetLng(AC2F_K_LEDS, AC2F_DEF_LEDS)
+    moduleW = ac2fGetNum(AC2F_K_MODULE_W, AC2F_DEF_MODULE_W)
     psuW = ac2fGetNum(AC2F_K_PSU_W, AC2F_DEF_PSU_W)
-    pay = ac2fGetNum(AC2F_K_SAFETY, AC2F_DEF_SAFETY)
+    margin = ac2fGetNum(AC2F_K_SAFETY, AC2F_DEF_SAFETY)
 
-    s = "SONUÇ" & vbCrLf
-    s = s & "   Modül adedi         : " & led.ModuleCount & " adet" & vbCrLf
-    s = s & "   LED adedi           : " & led.LedCount & " adet" & _
-            "  (" & ledBasina & " LED/modül)" & vbCrLf & vbCrLf
+    s = "RESULT" & vbCrLf
+    s = s & "   Modules             : " & led.ModuleCount & vbCrLf
+    s = s & "   LEDs                : " & led.LedCount & _
+            "  (" & ledsPer & " LEDs per module)" & vbCrLf & vbCrLf
 
-    s = s & "GÜÇ" & vbCrLf
-    s = s & "   Toplam güç          : " & ac2fFmt(led.TotalWatt) & " W" & vbCrLf
-    s = s & "   %" & ac2fFmt(pay, 0) & " pay ile        : " & _
+    s = s & "POWER" & vbCrLf
+    s = s & "   Total power         : " & ac2fFmt(led.TotalWatt) & " W" & vbCrLf
+    s = s & "   With " & ac2fFmt(margin, 0) & "% margin     : " & _
             ac2fFmt(led.NeededWatt) & " W" & vbCrLf
     If led.PsuCount > 0 Then
-        s = s & "   Güç kaynağı         : " & led.PsuCount & " adet x " & _
+        s = s & "   Power supplies      : " & led.PsuCount & " x " & _
                 ac2fFmt(psuW, 0) & " W" & vbCrLf
     End If
     s = s & vbCrLf
 
-    s = s & "ÖLÇÜM" & vbCrLf
-    s = s & "   Ham kontur uzunluğu : " & ac2fFmt(led.RawLengthMM) & " mm" & vbCrLf
-    s = s & "   Hesaba giren uzunluk: " & ac2fFmt(led.LengthMM) & " mm" & vbCrLf
-    s = s & "   Kontur sayısı       : " & led.PathCount & vbCrLf & vbCrLf
+    s = s & "MEASUREMENT" & vbCrLf
+    s = s & "   Raw outline length  : " & ac2fFmt(led.RawLengthMM) & " mm" & vbCrLf
+    s = s & "   Length used         : " & ac2fFmt(led.LengthMM) & " mm" & vbCrLf
+    s = s & "   Outlines            : " & led.PathCount & vbCrLf & vbCrLf
 
-    s = s & "KULLANILAN AYARLAR" & vbCrLf
-    s = s & "   Modül aralığı       : " & ac2fFmt(led.SpacingMM) & " mm" & vbCrLf
-    s = s & "   Yöntem              : " & ac2fYontemAdi(led.Method) & vbCrLf
-    s = s & "   Düzeltme katsayısı  : " & ac2fFmt(led.Factor) & vbCrLf
-    s = s & "   Modül gücü          : " & ac2fFmt(modulW) & " W" & vbCrLf
+    s = s & "SETTINGS USED" & vbCrLf
+    s = s & "   Module spacing      : " & ac2fFmt(led.SpacingMM) & " mm" & vbCrLf
+    s = s & "   Method              : " & ac2fMethodName(led.Method) & vbCrLf
+    s = s & "   Correction factor   : " & ac2fFmt(led.Factor) & vbCrLf
+    s = s & "   Module power        : " & ac2fFmt(moduleW) & " W" & vbCrLf
 
-    ac2fLedRaporu = s
+    ac2fLedReport = s
 End Function
 
-Public Function ac2fYontemAdi(ByVal yontem As Long) As String
-    If yontem = AC2F_METHOD_ORTAHAT Then
-        ac2fYontemAdi = "Orta hat tahmini (kontur/2)"
+Public Function ac2fMethodName(ByVal method As Long) As String
+    If method = AC2F_METHOD_CENTRELINE Then
+        ac2fMethodName = "Centreline estimate (outline / 2)"
     Else
-        ac2fYontemAdi = "Çevre bazlı (tam kontur)"
+        ac2fMethodName = "Perimeter based (full outline)"
     End If
 End Function

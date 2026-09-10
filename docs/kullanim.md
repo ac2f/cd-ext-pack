@@ -4,16 +4,19 @@
 
 `ac2fPack` makrosunu çalıştırın; işlem numarasını soran bir kutu açılır.
 
+> Arayüz dili İngilizcedir. Bu belgeler Türkçedir; makro adları ve ekran
+> metinleri İngilizce yazıldığı gibi verilmiştir.
+
 ```
-  1  -  Uzunluk ölçümü
-  2  -  Uzunluk ölçümü + sayfaya etiket
-  3  -  3'lü LED modül hesabı
-  4  -  3'lü LED modül hesabı (aralığı sorarak)
-  5  -  Kutu harf şeridi (hesapla ve çiz)
-  6  -  Kutu harf raporu (çizim yok)
-  7  -  Ayarlar - LED modül
-  8  -  Ayarlar - Kutu harf
-  9  -  Hakkında
+  1  -  Length measurement
+  2  -  Length measurement + label on page
+  3  -  3-LED module count
+  4  -  3-LED module count (ask for spacing)
+  5  -  Box letter strip (calculate and draw)
+  6  -  Box letter report (no drawing)
+  7  -  Settings - LED module
+  8  -  Settings - Box letter
+  9  -  About
 ```
 
 Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
@@ -22,25 +25,25 @@ Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
 
 ## 1. Uzunluk ölçümü
 
-Nesneleri seçin ve `ac2fUzunlukOlc` çalıştırın.
+Nesneleri seçin ve `ac2fMeasureLength` çalıştırın.
 
 ```
-TOPLAM UZUNLUK
+TOTAL LENGTH
    3.842,17 mm   |   384,22 cm   |   3,842 m
 
-SEÇİM ÖZETİ
-   Nesne sayısı        : 7
-   Kontur (alt yol)    : 12
-      kapalı           : 12
-      açık             : 0
+SELECTION
+   Objects             : 7
+   Outlines (sub-paths): 12
+      closed           : 12
+      open             : 0
 
-KONTUR İSTATİSTİĞİ
-   En uzun             : 812,44 mm
-   En kısa             : 96,10 mm
-   Ortalama            : 320,18 mm
+OUTLINE STATISTICS
+   Longest             : 812,44 mm
+   Shortest            : 96,10 mm
+   Average             : 320,18 mm
 
-NESNE KIRILIMI
-   1. Curve 1 - 812,44 mm (2 kontur)
+PER OBJECT
+   1. Curve 1 - 812,44 mm (2 outlines)
    ...
 ```
 
@@ -65,11 +68,11 @@ Bitmap'ler, boş metinler ve uzunluğu sıfır olan nesneler sessizce atlanır.
 
 ## 2. Sayfaya etiket
 
-`ac2fUzunlukEtiketle` aynı ölçümü yapar, ardından seçimin 8 mm altına
+`ac2fLabelLength` aynı ölçümü yapar, ardından seçimin 8 mm altına
 artistik metin olarak sonucu yazar:
 
 ```
-Toplam uzunluk: 3.842,17 mm  (3,84 m)
+Total length: 3.842,17 mm  (3,84 m)
 ```
 
 Etiket normal bir metin nesnesidir; taşıyabilir, biçimlendirebilir,
@@ -79,31 +82,31 @@ silebilirsiniz.
 
 ## 3. 3'lü LED modül hesabı
 
-Nesneleri seçin ve `ac2fLedModulHesapla` çalıştırın.
+Nesneleri seçin ve `ac2fLedModuleCount` çalıştırın.
 
 ```
-SONUÇ
-   Modül adedi         : 42 adet
-   LED adedi           : 126 adet  (3 LED/modül)
+RESULT
+   Modules             : 42
+   LEDs                : 126  (3 LEDs per module)
 
-GÜÇ
-   Toplam güç          : 30,24 W
-   %20 pay ile         : 36,29 W
-   Güç kaynağı         : 1 adet x 60 W
+POWER
+   Total power         : 30,24 W
+   With 20% margin     : 36,29 W
+   Power supplies      : 1 x 60 W
 
-ÖLÇÜM
-   Ham kontur uzunluğu : 3.842,17 mm
-   Hesaba giren uzunluk: 3.842,17 mm
-   Kontur sayısı       : 12
+MEASUREMENT
+   Raw outline length  : 3.842,17 mm
+   Length used         : 3.842,17 mm
+   Outlines            : 12
 
-KULLANILAN AYARLAR
-   Modül aralığı       : 100,00 mm
-   Yöntem              : Çevre bazlı (tam kontur)
-   Düzeltme katsayısı  : 1,00
-   Modül gücü          : 0,72 W
+SETTINGS USED
+   Module spacing      : 100,00 mm
+   Method              : Perimeter based (full outline)
+   Correction factor   : 1,00
+   Module power        : 0,72 W
 ```
 
-`ac2fLedHizliHesap` aynı işi yapar ama modül aralığını o seferlik sorar ve
+`ac2fLedQuickCount` aynı işi yapar ama modül aralığını o seferlik sorar ve
 kayıtlı ayarı değiştirmez. Farklı aralıkları hızlıca denemek için kullanışlıdır.
 
 ### Hesap nasıl yapılır
@@ -147,22 +150,22 @@ olmak üzere iki çizgiyle çizilmiş kapalı bir şerit ise (içi boş kontur �
 
 ## 4. Kutu harf şeridi
 
-Harf konturlarını seçin ve `ac2fKutuHarfSerit` çalıştırın. Çizimin sağ
+Harf konturlarını seçin ve `ac2fBoxLetterStrip` çalıştırın. Çizimin sağ
 tarafına, her kapalı kontur için bir düz şerit çizilir.
 
 ```
-SONUÇ
-   Şerit sayısı        : 3
-   Toplam açınım       : 1.842,66 mm   |   184,27 cm   |   1,843 m
-   Toplam derz         : 96 adet  (8 köşe)
-   En küçük yarıçap    : 12,40 mm
-   Rulo ihtiyacı       : ~1 parça x 3.000 mm (20 mm ek payı)
+RESULT
+   Strips              : 3
+   Total developed     : 1.842,66 mm   |   184,27 cm   |   1,843 m
+   Total grooves       : 96  (8 corner)
+   Smallest radius     : 12,40 mm
+   Coil required       : ~1 x 3.000 mm (20 mm joint)
 
-ŞERİTLER
+STRIPS
    1. Curve 1 #1
-      açınım 1.204,18 mm (ham 1.211,22)  derz 58  min R 18,7
-   2. Curve 1 #2 [delik]
-      açınım  638,48 mm (ham  631,44)  derz 38  min R 12,4
+      developed 1.204,18 mm (raw 1.211,22)  grooves 58  min R 18,7
+   2. Curve 1 #2 [hole]
+      developed  638,48 mm (raw  631,44)  grooves 38  min R 12,4
 ```
 
 Çizimdeki renkler:
@@ -170,11 +173,11 @@ SONUÇ
 | Renk | Anlamı |
 |---|---|
 | Siyah | Şerit dış hattı (kesim) |
-| Mavi | Eğri derzi |
-| Pembe | Köşe derzi |
-| Kırmızı | Rulo boyu aşıldığında kesim/ek yeri |
+| Mavi | Eğri derzi (`blue = curve groove`) |
+| Pembe | Köşe derzi (`pink = corner groove`) |
+| Kırmızı | Rulo boyu aşıldığında kesim/ek yeri (`red = cut here`) |
 
-`ac2fKutuHarfRapor` aynı hesabı yapar ama hiçbir şey çizmez — ayar denemek
+`ac2fBoxLetterReport` aynı hesabı yapar ama hiçbir şey çizmez — ayar denemek
 için hızlıdır.
 
 > Şerit yalnızca **kapalı** konturlardan çıkarılır. Açık yollar atlanır.
@@ -199,7 +202,7 @@ açınım = kontur boyu + 2π × g        (delik / counter)
 ```
 
 Delik konturları otomatik bulunur (sınırlayıcı kutusu bir başkasının içinde
-kalan alt yol deliktir) ve raporda `[delik]` diye işaretlenir.
+kalan alt yol deliktir) ve raporda `[hole]` diye işaretlenir.
 
 **Büyüklük hissi:** 1 mm alüminyumda düzeltme ≈ 3,5 mm; 3 mm'de ≈ 10,6 mm.
 Kontur boyundan bağımsızdır — yalnız kalınlığa bağlıdır.
@@ -252,7 +255,7 @@ Bulduğunuz değer o malzeme + kalınlık için kalıcıdır.
 
 ## 5. Ayarlar
 
-`ac2fAyarlar` ayarları sırayla sorar. Herhangi bir adımda **İptal** derseniz
+`ac2fLedSettings` ayarları sırayla sorar. Herhangi bir adımda **İptal** derseniz
 o adıma kadar girdikleriniz kaydedilmiş olur, kalanı değişmez.
 
 | Ayar | Varsayılan | Anlamı |
@@ -266,7 +269,7 @@ o adıma kadar girdikleriniz kaydedilmiş olur, kalanı değişmez.
 | Hesap yöntemi | 1 | `1` = çevre, `2` = orta hat |
 | Düzeltme katsayısı | 1 | Sonucu ölçekler |
 
-### Kutu harf ayarları (`ac2fKutuHarfAyarlar`)
+### Kutu harf ayarları (`ac2fBoxLetterSettings`)
 
 Önce bir malzeme ön ayarı sorulur, sonra temel değerler. Gelişmiş ayarlar
 ayrıca istenir.
@@ -294,7 +297,7 @@ HKCU\Software\VB and VBA Program Settings\ac2fPack\Ayarlar
 ```
 
 Kullanıcıya özeldir, CorelDRAW güncellemelerinden ve paket güncellemelerinden
-etkilenmez. `ac2fAyarlariSifirla` hepsini varsayılana döndürür.
+etkilenmez. `ac2fResetAllSettings` hepsini varsayılana döndürür.
 
 ### Sayı girişi
 

@@ -2,36 +2,41 @@ Attribute VB_Name = "ac2fCore"
 '=====================================================================
 '  ac2f pack  --  ac2fCore
 '
-'  Ortak sabitler, ayar yönetimi, yardımcı fonksiyonlar ve geometri
-'  ölçüm çekirdeği.
+'  Shared constants, settings storage, helper functions and the
+'  geometry measuring engine.
 '
-'  Bu modül doğrudan çalıştırılmaz; ac2fLength, ac2fLedModule ve
-'  ac2fMenu modülleri tarafından kullanılır.
+'  This module is not run directly; ac2fLength, ac2fLedModule,
+'  ac2fBoxLetter and ac2fMenu all build on it.
 '=====================================================================
 Option Explicit
 
 '---------------------------------------------------------------------
-' Paket kimliği
+' Package identity
 '---------------------------------------------------------------------
 Public Const AC2F_NAME    As String = "ac2f pack"
-Public Const AC2F_VERSION As String = "1.0.0"
+Public Const AC2F_VERSION As String = "1.2.0"
 Public Const AC2F_REG_APP As String = "ac2fPack"
 Public Const AC2F_REG_SEC As String = "Ayarlar"
 
 '---------------------------------------------------------------------
-' Varsayılan ayarlar (ac2fAyarlar ile değiştirilebilir)
+' Defaults (editable through ac2fLedSettings)
 '---------------------------------------------------------------------
-Public Const AC2F_DEF_SPACING    As Double = 100#  ' modül aralığı (mm)
-Public Const AC2F_DEF_LEDS       As Long = 3       ' modül başına LED adedi
-Public Const AC2F_DEF_MODULE_W   As Double = 0.72  ' modül gücü (W)
-Public Const AC2F_DEF_PSU_W      As Double = 60#   ' güç kaynağı kapasitesi (W)
-Public Const AC2F_DEF_SAFETY     As Double = 20#   ' güvenlik payı (%)
-Public Const AC2F_DEF_MINPERPATH As Long = 1       ' alt yol başına en az modül
-Public Const AC2F_DEF_METHOD     As Long = 1       ' 1 = çevre, 2 = orta hat tahmini
-Public Const AC2F_DEF_FACTOR     As Double = 1#    ' düzeltme katsayısı
+Public Const AC2F_DEF_SPACING    As Double = 100#  ' module spacing (mm)
+Public Const AC2F_DEF_LEDS       As Long = 3       ' LEDs per module
+Public Const AC2F_DEF_MODULE_W   As Double = 0.72  ' module power (W)
+Public Const AC2F_DEF_PSU_W      As Double = 60#   ' power supply rating (W)
+Public Const AC2F_DEF_SAFETY     As Double = 20#   ' safety margin (%)
+Public Const AC2F_DEF_MINPERPATH As Long = 1       ' minimum modules per path
+Public Const AC2F_DEF_METHOD     As Long = 1       ' 1 = perimeter, 2 = centreline
+Public Const AC2F_DEF_FACTOR     As Double = 1#    ' correction factor
 
 '---------------------------------------------------------------------
-' Ayar anahtarları
+' Registry key names.
+'
+' These are internal identifiers that never reach the user interface.
+' They are deliberately left unchanged across releases so that saved
+' settings survive an upgrade -- renaming them would silently reset
+' every configured value back to the defaults.
 '---------------------------------------------------------------------
 Public Const AC2F_K_SPACING    As String = "ModulAraligiMM"
 Public Const AC2F_K_LEDS       As String = "ModulBasinaLed"
@@ -43,17 +48,17 @@ Public Const AC2F_K_METHOD     As String = "HesapYontemi"
 Public Const AC2F_K_FACTOR     As String = "DuzeltmeKatsayisi"
 
 '---------------------------------------------------------------------
-' Veri yapıları
+' Data structures
 '---------------------------------------------------------------------
 
-' Ölçülen tek bir nesnenin özeti
+' Summary of a single measured object
 Public Type ac2fItem
     Name     As String
     LengthMM As Double
     SubPaths As Long
 End Type
 
-' Bir seçimin tüm ölçüm sonucu
+' Full measurement result for a selection
 Public Type ac2fResult
     Ok          As Boolean
     Message     As String
@@ -67,11 +72,11 @@ Public Type ac2fResult
     SubClosed() As Boolean
 End Type
 
-' Ölçüm sırasında oluşturulan geçici kopya sayısı.
+' Number of temporary duplicates created during a measurement.
 Private m_TempShapes As Long
 
 '=====================================================================
-' AYARLAR  (Windows kayıt defteri: VB and VBA Program Settings)
+' SETTINGS  (Windows registry: VB and VBA Program Settings)
 '=====================================================================
 
 Public Function ac2fGetStr(ByVal key As String, ByVal defValue As String) As String
@@ -87,7 +92,8 @@ Public Sub ac2fSetStr(ByVal key As String, ByVal value As String)
     SaveSetting AC2F_REG_APP, AC2F_REG_SEC, key, value
 End Sub
 
-' Sayılar yerelden bağımsız olsun diye her zaman nokta ondalıklı saklanır.
+' Numbers are always stored with a dot decimal separator so that the
+' stored value does not depend on the machine's locale.
 Public Function ac2fGetNum(ByVal key As String, ByVal defValue As Double) As Double
     Dim s As String
     s = ac2fGetStr(key, "")
@@ -110,18 +116,19 @@ Public Sub ac2fSetLng(ByVal key As String, ByVal value As Long)
     ac2fSetStr key, ac2fNumStr(CDbl(value))
 End Sub
 
-' Tüm ayarları fabrika değerlerine döndürür.
+' Restores every setting to its factory value.
 Public Sub ac2fResetSettings()
     On Error Resume Next
     DeleteSetting AC2F_REG_APP, AC2F_REG_SEC
 End Sub
 
 '=====================================================================
-' YARDIMCI FONKSİYONLAR
+' HELPERS
 '=====================================================================
 
-' Sayıyı yerelden bağımsız metne çevirir. Str$ baştaki sıfırı attığı için
-' ".72" yerine "0.72" üretilir; hem kayıt hem de InputBox varsayılanı için.
+' Converts a number to locale independent text. Str$ drops the leading
+' zero, so ".72" becomes "0.72" -- used both for storage and for the
+' default value shown in an InputBox.
 Public Function ac2fNumStr(ByVal v As Double) As String
     Dim s As String
     s = Trim$(Str$(v))
@@ -133,8 +140,8 @@ Public Function ac2fNumStr(ByVal v As Double) As String
     ac2fNumStr = s
 End Function
 
-' Kullanıcıdan gelen metni sayıya çevirir. Hem "12,5" hem "12.5" kabul edilir.
-' Binlik ayırıcı kullanılmamalıdır.
+' Parses text typed by the user. Both "12,5" and "12.5" are accepted.
+' Thousands separators must not be used.
 Public Function ac2fParseNum(ByVal s As String, ByVal defValue As Double) As Double
     Dim t As String, sep As String
     t = Trim$(s)
@@ -142,7 +149,7 @@ Public Function ac2fParseNum(ByVal s As String, ByVal defValue As Double) As Dou
         ac2fParseNum = defValue
         Exit Function
     End If
-    sep = Mid$(CStr(1.5), 2, 1)          ' yerel ondalık ayırıcı
+    sep = Mid$(CStr(1.5), 2, 1)          ' local decimal separator
     t = Replace$(t, ".", sep)
     t = Replace$(t, ",", sep)
     If Not IsNumeric(t) Then
@@ -152,7 +159,7 @@ Public Function ac2fParseNum(ByVal s As String, ByVal defValue As Double) As Dou
     ac2fParseNum = CDbl(t)
 End Function
 
-' Pozitif değerler için yukarı yuvarlama.
+' Rounds up. Positive values only.
 Public Function ac2fCeil(ByVal v As Double) As Double
     If v - Int(v) > 0.000001 Then
         ac2fCeil = Int(v) + 1#
@@ -169,7 +176,7 @@ Public Function ac2fFmt(ByVal v As Double, Optional ByVal dec As Long = 2) As St
     End If
 End Function
 
-' Bir uzunluğu mm / cm / m olarak tek satırda gösterir.
+' Shows a length in mm / cm / m on one line.
 Public Function ac2fFmtLength(ByVal mm As Double) As String
     ac2fFmtLength = ac2fFmt(mm) & " mm   |   " & _
                     ac2fFmt(mm / 10#) & " cm   |   " & _
@@ -189,28 +196,29 @@ Public Sub ac2fWarn(ByVal msg As String, ByVal caption As String)
 End Sub
 
 '=====================================================================
-' ÖLÇÜM ÇEKİRDEĞİ
+' MEASURING ENGINE
 '=====================================================================
 
-' Aktif seçimi ölçer. Belge ya da seçim yoksa Ok = False döner.
+' Measures the active selection. Returns Ok = False when there is no
+' document or nothing is selected.
 Public Function ac2fMeasureSelection() As ac2fResult
     Dim res As ac2fResult
     Dim sr As ShapeRange
 
     If ActiveDocument Is Nothing Then
-        res.Message = "Önce bir belge açın."
+        res.Message = "Open a document first."
         ac2fMeasureSelection = res
         Exit Function
     End If
 
     Set sr = ActiveSelectionRange
     If sr Is Nothing Then
-        res.Message = "Ölçülecek nesne seçilmedi."
+        res.Message = "No objects selected to measure."
         ac2fMeasureSelection = res
         Exit Function
     End If
     If sr.Count = 0 Then
-        res.Message = "Ölçülecek nesne seçilmedi."
+        res.Message = "No objects selected to measure."
         ac2fMeasureSelection = res
         Exit Function
     End If
@@ -218,8 +226,8 @@ Public Function ac2fMeasureSelection() As ac2fResult
     ac2fMeasureSelection = ac2fMeasureRange(sr)
 End Function
 
-' Verilen ShapeRange içindeki tüm yolların toplam uzunluğunu (mm) ölçer.
-' Gruplar ve PowerClip içerikleri özyinelemeli olarak taranır.
+' Measures the total path length (mm) of everything in a ShapeRange.
+' Groups and PowerClip contents are walked recursively.
 Public Function ac2fMeasureRange(ByVal sr As ShapeRange) As ac2fResult
     Dim res As ac2fResult
     Dim oldUnit As cdrUnit
@@ -245,7 +253,7 @@ Public Function ac2fMeasureRange(ByVal sr As ShapeRange) As ac2fResult
         unitChanged = True
     End If
 
-    ActiveDocument.BeginCommandGroup ac2fTitle("ölçüm")
+    ActiveDocument.BeginCommandGroup ac2fTitle("measure")
     groupOpen = True
 
     For i = 1 To sr.Count
@@ -261,10 +269,10 @@ Public Function ac2fMeasureRange(ByVal sr As ShapeRange) As ac2fResult
 Cleanup:
     On Error Resume Next
     If groupOpen Then ActiveDocument.EndCommandGroup
-    ' Geçici kopyalar zaten silindi; yine de belgeyi kesin olarak
-    ' ilk haline döndürmek için komut grubu geri alınır. Hiç geçici
-    ' nesne üretilmediyse kullanıcının önceki işlemini geri almamak
-    ' adına Undo çağrılmaz.
+    ' Temporary duplicates have already been deleted; undoing the command
+    ' group restores the document exactly. When no temporary object was
+    ' created the Undo is skipped, otherwise it would undo the user's own
+    ' previous action.
     If m_TempShapes > 0 Then ActiveDocument.Undo
     If unitChanged Then ActiveDocument.Unit = oldUnit
     Application.Optimization = oldOpt
@@ -275,12 +283,12 @@ Cleanup:
 
 Fail:
     res.Ok = False
-    res.Message = "Ölçüm sırasında hata oluştu: " & Err.Description
+    res.Message = "The measurement failed: " & Err.Description
     Resume Cleanup
 End Function
 
 '---------------------------------------------------------------------
-' Tek bir şekli sonuca ekler (özyinelemeli).
+' Adds one shape to the result (recursive).
 '---------------------------------------------------------------------
 Private Sub ac2fCollect(ByVal s As Shape, ByRef res As ac2fResult)
     Dim i As Long
@@ -291,14 +299,14 @@ Private Sub ac2fCollect(ByVal s As Shape, ByRef res As ac2fResult)
 
     On Error GoTo Skip
 
-    ' --- Yol taşımayan nesneler: DisplayCurve bunlarda çerçeveyi
-    '     döndürebileceği için baştan elenir. ---
+    ' --- Objects that carry no path. DisplayCurve can hand back their
+    '     frame, which would inflate the total, so they are dropped. ---
     Select Case s.Type
         Case cdrBitmapShape, cdrOLEObjectShape
             Exit Sub
     End Select
 
-    ' --- Grup: içeriğini tara ---
+    ' --- Group: walk its contents ---
     If s.Type = cdrGroupShape Then
         For i = 1 To s.Shapes.Count
             ac2fCollect s.Shapes(i), res
@@ -306,10 +314,10 @@ Private Sub ac2fCollect(ByVal s As Shape, ByRef res As ac2fResult)
         Exit Sub
     End If
 
-    ' --- PowerClip içeriği varsa onu da tara ---
+    ' --- Walk PowerClip contents as well ---
     ac2fCollectPowerClip s, res
 
-    ' --- Eğri temsilini elde et ---
+    ' --- Obtain a curve representation ---
     Set cv = Nothing
     On Error Resume Next
     Set cv = s.DisplayCurve
@@ -320,7 +328,7 @@ Private Sub ac2fCollect(ByVal s As Shape, ByRef res As ac2fResult)
         Exit Sub
     End If
 
-    ' DisplayCurve yoksa geçici kopya üzerinden eğriye çevir.
+    ' No DisplayCurve: convert a throwaway duplicate to curves instead.
     Set dup = s.Duplicate(0, 0)
     m_TempShapes = m_TempShapes + 1
 
@@ -351,7 +359,7 @@ SkipDup:
     Exit Sub
 
 Skip:
-    ' Ölçülemeyen nesne sessizce atlanır.
+    ' An object that cannot be measured is skipped silently.
 End Sub
 
 Private Sub ac2fCollectPowerClip(ByVal s As Shape, ByRef res As ac2fResult)
@@ -371,12 +379,12 @@ Private Function ac2fShapeName(ByVal s As Shape) As String
     Dim n As String
     On Error Resume Next
     n = s.Name
-    If Len(Trim$(n)) = 0 Then n = "Nesne " & CStr(s.StaticID)
+    If Len(Trim$(n)) = 0 Then n = "Object " & CStr(s.StaticID)
     ac2fShapeName = n
 End Function
 
 '---------------------------------------------------------------------
-' Bir eğrinin alt yollarını sonuca yazar.
+' Writes a curve's sub-paths into the result.
 '---------------------------------------------------------------------
 Private Sub ac2fAddCurve(ByVal cv As Curve, ByVal shapeName As String, ByRef res As ac2fResult)
     Dim i As Long

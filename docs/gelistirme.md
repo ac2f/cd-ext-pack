@@ -30,10 +30,16 @@ GMS projeleriyle çakışmayı önler.
 |---|---|---|
 | Proje (GMS) | `ac2fPack` | `ac2fPack.gms` |
 | Modül | `ac2f` + rol | `ac2fLedModule` |
-| Genel makro | `ac2f` + Türkçe eylem | `ac2fUzunlukOlc` |
+| Genel makro | `ac2f` + İngilizce eylem | `ac2fMeasureLength` |
 | Sabit | `AC2F_` | `AC2F_DEF_SPACING` |
-| Ayar anahtarı | `AC2F_K_` | `AC2F_K_SPACING` |
+| Ayar anahtarı sabiti | `AC2F_K_` | `AC2F_K_SPACING` |
 | Tip | `ac2f` + isim | `ac2fLedResult` |
+
+Kod, yorumlar ve arayüz metinleri **İngilizce**dir; bu belgeler Türkçedir.
+
+Ayar anahtarlarının **değerleri** (`"ModulAraligiMM"` gibi) bilerek
+değiştirilmedi. Bunlar kullanıcıya hiç görünmeyen iç tanımlayıcılardır;
+yeniden adlandırmak, kayıtlı her ayarı sessizce varsayılana döndürürdü.
 
 Makro Yöneticisi'nde yalnızca **parametresiz `Public Sub`** yordamları
 listelenir. Bir yordamın kullanıcıya görünmesini istemiyorsanız `Private`
@@ -41,26 +47,19 @@ yapın ya da parametre verin.
 
 ## Dosya kodlaması
 
-| Yer | Kodlama | Satır sonu |
-|---|---|---|
-| `src/*.bas` (depo) | UTF-8 | LF |
-| `build/*.bas` (içe aktarılan) | Windows-1254 | CRLF |
+Kaynak **saf ASCII**'dir. VBE'nin `File > Import File` işlevi dosyayı
+sistem ANSI kod sayfasıyla okuduğu için, ASCII dışı her karakter makineden
+makineye bozulma riski taşır. Bunu tamamen ortadan kaldırmak için arayüz
+metinleri ve yorumlar İngilizce ve ASCII tutulur.
 
-VBE'nin `File > Import File` işlevi dosyayı **sistem ANSI kod sayfasıyla**
-okur; Türkçe Windows'ta bu 1254'tür. UTF-8 dosyayı doğrudan aktarmak
-derleme hatası vermez ama diyaloglardaki Türkçe harfleri bozar.
-
-`tools/build.ps1` (Windows) ve `tools/build.sh` (POSIX) bu dönüşümü yapar.
-
-> Kodu VBE'ye **kopyala-yapıştır** ile taşırsanız dönüşüm gerekmez; pano
-> Unicode taşır. Dönüşüm yalnızca dosyadan içe aktarma içindir.
-
-Yeni metin eklerken kullandığınız karakterlerin CP1254'e çevrilebildiğini
-doğrulayın:
+Bu kuralı koruyun — yeni metin eklediğinizde doğrulayın:
 
 ```bash
-iconv -f UTF-8 -t WINDOWS-1254 src/ac2fMenu.bas > /dev/null
+LC_ALL=C grep -n '[^ -~\t]' src/*.bas    # hiçbir şey dönmemeli
 ```
+
+`tools/build.ps1` ve `tools/build.sh` yalnız CRLF satır sonu üretir;
+ASCII kaynakla artık zorunlu değildir, kolaylık içindir.
 
 ## Denetim
 
@@ -83,6 +82,21 @@ içindeki kesme işareti yorum başlatmaz.
 > Satır devamı **boşluk + alt çizgi**dir. Yalnız `_` ile biten bir
 > tanımlayıcı (`CAPTION_`) devam işareti değildir; bu ayrım gözetilmezse
 > denetleyici sağlam dosyalarda yanlış alarm verir.
+
+### Kontrol akışı karşılaştırması
+
+```bash
+python3 tools/skeleton.py src > before.txt
+# ... büyük çaplı yeniden adlandırma / çeviri ...
+python3 tools/skeleton.py src > after.txt
+diff before.txt after.txt
+```
+
+`skeleton.py` her yordamın içerdiği kontrol akışı anahtar sözcüklerini
+sırayla basar. Tanımlayıcı adı değiştirmek, dizeleri çevirmek ve yorumları
+yeniden yazmak bu diziyi **değiştirmemelidir**; değişiyorsa mantık
+düşmüş ya da çoğalmış demektir. 1.2.0 İngilizceleştirmesi bu araçla
+doğrulandı (62 yordamın tamamı birebir aynı).
 
 VBA derleyicisinin yerini **tutmaz**. Asıl doğrulama CorelDRAW'da
 `Debug > Compile ac2fPack` ile yapılır.
@@ -213,8 +227,8 @@ Bir biçimlendirme çağrısı desteklenmiyorsa şerit yine doğru çizilir.
    `Attribute VB_Name = "ac2fYeniArac"`
 2. `Option Explicit` yazın.
 3. Giriş noktasını **parametresiz `Public Sub`** yapın, hemen altına
-   `Attribute <YordamAdı>.VB_Description = "ac2f pack: ..."` ekleyin
-   (açıklama metni ASCII olmalı).
+   `Attribute <YordamAdı>.VB_Description = "ac2f pack: ..."` ekleyin.
+   Makro adı ve tüm metinler İngilizce ve ASCII olmalı.
 4. Ölçüm gerekiyorsa `ac2fMeasureSelection()` çağırın — tekrar yazmayın.
 5. `ac2fMenu.ac2fPack` içindeki `Select Case` bloğuna yeni bir numara ekleyin.
 6. `python3 tools/lint.py` çalıştırın.
@@ -222,6 +236,8 @@ Bir biçimlendirme çağrısı desteklenmiyorsa şerit yine doğru çizilir.
 
 ## Sınırlar
 
+- **Arayüz İngilizce, belgeler Türkçe.** Kaynağın ASCII kalması bilinçli
+  bir kısıttır; kodlama sorunlarını tamamen ortadan kaldırır.
 - **Windows'a özgü.** `GetSetting`/`SaveSetting` kayıt defterini kullanır.
   macOS CorelDRAW'da ayarlar kalıcı olmaz; hesaplar yine çalışır.
 - **UserForm yok.** Diyaloglar `MsgBox`/`InputBox` ile kurulmuştur. Bunun

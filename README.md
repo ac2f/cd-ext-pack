@@ -17,20 +17,21 @@ harf yan bordürünün açınımını çıkarıp kesime hazır derzli şeritler 
 ## Makrolar
 
 Makro Yöneticisi'nde `ac2fPack` projesi altında görünürler.
+Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 
 | Makro | Açıklama |
 |---|---|
 | `ac2fPack` | **Ana menü** — hepsine buradan ulaşılır |
-| `ac2fUzunlukOlc` | Seçili vektörlerin toplam kontur uzunluğunu ölçer |
-| `ac2fUzunlukEtiketle` | Aynı ölçümü yapıp sonucu sayfaya metin olarak koyar |
-| `ac2fLedModulHesapla` | Kayıtlı ayarlarla 3'lü LED modül adedini hesaplar |
-| `ac2fLedHizliHesap` | Modül aralığını sorarak tek seferlik hesaplar |
-| `ac2fKutuHarfSerit` | Kutu harf bordürünün açınımını hesaplar ve derzli şeridi çizer |
-| `ac2fKutuHarfRapor` | Aynı hesabı yapar, çizim yapmaz |
-| `ac2fKutuHarfAyarlar` | Malzeme ve derz ayarları |
-| `ac2fAyarlar` | LED modül ayarlarını düzenler |
-| `ac2fAyarlariSifirla` | Ayarları varsayılana döndürür |
-| `ac2fHakkinda` | Sürüm ve içerik bilgisi |
+| `ac2fMeasureLength` | Seçili vektörlerin toplam kontur uzunluğunu ölçer |
+| `ac2fLabelLength` | Aynı ölçümü yapıp sonucu sayfaya metin olarak koyar |
+| `ac2fLedModuleCount` | Kayıtlı ayarlarla 3'lü LED modül adedini hesaplar |
+| `ac2fLedQuickCount` | Modül aralığını sorarak tek seferlik hesaplar |
+| `ac2fBoxLetterStrip` | Kutu harf bordürünün açınımını hesaplar ve derzli şeridi çizer |
+| `ac2fBoxLetterReport` | Aynı hesabı yapar, çizim yapmaz |
+| `ac2fBoxLetterSettings` | Malzeme ve derz ayarları |
+| `ac2fLedSettings` | LED modül ayarlarını düzenler |
+| `ac2fResetAllSettings` | Ayarları varsayılana döndürür |
+| `ac2fAbout` | Sürüm ve içerik bilgisi |
 
 ## Kurulum
 
@@ -73,7 +74,7 @@ Güç kaynağı = yukarı_yuvarla(gerekli güç / kaynak kapasitesi)
 
 ## Kutu harf şeridi
 
-Harf konturunu seçip `ac2fKutuHarfSerit` çalıştırın; sağ tarafa her kontur
+Harf konturunu seçip `ac2fBoxLetterStrip` çalıştırın; sağ tarafa her kontur
 için düz bir şerit çizilir:
 
 ```
@@ -106,12 +107,14 @@ Ayrıntı ve sınırlar: **[docs/kullanim.md](docs/kullanim.md)**
 
 ```bash
 python3 tools/lint.py     # içe aktarmadan önce statik denetim
-sh tools/build.sh         # build/ altına Windows-1254 + CRLF üret
+python3 tools/skeleton.py # büyük düzenlemelerden sonra kontrol akışı karşılaştırması
+sh tools/build.sh         # build/ altına CRLF kopya üret (isteğe bağlı)
 ```
 
-Kaynak dosyalar depoda **UTF-8 + LF**, VBE'ye aktarılan kopyalar
-**Windows-1254 + CRLF** biçimindedir. Gerekçesi ve projenin nasıl ortaya
-çıktığı: **[docs/gelistirme.md](docs/gelistirme.md)**
+Kaynak **saf ASCII**'dir; hiçbir Türkçe karakter içermez. Bu yüzden
+`.bas` dosyaları her makinede kod sayfası dönüşümü olmadan doğrudan içe
+aktarılabilir. `build.sh` yalnız CRLF satır sonu üretir, artık zorunlu
+değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Gereksinimler
 
@@ -120,4 +123,4 @@ Kaynak dosyalar depoda **UTF-8 + LF**, VBE'ye aktarılan kopyalar
 
 ## Sürüm
 
-1.1.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.2.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

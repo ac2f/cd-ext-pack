@@ -1,9 +1,10 @@
 #!/usr/bin/env sh
 # ac2f pack - kaynak dosyalari CorelDRAW VBA icin hazirlar.
 #
-# src/*.bas depoda UTF-8 + LF tutulur. VBE "File > Import File" ANSI bekler;
-# Turkce Windows'ta bu Windows-1254'tur. Bu betik build/ altina
-# Windows-1254 + CRLF kopyalar.
+# 1.2.0'dan itibaren kaynak saf ASCII'dir, bu yuzden kod sayfasi donusumu
+# ZORUNLU DEGILDIR; src/*.bas dogrudan ice aktarilabilir. Bu betik yalnizca
+# CRLF satir sonlu kopya uretmek icin kolaylik saglar. AC2F_CODEPAGE ile
+# baska bir kod sayfasi istenebilir (varsayilan: ASCII uyumlu WINDOWS-1254).
 set -eu
 
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)

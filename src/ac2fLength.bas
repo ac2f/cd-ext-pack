@@ -2,22 +2,22 @@ Attribute VB_Name = "ac2fLength"
 '=====================================================================
 '  ac2f pack  --  ac2fLength
 '
-'  Vektörlerin çevresindeki (kontur) çizgilerin toplam uzunluğunu ölçer.
+'  Measures the total length of the outlines around vector objects.
 '
-'  Makrolar:
-'    ac2fUzunlukOlc       - seçimi ölçer ve raporlar
-'    ac2fUzunlukEtiketle  - seçimi ölçer ve sonucu sayfaya metin olarak koyar
+'  Macros:
+'    ac2fMeasureLength - measures the selection and reports
+'    ac2fLabelLength   - measures and drops the result on the page
 '=====================================================================
 Option Explicit
 
-Private Const CAPTION_ As String = "Uzunluk Ölçümü"
-Private Const MAX_DETAY As Long = 15
+Private Const CAPTION_ As String = "Length Measurement"
+Private Const MAX_DETAIL As Long = 15
 
 '---------------------------------------------------------------------
-' Seçili nesnelerin toplam kontur uzunluğunu ölçer ve rapor gösterir.
+' Measures the total outline length of the selected objects.
 '---------------------------------------------------------------------
-Public Sub ac2fUzunlukOlc()
-Attribute ac2fUzunlukOlc.VB_Description = "ac2f pack: Secili vektorlerin toplam kontur uzunlugunu olcer"
+Public Sub ac2fMeasureLength()
+Attribute ac2fMeasureLength.VB_Description = "ac2f pack: Measure total outline length of the selection"
     Dim res As ac2fResult
 
     res = ac2fMeasureSelection()
@@ -27,35 +27,35 @@ Attribute ac2fUzunlukOlc.VB_Description = "ac2f pack: Secili vektorlerin toplam 
     End If
 
     If res.SubCount = 0 Then
-        ac2fWarn "Seçimde ölçülebilir bir yol bulunamadı." & vbCrLf & vbCrLf & _
-                 "Bitmap, boş metin veya uzunluğu sıfır olan nesneler ölçülemez.", CAPTION_
+        ac2fWarn "No measurable path found in the selection." & vbCrLf & vbCrLf & _
+                 "Bitmaps, empty text and zero length objects cannot be measured.", CAPTION_
         Exit Sub
     End If
 
-    ac2fInfo ac2fUzunlukRaporu(res), CAPTION_
+    ac2fInfo ac2fLengthReport(res), CAPTION_
 End Sub
 
 '---------------------------------------------------------------------
-' Ölçüm sonucunu sayfaya artistik metin olarak yerleştirir.
+' Places the measurement on the page as artistic text.
 '---------------------------------------------------------------------
-Public Sub ac2fUzunlukEtiketle()
-Attribute ac2fUzunlukEtiketle.VB_Description = "ac2f pack: Olcum sonucunu sayfaya metin olarak ekler"
+Public Sub ac2fLabelLength()
+Attribute ac2fLabelLength.VB_Description = "ac2f pack: Add the measurement to the page as text"
     Dim res As ac2fResult
     Dim sr As ShapeRange
     Dim txt As String
 
     If ActiveDocument Is Nothing Then
-        ac2fWarn "Önce bir belge açın.", CAPTION_
+        ac2fWarn "Open a document first.", CAPTION_
         Exit Sub
     End If
 
     Set sr = ActiveSelectionRange
     If sr Is Nothing Then
-        ac2fWarn "Ölçülecek nesne seçilmedi.", CAPTION_
+        ac2fWarn "No objects selected to measure.", CAPTION_
         Exit Sub
     End If
     If sr.Count = 0 Then
-        ac2fWarn "Ölçülecek nesne seçilmedi.", CAPTION_
+        ac2fWarn "No objects selected to measure.", CAPTION_
         Exit Sub
     End If
 
@@ -65,72 +65,72 @@ Attribute ac2fUzunlukEtiketle.VB_Description = "ac2f pack: Olcum sonucunu sayfay
         Exit Sub
     End If
     If res.SubCount = 0 Then
-        ac2fWarn "Seçimde ölçülebilir bir yol bulunamadı.", CAPTION_
+        ac2fWarn "No measurable path found in the selection.", CAPTION_
         Exit Sub
     End If
 
-    txt = "Toplam uzunluk: " & ac2fFmt(res.TotalMM) & " mm" & _
+    txt = "Total length: " & ac2fFmt(res.TotalMM) & " mm" & _
           "  (" & ac2fFmt(res.TotalMM / 1000#, 2) & " m)"
 
-    If ac2fEtiketYerlestir(sr, txt) Then
-        ac2fInfo "Etiket sayfaya eklendi." & vbCrLf & vbCrLf & txt, CAPTION_
+    If ac2fPlaceLabel(sr, txt) Then
+        ac2fInfo "Label added to the page." & vbCrLf & vbCrLf & txt, CAPTION_
     Else
-        ac2fWarn "Etiket eklenemedi, sonuç yalnızca burada gösteriliyor." & _
+        ac2fWarn "The label could not be added, the result is shown here only." & _
                  vbCrLf & vbCrLf & txt, CAPTION_
     End If
 End Sub
 
 '=====================================================================
-' İç fonksiyonlar
+' Internals
 '=====================================================================
 
-' Ölçüm sonucundan okunabilir bir rapor metni üretir.
-Public Function ac2fUzunlukRaporu(ByRef res As ac2fResult) As String
+' Builds a readable report from a measurement result.
+Public Function ac2fLengthReport(ByRef res As ac2fResult) As String
     Dim s As String
     Dim i As Long
-    Dim enUzun As Double, enKisa As Double
+    Dim longest As Double, shortest As Double
 
-    enKisa = -1
+    shortest = -1
     For i = 0 To res.SubCount - 1
-        If res.SubLenMM(i) > enUzun Then enUzun = res.SubLenMM(i)
-        If enKisa < 0 Or res.SubLenMM(i) < enKisa Then enKisa = res.SubLenMM(i)
+        If res.SubLenMM(i) > longest Then longest = res.SubLenMM(i)
+        If shortest < 0 Or res.SubLenMM(i) < shortest Then shortest = res.SubLenMM(i)
     Next i
-    If enKisa < 0 Then enKisa = 0
+    If shortest < 0 Then shortest = 0
 
-    s = "TOPLAM UZUNLUK" & vbCrLf
+    s = "TOTAL LENGTH" & vbCrLf
     s = s & "   " & ac2fFmtLength(res.TotalMM) & vbCrLf & vbCrLf
 
-    s = s & "SEÇİM ÖZETİ" & vbCrLf
-    s = s & "   Nesne sayısı        : " & res.ShapeCount & vbCrLf
-    s = s & "   Kontur (alt yol)    : " & res.SubCount & vbCrLf
-    s = s & "      kapalı           : " & (res.SubCount - res.OpenCount) & vbCrLf
-    s = s & "      açık             : " & res.OpenCount & vbCrLf & vbCrLf
+    s = s & "SELECTION" & vbCrLf
+    s = s & "   Objects             : " & res.ShapeCount & vbCrLf
+    s = s & "   Outlines (sub-paths): " & res.SubCount & vbCrLf
+    s = s & "      closed           : " & (res.SubCount - res.OpenCount) & vbCrLf
+    s = s & "      open             : " & res.OpenCount & vbCrLf & vbCrLf
 
-    s = s & "KONTUR İSTATİSTİĞİ" & vbCrLf
-    s = s & "   En uzun             : " & ac2fFmt(enUzun) & " mm" & vbCrLf
-    s = s & "   En kısa             : " & ac2fFmt(enKisa) & " mm" & vbCrLf
-    s = s & "   Ortalama            : " & ac2fFmt(res.TotalMM / res.SubCount) & " mm" & vbCrLf
+    s = s & "OUTLINE STATISTICS" & vbCrLf
+    s = s & "   Longest             : " & ac2fFmt(longest) & " mm" & vbCrLf
+    s = s & "   Shortest            : " & ac2fFmt(shortest) & " mm" & vbCrLf
+    s = s & "   Average             : " & ac2fFmt(res.TotalMM / res.SubCount) & " mm" & vbCrLf
 
     If res.ItemCount > 0 Then
-        s = s & vbCrLf & "NESNE KIRILIMI"
-        If res.ItemCount > MAX_DETAY Then
-            s = s & " (ilk " & MAX_DETAY & " / " & res.ItemCount & ")"
+        s = s & vbCrLf & "PER OBJECT"
+        If res.ItemCount > MAX_DETAIL Then
+            s = s & " (first " & MAX_DETAIL & " of " & res.ItemCount & ")"
         End If
         s = s & vbCrLf
 
         For i = 0 To res.ItemCount - 1
-            If i >= MAX_DETAY Then Exit For
+            If i >= MAX_DETAIL Then Exit For
             s = s & "   " & (i + 1) & ". " & res.Items(i).Name & " - " & _
                     ac2fFmt(res.Items(i).LengthMM) & " mm" & _
-                    " (" & res.Items(i).SubPaths & " kontur)" & vbCrLf
+                    " (" & res.Items(i).SubPaths & " outlines)" & vbCrLf
         Next i
     End If
 
-    ac2fUzunlukRaporu = s
+    ac2fLengthReport = s
 End Function
 
-' Seçimin altına artistik metin ekler. Başarılıysa True döner.
-Private Function ac2fEtiketYerlestir(ByVal sr As ShapeRange, ByVal txt As String) As Boolean
+' Adds artistic text below the selection. Returns True on success.
+Private Function ac2fPlaceLabel(ByVal sr As ShapeRange, ByVal txt As String) As Boolean
     Dim oldUnit As cdrUnit
     Dim unitChanged As Boolean
     Dim x As Double, y As Double, w As Double, h As Double
@@ -146,14 +146,14 @@ Private Function ac2fEtiketYerlestir(ByVal sr As ShapeRange, ByVal txt As String
 
     sr.GetBoundingBox x, y, w, h
 
-    ActiveDocument.BeginCommandGroup ac2fTitle("etiket")
+    ActiveDocument.BeginCommandGroup ac2fTitle("label")
     Set t = ActiveLayer.CreateArtisticText(x, y - 8#, txt)
     On Error Resume Next
     t.Text.Story.Size = 10
     On Error GoTo Fail
     ActiveDocument.EndCommandGroup
 
-    ac2fEtiketYerlestir = True
+    ac2fPlaceLabel = True
 
 Cleanup:
     On Error Resume Next
@@ -161,7 +161,7 @@ Cleanup:
     Exit Function
 
 Fail:
-    ac2fEtiketYerlestir = False
+    ac2fPlaceLabel = False
     On Error Resume Next
     ActiveDocument.EndCommandGroup
     Resume Cleanup
