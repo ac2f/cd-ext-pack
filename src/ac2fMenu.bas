@@ -33,8 +33,9 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         "  6  -  Box letter strip (pick profile, tweak, draw)" & vbCrLf & _
         "  7  -  Box letter report (no drawing)" & vbCrLf & _
         "  8  -  ACP panel V-grooves" & vbCrLf & _
-        "  9  -  Settings and profiles" & vbCrLf & _
-        " 10  -  About" & vbCrLf
+        "  9  -  Centerline (reduce to a single line)" & vbCrLf & _
+        " 10  -  Settings and profiles" & vbCrLf & _
+        " 11  -  About" & vbCrLf
 
     choice = InputBox(m, ac2fTitle(CAPTION_), "1")
     If StrPtr(choice) = 0 Then Exit Sub          ' Cancel
@@ -50,8 +51,9 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         Case "6": ac2fBoxLetterStripProfile
         Case "7": ac2fBoxLetterReport
         Case "8": ac2fPanelGroove
-        Case "9": ac2fSettings
-        Case "10": ac2fAbout
+        Case "9": ac2fCenterline
+        Case "10": ac2fSettings
+        Case "11": ac2fAbout
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_
     End Select
@@ -80,12 +82,15 @@ Attribute ac2fAbout.VB_Description = "ac2f pack: Version and contents"
     s = s & "   - ACP panel V-grooves" & vbCrLf
     s = s & "     Draws the flat sheet and the four V-groove" & vbCrLf
     s = s & "     lines, clockwise, in cutting order." & vbCrLf & vbCrLf
+    s = s & "   - Centerline" & vbCrLf
+    s = s & "     Reduces filled artwork to a single line to" & vbCrLf
+    s = s & "     route a neon strip channel along." & vbCrLf & vbCrLf
     prof = ac2fActiveProfile()
     If Len(prof) = 0 Then prof = "<none>"
 
     s = s & "CURRENT SETTINGS  (profile: " & prof & ")" & vbCrLf
     s = s & ac2fSettingsBrief() & vbCrLf
-    s = s & "Change any of them from the main menu, option 9." & vbCrLf
+    s = s & "Change any of them from the main menu, option 10." & vbCrLf
     s = s & "There, ?N explains what setting N does."
 
     ac2fInfo s, "About"

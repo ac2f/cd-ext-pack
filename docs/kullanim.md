@@ -16,8 +16,9 @@
   6  -  Box letter strip (pick profile, tweak, draw)
   7  -  Box letter report (no drawing)
   8  -  ACP panel V-grooves
-  9  -  Settings and profiles
- 10  -  About
+  9  -  Centerline (reduce to a single line)
+ 10  -  Settings and profiles
+ 11  -  About
 ```
 
 Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
@@ -346,9 +347,90 @@ ac2f ACP panel 110x210        (dis grup)
 
 ---
 
-## 6. Ayarlar — tek sayfa
+## 6. Orta hat — tek çizgiye düşürme
 
-Ana menüden `9` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
+Pleksi üzerine 6 mm bıçakla neon LED şerit kanalı açarken, dolu
+tasarımın tam ortasından geçen tek bir çizgiye ihtiyaç duyarsınız.
+Bu araç onu üretir.
+
+Tasarımı seçin, `ac2fCenterline` çalıştırın, `J` ya da `S` yazın.
+
+### İki mod
+
+| Mod | Ne yapar | Ne zaman |
+|---|---|---|
+| `J` **birleşik** | Tüm seçim **tek bölge** sayılır. Birbirine değen ya da bindiren harfler tek sürekli çizgi olur. | El yazısı, bitişik yazılmış kelimeler |
+| `S` **ayrı ayrı** | Her nesne kendi başına düşürülür, her biri kendi grubunu alır. | Ayrık harfler, ayrı ayrı işlenecek parçalar |
+
+Doğrudan çağırmak için: `ac2fCenterlineJoined`, `ac2fCenterlineSeparate`.
+
+> Birleşik modda harflerin gerçekten **değmesi** gerekir. Aralarında
+> boşluk varsa çizgiler de ayrı çıkar — olmayan bağ uydurulmaz.
+
+### Sonuç
+
+Çizgiler **kırmızı** çizilir ve tek grupta toplanır
+(`ac2f centerline`). Her kol tek bir polyline'dır, CAM'de ALONG
+verilmeye hazır.
+
+```
+RESULT
+   Mode                : joined - one region
+   Centre lines        : 1
+   Paths               : 3
+   Total length        : 1.284,60 mm   |   128,46 cm   |   1,285 m
+   Mean stroke width   : 22,10 mm
+```
+
+**Mean stroke width** ölçülen ortalama harf kalınlığıdır (alan ÷ çizgi
+boyu). Bıçak ve şerit seçiminde işinize yarar; ayrıca budama ve uç
+uzatma bu değere göre ölçeklenir.
+
+### Ayarlar (26-30)
+
+| Ayar | Varsayılan | Ne yapar |
+|---|---|---|
+| Resolution | 1 mm | Izgara hücresi. Küçültmek doğruluğu artırır ama **süreyi hızla** büyütür |
+| Simplify tol | 0,3 mm | Düğüm azaltma toleransı |
+| Smoothing | 2 | Zikzak giderme geçişi |
+| Min branch xW | 1 | Bundan kısa dallar atılır (kalınlık katı) |
+| Extend ends | 1 | Uçları harfin kenarına kadar uzat |
+
+`?26` … `?30` ile her birinin ayrıntılı açıklaması açılır.
+
+### Doğruluk
+
+Orta hattı bilinen şekillerde ölçüldü:
+
+| Test | Sonuç | Gerçek | Hata |
+|---|---|---|---|
+| Dalgalı şerit | 470,8 mm | 471,0 mm | %0,0 |
+| T kavşağı (3 dal) | 279,3 mm | 280,0 mm | %0,2 |
+| İki ayrı harf | 161,0 mm | 160,0 mm | %0,6 |
+
+Uç konumu hatası 1,8 mm.
+
+### Bilinmesi gerekenler
+
+- **Süre çözünürlükle hızla artar.** 1 mm'de tipik bir kelime birkaç
+  saniye. 0,5 mm'ye inmek ızgarayı dörde katlar ve inceltme turunu
+  yaklaşık ikiye — dakikalara çıkabilir. Önce 1 mm ile bakın.
+- **Çok büyük işler reddedilir.** 4 milyon hücreyi aşarsa makro
+  çözünürlüğü artırmanızı söyler.
+- **Uçlar yarım kalınlık geri yenir**, bu inceltmenin doğasıdır;
+  `Extend ends` bunu telafi eder. Kapatırsanız çizgi harfin ucuna
+  varmaz ve şeridin son parçası yanmaz.
+- **Tek segment içinde dönüm noktası** (S kıvrımı) varsa kontur açma
+  modeli onu tek yönlü yay sanar; o bölgede hafif sapma olur. O noktaya
+  düğüm eklemek çözer.
+- Bitmap ve OLE nesneleri atlanır. Yazıyı önce eğriye çevirmeniz
+  gerekmez; makro gerekiyorsa geçici kopya üzerinden çevirir.
+
+---
+
+## 7. Ayarlar — tek sayfa
+
+Ana menüden `10` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
 
 ```
 SETTINGS  (profile: Aluminium 2mm)
@@ -376,11 +458,14 @@ SETTINGS  (profile: Aluminium 2mm)
 19 Corner threshold     5.00 deg
 20 Coil length          3000 mm
 21 Joint allowance        20 mm
-22 Strip gap              10 mm
+21 Joint allow      20.00 22 Strip gap       10.00
 -- ACP PANEL --
-23 Fold size            50.00 mm
-24 Fold direction           1
-25 Keep source              1
+23 Fold size       50.00 24 Fold direction    1.00
+25 Keep source      1.00
+-- CENTERLINE --
+26 Resolution       1.00 27 Simplify tol     0.30
+28 Smoothing        2.00 29 Min branch xW    1.00
+30 Extend ends      1.00
 
 N=value   change        ?N   explain
 P         profiles      R    reset
@@ -440,7 +525,7 @@ Range    : 0.01 and up
 
 ---
 
-## 7. Profiller
+## 8. Profiller
 
 Ayar sayfasında `P`, ya da doğrudan `ac2fProfiles`.
 
@@ -485,7 +570,7 @@ tanınmayan anahtarlar sessizce atlanır.
 
 ---
 
-## 8. Profille çalıştırma ve geçici değişiklik
+## 9. Profille çalıştırma ve geçici değişiklik
 
 Ana menü `6` (`ac2fBoxLetterStripProfile`). Üç adım:
 
@@ -510,7 +595,7 @@ Enter     run
 Geçici değerler **kayıtlı ayarlarınıza yazılmaz** ve çizim biter bitmez
 silinir. Aynı profille tek bir kalınlığı deneyip görmek için budur.
 
-Kalıcı olmasını istiyorsanız ayar sayfasından (`9`) değiştirin, sonra
+Kalıcı olmasını istiyorsanız ayar sayfasından (`10`) değiştirin, sonra
 `P` → `S <ad>` ile profile kaydedin.
 
 ---

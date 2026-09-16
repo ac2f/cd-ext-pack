@@ -20,7 +20,7 @@ Yine de satır sonlarını CRLF yapmak için betiği çalıştırabilirsiniz:
 powershell -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
-`build\` klasöründe yedi dosya oluşur:
+`build\` klasöründe sekiz dosya oluşur:
 
 ```
 ac2fCore.bas
@@ -28,6 +28,7 @@ ac2fLength.bas
 ac2fLedModule.bas
 ac2fBoxLetter.bas
 ac2fPanel.bas
+ac2fCenterline.bas
 ac2fSettings.bas
 ac2fMenu.bas
 ```
@@ -52,7 +53,7 @@ ac2fMenu.bas
 
 ## 3. Modülleri içe aktar
 
-`ac2fPack` projesi seçiliyken, yedi dosyanın **her biri** için:
+`ac2fPack` projesi seçiliyken, sekiz dosyanın **her biri** için:
 
 `File > Import File...` → `build\ac2*.bas` → **Open**
 
@@ -66,6 +67,7 @@ ac2fPack
     ├── ac2fLedModule
     ├── ac2fBoxLetter
     ├── ac2fPanel
+    ├── ac2fCenterline
     ├── ac2fSettings
     └── ac2fMenu
 ```
@@ -120,6 +122,20 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
+
+### Sürüm 1.4.0'dan 1.5.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fCenterline.bas` | **Yeni** — doğrudan içe aktarın |
+| `ac2fCore.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fSettings.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fMenu.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fLength`, `ac2fLedModule`, `ac2fBoxLetter`, `ac2fPanel` | Değişmedi |
+
+Yeni makrolar: `ac2fCenterline`, `ac2fCenterlineJoined`,
+`ac2fCenterlineSeparate`. Ayarlarınız korunur.
+Ana menü: orta hat `9`, ayarlar `10`, hakkında `11`.
 
 ### Sürüm 1.3.0'dan 1.4.0'a
 

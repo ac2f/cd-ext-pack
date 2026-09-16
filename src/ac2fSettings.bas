@@ -27,9 +27,13 @@ Private Const CAPTION_ As String = "Settings"
 Public Const AC2F_KIND_NUM  As Long = 0
 Public Const AC2F_KIND_INT  As Long = 1
 
-' 25 settings at label width 18 render a 1007 character sheet, which is
-' too close to the ~1024 character InputBox prompt limit. 16 gives 957.
-Private Const LAB_W As Long = 16
+' The sheet is an InputBox prompt, capped at about 1024 characters. With
+' 30 settings a single column no longer fits at any readable width, so the
+' sheet is laid out in TWO columns and the unit is dropped from the grid
+' (it stays in ?N and in every report). Units other than mm are carried in
+' the label itself. Two columns at width 14 render 939 characters.
+' tools/lint.py measures this and fails if it creeps up on the limit.
+Private Const LAB_W As Long = 14
 Private Const VAL_W As Long = 6
 
 Public Type ac2fSetting
@@ -69,14 +73,14 @@ Private Sub ac2fBuildTable()
         "letter work sits between 80 and 150 mm; go tighter on shallow " & _
         "letters where the light has less room to spread."
 
-    ac2fAddSetting AC2F_K_LEDS, "LED MODULE", "LEDs per module", "", _
+    ac2fAddSetting AC2F_K_LEDS, "LED MODULE", "LEDs/module", "", _
         AC2F_KIND_INT, CDbl(AC2F_DEF_LEDS), 1, 0, _
         "How many LED chips sit on one module. 3 for the common " & _
         "3-LED modules this package is built around." & vbCrLf & vbCrLf & _
         "It does not change the module count. It only multiplies the " & _
         "module count into the LED count reported for ordering."
 
-    ac2fAddSetting AC2F_K_MODULE_W, "LED MODULE", "Module power", "W", _
+    ac2fAddSetting AC2F_K_MODULE_W, "LED MODULE", "Module power W", "W", _
         AC2F_KIND_NUM, AC2F_DEF_MODULE_W, 0, 0, _
         "Power drawn by a single module, from its datasheet." & vbCrLf & vbCrLf & _
         "Total power = modules x this value. Everything downstream " & _
@@ -84,7 +88,7 @@ Private Sub ac2fBuildTable()
         "optimistic number here undersizes the whole supply chain. " & _
         "0.72 W is typical for a 3-LED 12 V module."
 
-    ac2fAddSetting AC2F_K_PSU_W, "LED MODULE", "Power supply", "W", _
+    ac2fAddSetting AC2F_K_PSU_W, "LED MODULE", "Power supply W", "W", _
         AC2F_KIND_NUM, AC2F_DEF_PSU_W, 0, 0, _
         "Rated output of one power supply." & vbCrLf & vbCrLf & _
         "The report divides the required power by this and rounds up " & _
@@ -92,7 +96,7 @@ Private Sub ac2fBuildTable()
         "Set it to 0 if you size supplies yourself; the power supply " & _
         "line is then left out of the report."
 
-    ac2fAddSetting AC2F_K_SAFETY, "LED MODULE", "Safety margin", "%", _
+    ac2fAddSetting AC2F_K_SAFETY, "LED MODULE", "Safety marg %", "%", _
         AC2F_KIND_NUM, AC2F_DEF_SAFETY, 0, 0, _
         "Headroom added on top of the calculated load before the " & _
         "power supplies are counted." & vbCrLf & vbCrLf & _
@@ -100,7 +104,7 @@ Private Sub ac2fBuildTable()
         "leaves nothing for inrush or a hot sign box. 20% is a common " & _
         "starting point; 30% is safer for enclosed or sunlit signs."
 
-    ac2fAddSetting AC2F_K_MINPERPATH, "LED MODULE", "Min per outline", "", _
+    ac2fAddSetting AC2F_K_MINPERPATH, "LED MODULE", "Min per path", "", _
         AC2F_KIND_INT, CDbl(AC2F_DEF_MINPERPATH), 0, 0, _
         "The fewest modules any single outline may receive." & vbCrLf & vbCrLf & _
         "Without it, an outline shorter than the module spacing would " & _
@@ -122,7 +126,7 @@ Private Sub ac2fBuildTable()
         "even and drifts when it varies. Compare against a real job " & _
         "and put the difference into the correction factor."
 
-    ac2fAddSetting AC2F_K_FACTOR, "LED MODULE", "Correction factor", "", _
+    ac2fAddSetting AC2F_K_FACTOR, "LED MODULE", "Correction", "", _
         AC2F_KIND_NUM, AC2F_DEF_FACTOR, 0.01, 0, _
         "Scales the final module count. 1 leaves it unchanged." & vbCrLf & vbCrLf & _
         "This is the calibration handle. After a real job, divide the " & _
@@ -198,7 +202,7 @@ Private Sub ac2fBuildTable()
         "touching if your fabricated parts come out consistently " & _
         "long or short by a few millimetres."
 
-    ac2fAddSetting AC2F_K_BL_DEPTH, "BOX LETTER", "Groove depth ratio", "", _
+    ac2fAddSetting AC2F_K_BL_DEPTH, "BOX LETTER", "Groove depth", "", _
         AC2F_KIND_NUM, AC2F_DEF_BL_DEPTH, 0.05, 0.95, _
         "Depth of the groove as a fraction of the material thickness." & _
         vbCrLf & vbCrLf & _
@@ -210,7 +214,7 @@ Private Sub ac2fBuildTable()
         "This must match what your machine or cutter actually does. " & _
         "It is not a target; it is a description of your tooling."
 
-    ac2fAddSetting AC2F_K_BL_MOUTH, "BOX LETTER", "Max groove mouth", "mm", _
+    ac2fAddSetting AC2F_K_BL_MOUTH, "BOX LETTER", "Groove mouth", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_BL_MOUTH, 0.05, 0, _
         "The widest groove opening that still closes without leaving " & _
         "a visible mark on the outside of the bend." & vbCrLf & vbCrLf & _
@@ -221,7 +225,7 @@ Private Sub ac2fBuildTable()
         "Lower it if closed grooves show as dents or gaps on finished " & _
         "letters."
 
-    ac2fAddSetting AC2F_K_BL_TOL, "BOX LETTER", "Surface tolerance", "mm", _
+    ac2fAddSetting AC2F_K_BL_TOL, "BOX LETTER", "Surface tol", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_BL_TOL, 0.01, 0, _
         "How far the flat between two grooves may sit off the true " & _
         "curve." & vbCrLf & vbCrLf & _
@@ -234,7 +238,7 @@ Private Sub ac2fBuildTable()
         "curves; 0.1 mm or less for close viewing, 0.3 mm is fine " & _
         "for signs read from across a street."
 
-    ac2fAddSetting AC2F_K_BL_SMIN, "BOX LETTER", "Min groove spacing", "mm", _
+    ac2fAddSetting AC2F_K_BL_SMIN, "BOX LETTER", "Min spacing", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_BL_SMIN, 0.5, 0, _
         "Grooves are never placed closer together than this, whatever " & _
         "the curve asks for." & vbCrLf & vbCrLf & _
@@ -245,7 +249,7 @@ Private Sub ac2fBuildTable()
         "It is also used as the step when a sharp corner needs " & _
         "several grooves side by side."
 
-    ac2fAddSetting AC2F_K_BL_SMAX, "BOX LETTER", "Max groove spacing", "mm", _
+    ac2fAddSetting AC2F_K_BL_SMAX, "BOX LETTER", "Max spacing", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_BL_SMAX, 1, 0, _
         "Grooves are never placed further apart than this, even on a " & _
         "very gentle curve." & vbCrLf & vbCrLf & _
@@ -255,7 +259,7 @@ Private Sub ac2fBuildTable()
         "Straight segments never receive grooves, so this does not " & _
         "add grooves to flat sections."
 
-    ac2fAddSetting AC2F_K_BL_CORNER, "BOX LETTER", "Corner threshold", "deg", _
+    ac2fAddSetting AC2F_K_BL_CORNER, "BOX LETTER", "Corner deg", "deg", _
         AC2F_KIND_NUM, AC2F_DEF_BL_CORNER, 0.1, 0, _
         "A direction change larger than this counts as a corner and " & _
         "gets its own groove, drawn in pink." & vbCrLf & vbCrLf & _
@@ -277,7 +281,7 @@ Private Sub ac2fBuildTable()
         "The strip itself is always drawn in one piece; only the cut " & _
         "positions are marked."
 
-    ac2fAddSetting AC2F_K_BL_JOINT, "BOX LETTER", "Joint allowance", "mm", _
+    ac2fAddSetting AC2F_K_BL_JOINT, "BOX LETTER", "Joint allow", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_BL_JOINT, 0, 0, _
         "Extra length added at each joint for the overlap or backing " & _
         "strip." & vbCrLf & vbCrLf & _
@@ -330,6 +334,68 @@ Private Sub ac2fBuildTable()
         "sheet outline lands exactly on your rectangle and you would " & _
         "otherwise be left with two lines on top of each other, which " & _
         "a CAM program would cut twice."
+
+    '--- Centre line --------------------------------------------------
+    ac2fAddSetting AC2F_K_CL_RES, "CENTERLINE", "Resolution", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_CL_RES, 0.1, 0, _
+        "Size of one cell in the grid the artwork is drawn into before " & _
+        "it is thinned down to a line." & vbCrLf & vbCrLf & _
+        "This is the accuracy versus time dial, and it costs time " & _
+        "quickly: halving it puts four times as many cells in the grid " & _
+        "and roughly doubles the number of thinning passes." & vbCrLf & vbCrLf & _
+        "1 mm suits most sign work and finishes in seconds. Drop to " & _
+        "0.5 mm for small or finely detailed lettering and expect to " & _
+        "wait. Raise it to 2 mm for a quick look at a large layout." & _
+        vbCrLf & vbCrLf & _
+        "Smoothing and simplifying afterwards take out most of the " & _
+        "grid stepping, so the finished line is better than the cell " & _
+        "size suggests."
+
+    ac2fAddSetting AC2F_K_CL_TOL, "CENTERLINE", "Simplify tol", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_CL_TOL, 0.01, 0, _
+        "How far the finished line may sit from the traced one when " & _
+        "surplus nodes are dropped." & vbCrLf & vbCrLf & _
+        "Larger means fewer nodes and a lighter file for the CAM " & _
+        "program; smaller follows the shape more closely. 0.3 mm " & _
+        "typically cuts the node count by three quarters without any " & _
+        "visible change."
+
+    ac2fAddSetting AC2F_K_CL_SMOOTH, "CENTERLINE", "Smoothing", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_CL_SMOOTH), 0, 20, _
+        "How many averaging passes are run over the traced line." & _
+        vbCrLf & vbCrLf & _
+        "Thinning works on a square grid, so the raw line always " & _
+        "steps diagonally. Left alone that stepping inflates the " & _
+        "measured length by around 5% and makes the router chatter." & _
+        vbCrLf & vbCrLf & _
+        "2 passes clears it. More passes keep smoothing and will " & _
+        "start to pull the line off sharp turns, so raise it only if " & _
+        "the cut still looks faceted."
+
+    ac2fAddSetting AC2F_K_CL_BRANCH, "CENTERLINE", "Min branch xW", "", _
+        AC2F_KIND_NUM, AC2F_DEF_CL_BRANCH, 0, 0, _
+        "Shortest branch that is kept, measured in stroke widths." & _
+        vbCrLf & vbCrLf & _
+        "Thinning grows little barbs wherever a stroke ends square or " & _
+        "two strokes meet. They are an artefact, not part of the " & _
+        "letter, and would send the router off on a stub." & vbCrLf & vbCrLf & _
+        "1 means a branch must be at least one stroke width long to " & _
+        "survive. Raise it if stubs still appear at junctions; lower " & _
+        "it if a genuine short stroke, such as the crossbar of a t, is " & _
+        "being eaten."
+
+    ac2fAddSetting AC2F_K_CL_EXTEND, "CENTERLINE", "Extend ends", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_CL_EXTEND), 0, 1, _
+        "Whether free ends are pushed back out to the edge of the " & _
+        "letter." & vbCrLf & vbCrLf & _
+        "Thinning always stops about half a stroke width short of the " & _
+        "end of a stroke, which would leave the last piece of strip " & _
+        "unlit. With this on, each free end is walked back out along " & _
+        "its own direction until it reaches the edge of the filled " & _
+        "area." & vbCrLf & vbCrLf & _
+        "On a test shape whose true centre line was known this brought " & _
+        "the end error down from 12.1 mm to 1.8 mm." & vbCrLf & vbCrLf & _
+        "1 = extend, 0 = leave the ends where thinning put them."
 End Sub
 
 Private Sub ac2fAddSetting(ByVal key As String, ByVal grp As String, _
@@ -463,6 +529,8 @@ Private Function ac2fSheet(ByVal tempMode As Boolean) As String
     Dim st As ac2fSetting
     Dim grp As String
     Dim prof As String
+    Dim cell As String
+    Dim pending As String
 
     prof = ac2fActiveProfile()
     If Len(prof) = 0 Then prof = "<none>"
@@ -477,23 +545,34 @@ Private Function ac2fSheet(ByVal tempMode As Boolean) As String
     For i = 1 To m_setN
         st = ac2fSettingAt(i)
         If st.Group <> grp Then
+            If Len(pending) > 0 Then
+                s = s & pending & vbCrLf
+                pending = ""
+            End If
             grp = st.Group
             s = s & "-- " & grp & " --" & vbCrLf
         End If
-        s = s & ac2fRPad(CStr(i), 2) & " " & ac2fPad(st.Label, LAB_W) & " " & _
-                ac2fRPad(ac2fSettingText(i), VAL_W) & " " & st.Unit
-        If ac2fIsOverridden(st.Key) Then s = s & " *"
-        s = s & vbCrLf
+
+        cell = ac2fRPad(CStr(i), 2) & " " & ac2fPad(st.Label, LAB_W) & " " & _
+               ac2fRPad(ac2fSettingText(i), VAL_W)
+        If ac2fIsOverridden(st.Key) Then cell = cell & "*"
+
+        If Len(pending) = 0 Then
+            pending = cell
+        Else
+            s = s & ac2fPad(pending, LAB_W + VAL_W + 5) & cell & vbCrLf
+            pending = ""
+        End If
     Next i
+    If Len(pending) > 0 Then s = s & pending & vbCrLf
 
     s = s & vbCrLf
-    s = s & "N=value   change        ?N   explain" & vbCrLf
     If tempMode Then
-        s = s & "Enter     run" & vbCrLf
-        s = s & "* = changed for this run only"
+        s = s & "N=value  change   ?N  explain   Enter  run" & vbCrLf
+        s = s & "* = this run only"
     Else
-        s = s & "P         profiles      R    reset" & vbCrLf
-        s = s & "Enter     close"
+        s = s & "N=value  change   ?N  explain" & vbCrLf
+        s = s & "P  profiles   R  reset   Enter  close"
     End If
 
     ac2fSheet = s

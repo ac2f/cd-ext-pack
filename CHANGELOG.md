@@ -2,6 +2,60 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.5.0] - 2026-09-16
+
+### Eklendi
+
+- **`ac2fCenterline`** — dolu tasarımı tek çizgiye düşürür
+  (`ac2fCenterline`, ana menü 9). Pleksi üzerine 6 mm bıçakla neon LED
+  şerit kanalı açmak için.
+
+  İki mod, istendiği gibi ayrı opsiyonlar olarak:
+  - `ac2fCenterlineJoined` — tüm seçim tek bölge; **değen harfler bağlı
+    kalır**, el yazısı tek sürekli çizgi olur
+  - `ac2fCenterlineSeparate` — her nesne kendi başına
+
+  Boru hattı: kontur açma (dairesel yay modeli) → şekil başına çift-tek
+  dolgu + şekiller arası birleşim → Zhang-Suen inceltme → fazlalık
+  merdiven pikseli temizliği → zincir izleme → çıkıntı budama → uç
+  uzatma → yumuşatma → Douglas-Peucker. Her zincir tek polyline olarak
+  kırmızı çizilir ve gruplanır.
+
+- Beş yeni ayar: çözünürlük, sadeleştirme toleransı, yumuşatma,
+  en az dal, uçları uzat.
+
+### Değişti
+
+- **Ayar sayfası iki sütuna geçti.** 30 ayar tek sütunda okunabilir
+  hiçbir genişlikte 1024 karakterlik `InputBox` sınırına sığmıyordu.
+  Izgaradan birim sütunu kaldırıldı (birim `?N` ve raporlarda duruyor);
+  mm dışı birimler etikete taşındı. Sayfa 952 karakter.
+- `tools/lint.py` sayfa ölçümü yeni düzene göre güncellendi.
+
+### Doğrulama
+
+Algoritma önce Python'da prototiplendi ve **orta hattı bilinen**
+şekillerde ölçüldü; VBA sürümü aynı işlem sırasıyla yeniden sınandı:
+
+| Test | Sonuç | Gerçek | Hata |
+|---|---|---|---|
+| Dalgalı şerit (1 yol) | 470,8 mm | 471,0 mm | %0,0 |
+| T kavşağı (3 dal) | 279,3 mm | 280,0 mm | %0,2 |
+| İki ayrı harf (2 yol) | 161,0 mm | 160,0 mm | %0,6 |
+| Yay örnekleme, tam çember | — | — | 0,000000000 mm |
+| Yay örnekleme, gerçek bezier | — | — | %0,036 |
+
+Yol boyunca bulunan üç hata:
+
+- İki örtüşen poligonu **tek** çift-tek taramasına sokmak, örtüşen
+  bölgeyi delik yapıyordu — şekil başına dolgu alıp OR'lamak gerekti.
+  Bu olmadan birleşik mod çalışmıyordu.
+- Merdiven basamaklarındaki fazlalık pikseller sahte kavşak üretip
+  tek şeridi 305 parçaya bölüyordu.
+- Uç uzatma yönünü son pikselden almak, düz uç kapağının köşesine
+  sapıyordu (12,1 mm hata). Yönü bir şerit kalınlığı boyunca
+  ortalamak hatayı 1,8 mm'ye indirdi.
+
 ## [1.4.0] - 2026-09-10
 
 ### Eklendi

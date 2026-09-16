@@ -79,16 +79,26 @@ def settings_sheet_length():
     if not calls:
         return None, 0
 
+    # Mirrors ac2fSheet: two columns, group headers, no unit in the grid.
     lines = ['SETTINGS  (profile: ' + 'M' * 20 + ')', '']
-    group = None
-    for i, (grp, label, unit) in enumerate(calls, 1):
+    group, pending = None, ''
+    for i, (grp, label, _unit) in enumerate(calls, 1):
         if grp != group:
+            if pending:
+                lines.append(pending)
+                pending = ''
             group = grp
             lines.append('-- %s --' % grp)
-        lines.append('%2d %s %s %s' % (i, label.ljust(lab_w)[:lab_w],
-                                       '0.00'.rjust(val_w), unit))
-    lines += ['', 'N=value   change        ?N   explain',
-              'P         profiles      R    reset', 'Enter     close']
+        cell = '%2d %s %s' % (i, label.ljust(lab_w)[:lab_w], '0.00'.rjust(val_w))
+        if not pending:
+            pending = cell
+        else:
+            lines.append(pending.ljust(lab_w + val_w + 5) + cell)
+            pending = ''
+    if pending:
+        lines.append(pending)
+    lines += ['', 'N=value  change   ?N  explain',
+              'P  profiles   R  reset   Enter  close']
     return len('\r\n'.join(lines)), len(calls)
 
 

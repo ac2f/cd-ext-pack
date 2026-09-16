@@ -5,7 +5,8 @@ CorelDRAW için VBA eklenti paketi.
 Vektörlerin çevresindeki çizgilerin toplam uzunluğunu ölçer, bu ölçüme
 dayanarak 3'lü LED modül yerleşimi için gereken adetleri hesaplar, kutu
 harf yan bordürünün açınımını çıkarıp kesime hazır derzli şeritler çizer
-ve alüminyum kompozit paneller için V derz çizgilerini üretir.
+alüminyum kompozit paneller için V derz çizgilerini üretir ve neon LED
+şerit kanalı için dolu tasarımı tek çizgiye düşürür.
 
 | Modül | İş |
 |---|---|
@@ -14,6 +15,7 @@ ve alüminyum kompozit paneller için V derz çizgilerini üretir.
 | `ac2fLedModule` | **3'lü LED modül hesabı** — modül, LED, güç, güç kaynağı adedi |
 | `ac2fBoxLetter` | **Kutu harf şeridi** — bordür açınımı ve derz yerleşimi |
 | `ac2fPanel` | **ACP panel derzi** — alüminyum kompozit V derz yerleşimi |
+| `ac2fCenterline` | **Orta hat** — dolu tasarımı tek çizgiye düşürür |
 | `ac2fSettings` | **Ayar sayfası ve profiller** — tüm ayarlar tek yerde |
 | `ac2fMenu` | Ana menü, hakkında |
 
@@ -33,6 +35,9 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fBoxLetterStripProfile` | Profil seçip, istenen değeri o seferliğine değiştirip çizer |
 | `ac2fBoxLetterReport` | Aynı hesabı yapar, çizim yapmaz |
 | `ac2fPanelGroove` | Dörtgen çevresine ACP V derz çizgilerini çizer |
+| `ac2fCenterline` | Tek çizgiye düşürür (birleşik / ayrı ayrı sorar) |
+| `ac2fCenterlineJoined` | Tüm seçimi tek bölge sayar — birleşik el yazısı |
+| `ac2fCenterlineSeparate` | Her nesneyi ayrı ayrı düşürür |
 | `ac2fSettings` | **Tüm ayarlar ve profiller — tek sayfa** |
 | `ac2fProfiles` | Doğrudan profil yönetimi |
 | `ac2fResetAllSettings` | Ayarları varsayılana döndürür |
@@ -135,9 +140,48 @@ ac2f ACP panel 110x210        (grup)
     └── ac2f groove 4 bottom
 ```
 
+## Orta hat (tek çizgiye düşürme)
+
+Pleksi üzerine 6 mm bıçakla neon şerit kanalı açmak için, dolu tasarımı
+merkezden geçen tek çizgiye indirir.
+
+Tasarımı seçin, `ac2fCenterline` çalıştırın ve **`J`** ya da **`S`** yazın:
+
+| Seçenek | Ne yapar |
+|---|---|
+| `J` **birleşik** | Tüm seçim tek bölge sayılır; **birbirine değen harfler bağlı kalır** — el yazısı için |
+| `S` **ayrı ayrı** | Her nesne kendi başına düşürülür |
+
+Doğrudan `ac2fCenterlineJoined` / `ac2fCenterlineSeparate` de çağrılabilir.
+
+### Nasıl çalışıyor
+
+1. Konturlar poligona açılır (dairesel yay modeli — bezier kontrol
+   noktasına gerek yok)
+2. **Şekil başına** çift-tek dolgu (delikler doğru çıkar), şekiller
+   **birleştirilir** (değen harfler tek bölge olur)
+3. Zhang-Suen inceltmesiyle tek piksel kalınlığa iner
+4. Fazlalık merdiven pikselleri atılır, zincirler izlenir, kısa
+   çıkıntılar budanır
+5. Serbest uçlar uzatılır — inceltme uçları yarım kalınlık geri yer
+6. Zikzak yumuşatılır, Douglas-Peucker ile sadeleştirilir
+7. Her zincir **tek polyline** olarak, kırmızı, gruplu çizilir
+
+### Ölçülen doğruluk
+
+Orta hattı bilinen şekiller üzerinde:
+
+| Test | Sonuç | Gerçek | Hata |
+|---|---|---|---|
+| Dalgalı şerit | 470,8 mm | 471,0 mm | %0,0 |
+| T kavşağı (3 dal) | 279,3 mm | 280,0 mm | %0,2 |
+| İki ayrı harf | 161,0 mm | 160,0 mm | %0,6 |
+
+Uç konumu hatası 1,8 mm (uç uzatma olmadan 12,1 mm).
+
 ## Ayarlar ve profiller
 
-**Tüm ayarlar tek sayfada.** Ana menüden `9` ile açılır; 25 ayarın hepsi
+**Tüm ayarlar tek sayfada.** Ana menüden `10` ile açılır; 30 ayarın hepsi
 numaralı olarak listelenir:
 
 ```
@@ -238,4 +282,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.4.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.5.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

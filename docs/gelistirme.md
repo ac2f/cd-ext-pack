@@ -107,7 +107,8 @@ VBA derleyicisinin yerini **tutmaz**. Asıl doğrulama CorelDRAW'da
 ac2fMenu ────┬──> ac2fLength ─────┐
              ├──> ac2fLedModule ──┤
              ├──> ac2fBoxLetter ──┤
-             ├──> ac2fPanel ──────┼──> ac2fCore
+             ├──> ac2fPanel ──────┤
+             ├──> ac2fCenterline ─┼──> ac2fCore
              └──> ac2fSettings ───┘
 ```
 
@@ -246,6 +247,12 @@ rows = 22 ; print(2 + 22*32 + 160)   # ~ satir sayisi x satir genisligi
 EOF
 ```
 
+### İki sütunlu sayfa
+
+30 ayar tek sütunda okunabilir hiçbir genişlikte sınıra sığmadığı için
+sayfa iki sütuna geçti ve ızgaradan birim sütunu kaldırıldı (birim `?N`
+ve raporlarda duruyor; mm dışı birimler etikete taşındı).
+
 ### Sayfa uzunluğu denetlenir
 
 `tools/lint.py` ayar sayfasını `ac2fSheet` ile aynı biçimde yeniden kurup
@@ -328,6 +335,61 @@ seçimi değiştirdiği için, çizime başlandıktan sonra kaynak `ShapeRange`
 Gruplama `ClearSelection` + `AddToSelection` + `ShapeRange.Group()` ile
 yapılır ve başarısız olursa çizgiler sayfada serbest kalır; makro bunu
 raporlar, geometri kaybolmaz.
+
+## Orta hat çıkarma (`ac2fCenterline`)
+
+Paketin en yoğun algoritması. Önce Python'da prototiplenip **orta hattı
+bilinen** şekillerde ölçüldü, sonra VBA'ya geçirildi ve aynı işlem
+sırasıyla yeniden sınandı.
+
+```
+1  konturlari poligona ac   (dairesel yay modeli, ac2fBoxLetter ile ayni)
+2  sekil basina cift-tek dolgu, sekiller arasi OR
+3  Zhang-Suen inceltme
+4  fazlalik merdiven pikseli temizligi
+5  zincir izleme
+6  cikinti budama
+7  serbest uc uzatma
+8  yumusatma + Douglas-Peucker
+9  zincir basina tek polyline
+```
+
+### Neden şekil başına dolgu
+
+İki örtüşen poligonu **tek** çift-tek taramasına sokmak, örtüşen bölgeyi
+XOR'layıp **delik** yapar. Her şekli kendi içinde çift-tek doldurup
+(kendi delikleri doğru çıkar) şekilleri OR'lamak gerekir. Birleşik mod
+bu olmadan hiç çalışmıyordu.
+
+### Neden merdiven temizliği
+
+Zhang-Suen çıktısı 8-bağlantılıdır ama fazlalıksız değildir: merdiven
+basamaklarındaki pikseller üç komşulu görünür ve izleme onları kavşak
+sanar. Tek bir şerit **305 parçaya** bölünüyordu. Komşusu tarafından
+kapsanan pikselleri atmak dereceleri 1 ve 2'ye indirir.
+
+### Neden uç yönü kuyruktan alınır
+
+İnceltme serbest uçları yarım kalınlık geri yer. Uzatma yönünü **son
+pikselden** almak, düz uç kapağında medyal eksenin köşeye çatallanması
+yüzünden yanlış yöne gider: ölçülen hata **12,1 mm**. Yönü bir şerit
+kalınlığı boyunca ortalamak hatayı **1,8 mm**'ye indirir.
+
+### Maliyet
+
+İnceltme maliyeti hücre sayısı × tur sayısıdır ve çözünürlükle **dörde
+katlanır**; tur sayısı da yaklaşık ikiye çıkar. Bu yüzden çözünürlük bir
+ayardır, 1 mm varsayılan, ve 4 milyon hücre üstü iş reddedilir.
+
+### Ölçülen doğruluk
+
+| Test | Sonuç | Gerçek |
+|---|---|---|
+| Dalgalı şerit | 470,8 mm | 471,0 mm |
+| T kavşağı, 3 dal | 279,3 mm | 280,0 mm |
+| İki ayrı harf | 161,0 mm | 160,0 mm |
+| Yay örnekleme, tam çember | 0,000000000 mm hata | |
+| Yay örnekleme, gerçek bezier | %0,036 | |
 
 ## Yeni bir araç eklemek
 
