@@ -14,7 +14,7 @@ Option Explicit
 ' Package identity
 '---------------------------------------------------------------------
 Public Const AC2F_NAME    As String = "ac2f pack"
-Public Const AC2F_VERSION As String = "1.5.0"
+Public Const AC2F_VERSION As String = "1.6.0"
 Public Const AC2F_REG_APP As String = "ac2fPack"
 Public Const AC2F_REG_SEC As String = "Ayarlar"
 Public Const AC2F_REG_PROF As String = "Profiles"
@@ -243,6 +243,70 @@ Public Function ac2fFmt(ByVal v As Double, Optional ByVal dec As Long = 2) As St
     Else
         ac2fFmt = Format$(v, "#,##0")
     End If
+End Function
+
+'---------------------------------------------------------------------
+' Geometry helpers shared by the drawing modules.
+'
+' ac2fBoxLetter and ac2fCenterline still carry their own private copies,
+' left alone so as not to disturb modules that are already validated.
+' New code uses these; consolidating the older two is a follow-up.
+'---------------------------------------------------------------------
+
+' Solves c / L = 2 * sin(t/2) / t for t by bisection. The right hand side
+' is strictly decreasing on (0, 2*pi), so bisection always converges.
+' Given a segment's chord and arc length this recovers its turn angle,
+' and R = L / t its radius, without reading bezier control points.
+Public Function ac2fSolveTheta(ByVal chord As Double, ByVal arc As Double) As Double
+    Dim r As Double, lo As Double, hi As Double, mid As Double, f As Double
+    Dim i As Long
+    Const PI2 As Double = 6.28318530717959
+
+    If arc <= 0.000000001 Then Exit Function
+    r = chord / arc
+    If r >= 0.999999 Then Exit Function              ' straight
+    If r <= 0# Then
+        ac2fSolveTheta = PI2 - 0.000001
+        Exit Function
+    End If
+    lo = 0.000001: hi = PI2 - 0.000001
+    For i = 1 To 60
+        mid = (lo + hi) / 2#
+        f = 2# * Sin(mid / 2#) / mid
+        If f > r Then lo = mid Else hi = mid
+    Next i
+    ac2fSolveTheta = (lo + hi) / 2#
+End Function
+
+Public Function ac2fAtan2(ByVal y As Double, ByVal x As Double) As Double
+    Const PI_ As Double = 3.14159265358979
+    If x > 0 Then
+        ac2fAtan2 = Atn(y / x)
+    ElseIf x < 0 Then
+        If y >= 0 Then ac2fAtan2 = Atn(y / x) + PI_ Else ac2fAtan2 = Atn(y / x) - PI_
+    Else
+        If y > 0 Then
+            ac2fAtan2 = PI_ / 2#
+        ElseIf y < 0 Then
+            ac2fAtan2 = -PI_ / 2#
+        Else
+            ac2fAtan2 = 0
+        End If
+    End If
+End Function
+
+Public Function ac2fWrapAngle(ByVal a As Double) As Double
+    Const PI2 As Double = 6.28318530717959
+    Const PI_ As Double = 3.14159265358979
+    Dim v As Double
+    v = a
+    Do While v > PI_
+        v = v - PI2
+    Loop
+    Do While v <= -PI_
+        v = v + PI2
+    Loop
+    ac2fWrapAngle = v
 End Function
 
 ' Shows a length in mm / cm / m on one line.

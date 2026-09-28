@@ -108,7 +108,8 @@ ac2fMenu ────┬──> ac2fLength ─────┐
              ├──> ac2fLedModule ──┤
              ├──> ac2fBoxLetter ──┤
              ├──> ac2fPanel ──────┤
-             ├──> ac2fCenterline ─┼──> ac2fCore
+             ├──> ac2fCenterline ─┤
+             ├──> ac2fPlot ───────┼──> ac2fCore
              └──> ac2fSettings ───┘
 ```
 
@@ -251,7 +252,9 @@ EOF
 
 30 ayar tek sütunda okunabilir hiçbir genişlikte sınıra sığmadığı için
 sayfa iki sütuna geçti ve ızgaradan birim sütunu kaldırıldı (birim `?N`
-ve raporlarda duruyor; mm dışı birimler etikete taşındı).
+ve raporlarda duruyor; mm dışı birimler etikete taşındı). 32 ayara
+çıkarken çerçeve de sıkıştırıldı: `[GRUP]`, tek satır altlık, uzun
+profil adı kırpılır. Sayfa 970 karakter.
 
 ### Sayfa uzunluğu denetlenir
 
@@ -390,6 +393,64 @@ ayardır, 1 mm varsayılan, ve 4 milyon hücre üstü iş reddedilir.
 | İki ayrı harf | 161,0 mm | 160,0 mm |
 | Yay örnekleme, tam çember | 0,000000000 mm hata | |
 | Yay örnekleme, gerçek bezier | %0,036 | |
+
+## Plotter'a gönderme (`ac2fPlot`)
+
+### Kaydırma neden yazarken uygulanır
+
+Export edilip sonra ayrıştırılan bir `.plt`, metin işleme gerektirir ve
+komut biçimlerine (boşluk mu virgül mü, `PA` mı `PR` mi, etiket içindeki
+`PU` harfleri) bağımlı hâle gelir. Kaydırmayı **yazarken** geometriden
+uygulamak bu bağımlılığı tümden kaldırır: ayrıştırılacak metin yoktur.
+
+Var olan dosyaları düzeltme yolu (`ac2fPlotFixSend`) ayrı bir işlevdir ve
+metin ayrıştırır; orada çizim alanı kuralı önemlidir (aşağıda).
+
+### Çizim alanı kuralı
+
+Alan **yalnız çizim komutlarından** hesaplanır: her `PD`, ve ardından
+`PD` gelen `PU`. Sondaki `PU0,0;` kalem park komutudur. Ölçülen etki:
+
+| Dosya | Tüm PU/PD | Yalnız çizim |
+|---|---|---|
+| Çizim negatif, park var | doğru | doğru |
+| Çizim **pozitif**, park var | yanlış | doğru |
+| Çizim pozitif, park yok | doğru | doğru |
+
+Hata yalnız çizim tamamen pozitifken görünür, çünkü ancak o zaman park
+komutunun (0,0) koordinatı minimumu aşağı çeker.
+
+### Eğri adımlaması
+
+HPGL'de eğri yoktur. Her yay, sehim bağıntısından (`h ≈ s²/(8R)`) kendi
+yarıçapına göre adımlanır: `s = sqrt(8·R·tol)`. Yumuşak eğriler uzun,
+sıkı eğriler kısa adım alır ve hata her yerde tolerans altında kalır.
+Ölçüldü: 0,5 / 0,1 / 0,05 / 0,01 mm toleranslarda gerçek sehim hep
+sınırın altında.
+
+### Neden PowerShell
+
+VBA'nın socket'i yok. Seçenekler `ws2_32.dll` için `Declare` (32/64 bit
+ve `LongPtr` sorunları), `MSWinsock` OCX (kayıtlı olması gerekir) ya da
+bir yardımcı süreç. PowerShell `System.Net.Sockets.TcpClient` sunar,
+desteklenen her Windows'ta vardır ve hiçbir kayıt gerektirmez.
+
+Betik her çalıştırmada yeniden yazılır, böylece modülle her zaman
+uyumludur. Bir günlük dosyası yazar; makro çıkış kodu sıfır değilse
+günlüğü okuyup gerçek hatayı gösterir.
+
+> PowerShell parametresi `-Target` adındadır, `-Host` değil: `$Host`
+> PowerShell'in otomatik değişkenidir ve ona bağlanma başarısız olur.
+
+### Bilinen tekrar
+
+Yay açma mantığı (kiriş/yay oranından dönüş açısı, yay örnekleme) artık
+üç modülde var: `ac2fBoxLetter`, `ac2fCenterline` ve `ac2fPlot`. Ortak
+matematik yardımcıları (`ac2fSolveTheta`, `ac2fAtan2`, `ac2fWrapAngle`)
+`ac2fCore`'a taşındı ve yeni kod onları kullanıyor; eski iki modül kendi
+özel kopyalarını koruyor. Doğrulanmış modülleri aynı turda kurcalamamak
+için bilinçli bırakıldı — açma katmanının tek yere çıkarılması bir
+takip işidir.
 
 ## Yeni bir araç eklemek
 

@@ -16,6 +16,7 @@ alüminyum kompozit paneller için V derz çizgilerini üretir ve neon LED
 | `ac2fBoxLetter` | **Kutu harf şeridi** — bordür açınımı ve derz yerleşimi |
 | `ac2fPanel` | **ACP panel derzi** — alüminyum kompozit V derz yerleşimi |
 | `ac2fCenterline` | **Orta hat** — dolu tasarımı tek çizgiye düşürür |
+| `ac2fPlot` | **Plotter** — HPGL üretip ağdan doğrudan gönderir |
 | `ac2fSettings` | **Ayar sayfası ve profiller** — tüm ayarlar tek yerde |
 | `ac2fMenu` | Ana menü, hakkında |
 
@@ -38,6 +39,9 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fCenterline` | Tek çizgiye düşürür (birleşik / ayrı ayrı sorar) |
 | `ac2fCenterlineJoined` | Tüm seçimi tek bölge sayar — birleşik el yazısı |
 | `ac2fCenterlineSeparate` | Her nesneyi ayrı ayrı düşürür |
+| `ac2fPlotSend` | Seçimi HPGL olarak plotter'a gönderir |
+| `ac2fPlotSave` | HPGL'i dosyaya yazar (incelemek için) |
+| `ac2fPlotFixSend` | Var olan bir `.plt`'yi normalize edip gönderir |
 | `ac2fSettings` | **Tüm ayarlar ve profiller — tek sayfa** |
 | `ac2fProfiles` | Doğrudan profil yönetimi |
 | `ac2fResetAllSettings` | Ayarları varsayılana döndürür |
@@ -179,9 +183,53 @@ Orta hattı bilinen şekiller üzerinde:
 
 Uç konumu hatası 1,8 mm (uç uzatma olmadan 12,1 mm).
 
+## Plotter'a gönderme
+
+Seçimi seçin, `ac2fPlotSend` çalıştırın, adresi onaylayın. **Export yok,
+düzeltilecek dosya yok.**
+
+```
+192.168.1.100:9100
+```
+
+### Neden düzeltme adımı yok
+
+Export edilmiş bir `.plt`'nin olağan sorunu, geometrinin sayfanın verdiği
+koordinatlarda (sık sık negatif) kalması ve plotter'ın kabul etmesi için
+ayrıştırılıp kaydırılması gerekmesidir. Burada kaydırma **HPGL yazılırken
+geometriden** uygulanıyor — ayrıştırılacak bir şey yok, düzeltilecek bir
+şey yok.
+
+HPGL birimi milimetrede 40'tır (inçte 1016).
+
+### Gönderim yolu
+
+VBA'nın kendi socket'i yok. Baytlar kısa bir PowerShell betiği üzerinden
+`System.Net.Sockets.TcpClient` ile çıkıyor. PowerShell desteklenen her
+Windows'ta var; bu sayede `Declare`, 32/64 bit sorunu ve OCX kaydı
+gerekmiyor. Betik bir günlük yazıyor, makro onu geri okuyor — bağlantı
+reddedilirse gerçek sebebi görüyorsunuz.
+
+Bu **ham TCP akışı**; 9100 ya da bir telnet portunda dinleyen
+plotter'ların beklediği şey. Telnet protokolü anlaşması yapılmaz.
+
+### Diğer iki makro
+
+| Makro | Ne yapar |
+|---|---|
+| `ac2fPlotSave` | HPGL'i dosyaya yazar, göndermez |
+| `ac2fPlotFixSend` | Var olan bir `.plt`'yi normalize eder, isterseniz gönderir |
+
+`ac2fPlotFixSend`, eski Python betiğinizin işini yapar — ama bir farkla:
+**çizim alanı yalnız çizim komutlarından** hesaplanır (her `PD`, ve
+ardından `PD` gelen `PU`'lar). Sondaki `PU0,0;` kalem park komutudur,
+çizim değildir. Hesaba katılırsa, çizimi tamamen pozitif koordinatlarda
+olan bir dosyada min 0,0 çıkar ve normalizasyon sabit bir kaydırmaya
+döner — iş kenarda kalmaz, malzeme boşa gider.
+
 ## Ayarlar ve profiller
 
-**Tüm ayarlar tek sayfada.** Ana menüden `10` ile açılır; 30 ayarın hepsi
+**Tüm ayarlar tek sayfada.** Ana menüden `13` ile açılır; 32 ayarın hepsi
 numaralı olarak listelenir:
 
 ```
@@ -282,4 +330,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.5.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.6.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

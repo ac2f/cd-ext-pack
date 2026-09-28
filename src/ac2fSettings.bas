@@ -396,6 +396,37 @@ Private Sub ac2fBuildTable()
         "On a test shape whose true centre line was known this brought " & _
         "the end error down from 12.1 mm to 1.8 mm." & vbCrLf & vbCrLf & _
         "1 = extend, 0 = leave the ends where thinning put them."
+
+    '--- Plotter ------------------------------------------------------
+    ac2fAddSetting AC2F_K_PL_MARGIN, "PLOTTER", "Margin", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_PL_MARGIN, 0, 0, _
+        "How far from the plotter origin the job is placed." & vbCrLf & vbCrLf & _
+        "The geometry is shifted so its lowest X and lowest Y both land " & _
+        "on this margin. That is what makes an export usable without " & _
+        "editing it afterwards: whatever coordinates the page gave the " & _
+        "artwork, negative ones included, the job arrives in the corner " & _
+        "of the material." & vbCrLf & vbCrLf & _
+        "A few millimetres keeps the knife off the very edge of the " & _
+        "sheet and off the grit rollers. 5 mm is 200 plotter units, " & _
+        "since HPGL counts 40 units to the millimetre." & vbCrLf & vbCrLf & _
+        "Raise it to move the job in from the edge; 0 puts it hard " & _
+        "against the origin."
+
+    ac2fAddSetting AC2F_K_PL_TOL, "PLOTTER", "Curve tol", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_PL_TOL, 0.005, 0, _
+        "How far the straight steps sent to the plotter may sit from the " & _
+        "true curve." & vbCrLf & vbCrLf & _
+        "HPGL has no curves: every arc leaves here as a chain of short " & _
+        "lines. The step length is worked out per arc from its own " & _
+        "radius, so gentle curves get long steps and tight ones get " & _
+        "short steps, and the error stays under this figure everywhere." & _
+        vbCrLf & vbCrLf & _
+        "0.05 mm is finer than a knife can follow and keeps files " & _
+        "small. Dropping to 0.01 mm roughly doubles the point count for " & _
+        "no visible gain; 0.2 mm starts to show as flats on large " & _
+        "curves." & vbCrLf & vbCrLf & _
+        "The plotter address is not kept here. It is asked for when you " & _
+        "send, and remembered between runs."
 End Sub
 
 Private Sub ac2fAddSetting(ByVal key As String, ByVal grp As String, _
@@ -534,6 +565,9 @@ Private Function ac2fSheet(ByVal tempMode As Boolean) As String
 
     prof = ac2fActiveProfile()
     If Len(prof) = 0 Then prof = "<none>"
+    ' The sheet is an InputBox prompt with a hard character budget, so a
+    ' long profile name is clipped rather than eating rows.
+    If Len(prof) > 12 Then prof = Left$(prof, 11) & "~"
 
     If tempMode Then
         s = "RUN SETTINGS - changes apply to this run only" & vbCrLf
@@ -550,7 +584,7 @@ Private Function ac2fSheet(ByVal tempMode As Boolean) As String
                 pending = ""
             End If
             grp = st.Group
-            s = s & "-- " & grp & " --" & vbCrLf
+            s = s & "[" & grp & "]" & vbCrLf
         End If
 
         cell = ac2fRPad(CStr(i), 2) & " " & ac2fPad(st.Label, LAB_W) & " " & _
@@ -568,11 +602,9 @@ Private Function ac2fSheet(ByVal tempMode As Boolean) As String
 
     s = s & vbCrLf
     If tempMode Then
-        s = s & "N=value  change   ?N  explain   Enter  run" & vbCrLf
-        s = s & "* = this run only"
+        s = s & "N=val  ?N=help  Enter=run  * = this run only"
     Else
-        s = s & "N=value  change   ?N  explain" & vbCrLf
-        s = s & "P  profiles   R  reset   Enter  close"
+        s = s & "N=val  ?N=help  P=profiles  R=reset  Enter=close"
     End If
 
     ac2fSheet = s

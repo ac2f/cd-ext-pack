@@ -20,7 +20,7 @@ Yine de satır sonlarını CRLF yapmak için betiği çalıştırabilirsiniz:
 powershell -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
-`build\` klasöründe sekiz dosya oluşur:
+`build\` klasöründe dokuz dosya oluşur:
 
 ```
 ac2fCore.bas
@@ -29,6 +29,7 @@ ac2fLedModule.bas
 ac2fBoxLetter.bas
 ac2fPanel.bas
 ac2fCenterline.bas
+ac2fPlot.bas
 ac2fSettings.bas
 ac2fMenu.bas
 ```
@@ -53,7 +54,7 @@ ac2fMenu.bas
 
 ## 3. Modülleri içe aktar
 
-`ac2fPack` projesi seçiliyken, sekiz dosyanın **her biri** için:
+`ac2fPack` projesi seçiliyken, dokuz dosyanın **her biri** için:
 
 `File > Import File...` → `build\ac2*.bas` → **Open**
 
@@ -68,6 +69,7 @@ ac2fPack
     ├── ac2fBoxLetter
     ├── ac2fPanel
     ├── ac2fCenterline
+    ├── ac2fPlot
     ├── ac2fSettings
     └── ac2fMenu
 ```
@@ -122,6 +124,25 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
+
+### Sürüm 1.5.0'dan 1.6.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fPlot.bas` | **Yeni** — doğrudan içe aktarın |
+| `ac2fCore.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fSettings.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fMenu.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fLength`, `ac2fLedModule`, `ac2fBoxLetter`, `ac2fPanel`, `ac2fCenterline` | Değişmedi |
+
+Yeni makrolar: `ac2fPlotSend`, `ac2fPlotSave`, `ac2fPlotFixSend`.
+Ayarlarınız korunur. Ana menü: plotter `10`-`12`, ayarlar `13`,
+hakkında `14`.
+
+**Plotter göndermek için ek gereksinim yok** — PowerShell Windows'ta
+zaten var. Kurumsal bir makinede PowerShell betik çalıştırma
+kapatılmışsa makro bunu hata olarak bildirir; betik
+`-ExecutionPolicy Bypass` ile çağrılır, bu çoğu kısıtlamayı aşar.
 
 ### Sürüm 1.4.0'dan 1.5.0'a
 

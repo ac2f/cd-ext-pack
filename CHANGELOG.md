@@ -2,6 +2,67 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.6.0] - 2026-09-28
+
+### Eklendi
+
+- **`ac2fPlot`** — seçimi HPGL olarak üretip plotter'a ağdan doğrudan
+  gönderir (`ac2fPlotSend`, ana menü 10). Export adımı ve sonradan
+  düzeltilecek dosya yok.
+
+  Kaydırma **HPGL yazılırken geometriden** uygulanır, dolayısıyla
+  ayrıştırılacak metin yoktur. Eğriler kendi yarıçaplarına göre
+  adımlanır (sehim `s²/(8R)`), böylece hata her yerde tolerans altında
+  kalır.
+
+- `ac2fPlotSave` — HPGL'i dosyaya yazar, göndermez.
+- `ac2fPlotFixSend` — var olan bir `.plt`'yi normalize edip gönderir.
+- İki yeni ayar: kenar payı (mm), eğri toleransı (mm). Plotter adresi
+  ayar sayfasında değil; gönderirken sorulur ve hatırlanır.
+- `ac2fCore`: paylaşılan geometri yardımcıları `ac2fSolveTheta`,
+  `ac2fAtan2`, `ac2fWrapAngle`.
+
+### Gönderim yolu
+
+VBA'nın socket'i yok. Baytlar kısa bir PowerShell betiği üzerinden
+`System.Net.Sockets.TcpClient` ile gider — `Declare`, 32/64 bit sorunu ve
+OCX kaydı gerekmez. Betik günlük yazar, makro geri okur; bağlantı
+reddedilirse gerçek sebep gösterilir. Ham TCP akışıdır, telnet protokolü
+anlaşması yapılmaz.
+
+### Kaynak betiğe göre bir düzeltme
+
+`.plt` normalize ederken çizim alanı **yalnız çizim komutlarından**
+hesaplanır: her `PD`, ve ardından `PD` gelen `PU`'lar. Sondaki `PU0,0;`
+kalem park komutudur. Ölçüldü:
+
+| Dosya | Tüm PU/PD | Yalnız çizim |
+|---|---|---|
+| Çizim negatif, park var | doğru | doğru |
+| **Çizim pozitif, park var** | **yanlış** — iş 4200'de kalır | doğru — 200'e oturur |
+| Çizim pozitif, park yok | doğru | doğru |
+
+Yani hata yalnız çizim tamamen pozitif koordinatlardayken ortaya çıkar;
+o durumda normalizasyon sabit bir kaydırmaya dönüşür ve malzeme boşa
+gider.
+
+### Değişti
+
+- Ayar sayfası çerçevesi sıkıştırıldı (`[GRUP]`, tek satır altlık, uzun
+  profil adı kırpılır) — plotter grubuna yer açmak için. 32 ayarla sayfa
+  970 karakter.
+- `tools/lint.py` sembol taramasında artık dize içeriğine bakmıyor;
+  `"ac2f_plot.plt"` gibi dosya adları tanımsız sembol sanılıyordu.
+
+### Doğrulama
+
+| Ölçüt | Sonuç |
+|---|---|
+| Eğri toleransı 0,5 / 0,1 / 0,05 / 0,01 mm | ölçülen sehim hepsinde tolerans altında |
+| 200×300 mm kare, 5 mm kenar payı | çizim min tam (200,200), max (8200,12200) |
+| Negatif koordinatlı girdi | çıktıda hepsi pozitif, min (200,200) |
+| Park komutu tuzağı | üç dosya biçiminde ayrı ayrı ölçüldü |
+
 ## [1.5.0] - 2026-09-16
 
 ### Eklendi

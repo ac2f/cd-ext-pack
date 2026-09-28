@@ -17,8 +17,11 @@
   7  -  Box letter report (no drawing)
   8  -  ACP panel V-grooves
   9  -  Centerline (reduce to a single line)
- 10  -  Settings and profiles
- 11  -  About
+ 10  -  Send to plotter
+ 11  -  Write HPGL to a file
+ 12  -  Normalise an existing .plt and send
+ 13  -  Settings and profiles
+ 14  -  About
 ```
 
 Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
@@ -428,14 +431,124 @@ Uç konumu hatası 1,8 mm.
 
 ---
 
-## 7. Ayarlar — tek sayfa
+## 7. Plotter'a gönderme
 
-Ana menüden `10` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
+Seçimi seçin, `ac2fPlotSend` çalıştırın. Tek soru gelir:
+
+```
+Plotter address as host:port
+
+   192.168.1.100:9100    raw socket, the usual case
+   192.168.1.100:23      a telnet port
+```
+
+Onaylayın, iş gider. **Export etmeniz ve dosya düzeltmeniz gerekmez.**
+
+### Neden düzeltme adımı yok
+
+Export edilmiş bir `.plt`'de geometri, sayfanın verdiği koordinatlarda
+kalır — sık sık negatif. Plotter bunu kabul etmez, dosyanın
+ayrıştırılıp kaydırılması gerekir.
+
+Burada kaydırma **HPGL yazılırken, geometrinin kendisinden** uygulanır:
+en küçük X ve en küçük Y, kenar payına oturtulur. Ayrıştırılacak metin
+yok, düzeltilecek dosya yok.
+
+```
+SENT
+   Plotter             : 192.168.1.100:9100
+   Bytes               : 48.312
+   Paths               : 27
+   Points              : 3.914
+
+PLACEMENT
+   Size                : 412,60 x 280,15 mm
+   Margin              : 5,00 mm  (200 units)
+   X range             : 200 .. 16704
+   Y range             : 200 .. 11406
+   Curve tolerance     : 0,05 mm
+
+Coordinates are already shifted; nothing to fix.
+```
+
+HPGL birimi milimetrede **40**'tır (inçte 1016), yani 5 mm = 200 birim.
+
+### Bağlantı nasıl kuruluyor
+
+VBA'nın kendi socket'i yok. Baytlar kısa bir PowerShell betiği üzerinden
+`System.Net.Sockets.TcpClient` ile çıkar. PowerShell desteklenen her
+Windows'ta bulunur, bu yüzden `Declare` bildirimi, 32/64 bit uyumu ya da
+OCX kaydı gerekmez.
+
+Betik bir günlük yazar, makro onu geri okur. Bağlantı kurulamazsa
+gerçek sebebi görürsünüz:
+
+```
+SEND FAILED
+   ...
+REASON
+   No answer from 192.168.1.100:9100 within 5000 ms
+
+The file is written, so you can send it by hand.
+```
+
+> Bu **ham TCP akışıdır** — 9100 ya da bir telnet portunda dinleyen
+> plotter'ların beklediği şey. Telnet protokolü anlaşması (IAC kaçırma)
+> yapılmaz; plotter'lar anlaşma istemediği için bu doğru davranıştır.
+
+### Diğer iki makro
+
+| Makro | Ne yapar |
+|---|---|
+| `ac2fPlotSave` | HPGL'i dosyaya yazar, göndermez. Çıktıyı incelemek için. |
+| `ac2fPlotFixSend` | Var olan bir `.plt`'yi normalize eder, sorar, isterseniz gönderir. |
+
+`ac2fPlotFixSend` eski betiğinizin işini yapar. Bir farkla: **çizim alanı
+yalnız çizim komutlarından** hesaplanır — her `PD`, ve ardından `PD`
+gelen `PU`'lar.
+
+Sondaki `PU0,0;` kalem park komutudur, çizim değildir. Hesaba katılırsa:
+
+| Dosya | Tüm PU/PD | Yalnız çizim |
+|---|---|---|
+| Çizim negatif, park var | doğru | doğru |
+| **Çizim pozitif, park var** | **yanlış** | doğru |
+| Çizim pozitif, park yok | doğru | doğru |
+
+Ortadaki satır önemli: çizim tamamen pozitifse min 0,0 çıkar,
+normalizasyon sabit bir kaydırmaya döner, iş kenara oturmaz ve malzeme
+boşa gider.
+
+### Ayarlar (31-32)
+
+| Ayar | Varsayılan | Ne yapar |
+|---|---|---|
+| Margin | 5 mm | İşin plotter orijininden uzaklığı |
+| Curve tol | 0,05 mm | Eğrilerin kaç düz adıma bölüneceği |
+
+Plotter adresi **ayar sayfasında değil** — gönderirken sorulur ve
+hatırlanır. Bir makine adresi, geometri parametresi değil.
+
+### Bilinmesi gerekenler
+
+- Tek kalem kullanılır (`SP1`). Renk/katman başına kalem ataması yok.
+- Sayfa sonu (`PG;`) gönderilmez — beklemediğiniz bir malzeme ilerlemesi
+  olmaz. Gerekiyorsa plotter panelinden verin.
+- Yol sırası optimize edilmez; nesneler seçim sırasıyla gider.
+- Bitmap ve yol taşımayan nesneler atlanır.
+- Gönderim başarısız olsa bile **dosya yazılmıştır**; raporda yolu
+  vardır, elle gönderebilirsiniz.
+
+---
+
+## 8. Ayarlar — tek sayfa
+
+Ana menüden `13` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
 
 ```
 SETTINGS  (profile: Aluminium 2mm)
 
--- LED MODULE --
+[LED MODULE]
  1 Module spacing     100.00 mm
  2 LEDs per module         3
  3 Module power         0.72 W
@@ -444,7 +557,7 @@ SETTINGS  (profile: Aluminium 2mm)
  6 Min per outline         1
  7 Count method            1
  8 Correction factor    1.00
--- BOX LETTER --
+[BOX LETTER]
  9 Thickness            2.00 mm
 10 Strip height           80 mm
 11 Flexibility          0.80
@@ -459,17 +572,18 @@ SETTINGS  (profile: Aluminium 2mm)
 20 Coil length          3000 mm
 21 Joint allowance        20 mm
 21 Joint allow      20.00 22 Strip gap       10.00
--- ACP PANEL --
+[ACP PANEL]
 23 Fold size       50.00 24 Fold direction    1.00
 25 Keep source      1.00
--- CENTERLINE --
+[CENTERLINE]
 26 Resolution       1.00 27 Simplify tol     0.30
 28 Smoothing        2.00 29 Min branch xW    1.00
 30 Extend ends      1.00
+[PLOTTER]
+31 Margin           5.00 32 Curve tol        0.05
 
-N=value   change        ?N   explain
-P         profiles      R    reset
-Enter     close
+N=val  ?N=help        ?N   explain
+P=profiles  R=reset  Enter=close
 ```
 
 ### Komutlar
@@ -525,7 +639,7 @@ Range    : 0.01 and up
 
 ---
 
-## 8. Profiller
+## 9. Profiller
 
 Ayar sayfasında `P`, ya da doğrudan `ac2fProfiles`.
 
@@ -570,7 +684,7 @@ tanınmayan anahtarlar sessizce atlanır.
 
 ---
 
-## 9. Profille çalıştırma ve geçici değişiklik
+## 10. Profille çalıştırma ve geçici değişiklik
 
 Ana menü `6` (`ac2fBoxLetterStripProfile`). Üç adım:
 
@@ -582,7 +696,7 @@ Ana menü `6` (`ac2fBoxLetterStripProfile`). Üç adım:
 ```
 RUN SETTINGS - changes apply to this run only
 
--- BOX LETTER --
+[BOX LETTER]
  9 Thickness            2.50 mm *
 11 Flexibility          0.80
 ...
@@ -595,7 +709,7 @@ Enter     run
 Geçici değerler **kayıtlı ayarlarınıza yazılmaz** ve çizim biter bitmez
 silinir. Aynı profille tek bir kalınlığı deneyip görmek için budur.
 
-Kalıcı olmasını istiyorsanız ayar sayfasından (`10`) değiştirin, sonra
+Kalıcı olmasını istiyorsanız ayar sayfasından (`13`) değiştirin, sonra
 `P` → `S <ad>` ile profile kaydedin.
 
 ---

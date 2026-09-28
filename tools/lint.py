@@ -80,7 +80,7 @@ def settings_sheet_length():
         return None, 0
 
     # Mirrors ac2fSheet: two columns, group headers, no unit in the grid.
-    lines = ['SETTINGS  (profile: ' + 'M' * 20 + ')', '']
+    lines = ['SETTINGS  (profile: ' + 'M' * 12 + ')', '']
     group, pending = None, ''
     for i, (grp, label, _unit) in enumerate(calls, 1):
         if grp != group:
@@ -88,7 +88,7 @@ def settings_sheet_length():
                 lines.append(pending)
                 pending = ''
             group = grp
-            lines.append('-- %s --' % grp)
+            lines.append('[%s]' % grp)
         cell = '%2d %s %s' % (i, label.ljust(lab_w)[:lab_w], '0.00'.rjust(val_w))
         if not pending:
             pending = cell
@@ -97,8 +97,7 @@ def settings_sheet_length():
             pending = ''
     if pending:
         lines.append(pending)
-    lines += ['', 'N=value  change   ?N  explain',
-              'P  profiles   R  reset   Enter  close']
+    lines += ['', 'N=val  ?N=help  P=profiles  R=reset  Enter=close']
     return len('\r\n'.join(lines)), len(calls)
 
 
@@ -195,7 +194,10 @@ def main():
                 else:
                     stack.pop()
 
-            for name in re.findall(r'\bac2f[A-Za-z_]\w*', code):
+            # Strings hold file names like "ac2f_plot.plt"; they are data,
+            # not symbol references, so scan only the code outside them.
+            outside = re.sub(r'"[^"]*"', '""', code)
+            for name in re.findall(r'\bac2f[A-Za-z_]\w*', outside):
                 calls[name].append(f'{f}:{i}')
 
         if stack:
