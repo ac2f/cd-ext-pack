@@ -2,6 +2,49 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.6.1] - 2026-09-28
+
+### Netleştirme
+
+Sorulan iki nokta koda bakılarak doğrulandı:
+
+- **Döndürme yoktu ve yok.** `ac2fPlot` belge X'ini plotter X'ine, belge
+  Y'sini plotter Y'sine eşler; arada döndürecek bir süzgeç yok.
+- **CorelDRAW PLT export'u kullanılmıyor.** Modülde tek bir `Export`
+  çağrısı yok; HPGL doğrudan geometriden yazılıyor. Önce dışa aktarıp
+  sonra gönderme adımı hiç olmadı.
+
+### Eklendi
+
+- **`Rotate` ayarı (33)** — çeyrek tur, varsayılan **0 = gördüğünüz
+  gibi**. İş yine de dönük çıkıyorsa sebep makinedir: çoğu kesicide X
+  ekseni malzeme besleme yönünde uzar. 90 / 180 / 270 bunu telafi eder.
+  Döndürme, kenar payı uygulanmadan **önce** yapılır, böylece iş her
+  yönde köşeye oturur. 90'ın katı olmayan değer en yakın çeyreğe
+  yuvarlanır.
+
+### Düzeltildi
+
+- Gönderim başarılı olduğunda **geçici dosya siliniyor**. Önceden
+  `%TEMP%\ac2f_plot.plt` geride kalıyordu. Başarısızlıkta bilerek
+  bırakılır, elle gönderilebilsin diye.
+
+### Doğrulama
+
+200×300 mm, sol altı işaretli bir iş dört yönde de ölçüldü:
+
+| Rotate | Boyut | Çizim min | İşaret |
+|---|---|---|---|
+| 0 | 200 × 300 | (200, 200) | sol-alt |
+| 90 | 300 × 200 | (200, 200) | sağ-alt |
+| 180 | 200 × 300 | (200, 200) | sağ-üst |
+| 270 | 300 × 200 | (200, 200) | sol-üst |
+
+Dört yönde de kenar payı korunuyor.
+
+Ayar sayfası: grup adları kısaltıldı ve başlık sıkıştırıldı
+(`SETTINGS [profil]`), 33 ayarla 960 karakter.
+
 ## [1.6.0] - 2026-09-28
 
 ### Eklendi

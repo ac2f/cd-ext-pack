@@ -444,6 +444,38 @@ Plotter address as host:port
 
 Onaylayın, iş gider. **Export etmeniz ve dosya düzeltmeniz gerekmez.**
 
+### Yön: nasıl görüyorsanız öyle
+
+**Hiçbir şey döndürülmez.** Belge X'i plotter X'i, belge Y'si plotter
+Y'si olur. Arada döndürecek bir export süzgeci yok — iş ekranda durduğu
+gibi kesilir.
+
+Yine de dönük çıkıyorsa sebep dosya değil **makinedir**: çoğu kesicide X
+ekseni malzeme besleme yönünde uzar, bu yüzden geniş bir iş ruloya enine
+düşer.
+
+| `Rotate` (ayar 33) | Sonuç |
+|---|---|
+| `0` *(varsayılan)* | Ekranda gördüğünüz gibi |
+| `90` | Saat yönünün tersine çeyrek tur |
+| `180` | Ters çevrilir |
+| `270` | Saat yönüne çeyrek tur |
+
+90 ve 270'te en–boy takas olur (200×300 → 300×200). Kenar payı
+döndürmeden **sonra** uygulanır, dolayısıyla iş her durumda köşeye
+oturur. 90'ın katı olmayan bir değer en yakın çeyreğe yuvarlanır.
+
+### Ara dosya var mı
+
+**CorelDRAW'ın PLT export'u hiç kullanılmaz.** Modülde tek bir `Export`
+çağrısı yok; HPGL doğrudan geometriden yazılır. Önce dışa aktarıp sonra
+göndermek diye bir adım yoktur.
+
+Gönderirken baytlar, gönderici sürece devretmek için geçici bir dosyadan
+geçer. **Gönderim başarılı olunca o dosya silinir** — raporda
+`File: none kept (streamed)` yazar. Başarısız olursa dosya bilerek
+bırakılır ki elle gönderebilesiniz.
+
 ### Neden düzeltme adımı yok
 
 Export edilmiş bir `.plt`'de geometri, sayfanın verdiği koordinatlarda
@@ -519,12 +551,13 @@ Ortadaki satır önemli: çizim tamamen pozitifse min 0,0 çıkar,
 normalizasyon sabit bir kaydırmaya döner, iş kenara oturmaz ve malzeme
 boşa gider.
 
-### Ayarlar (31-32)
+### Ayarlar (31-33)
 
 | Ayar | Varsayılan | Ne yapar |
 |---|---|---|
 | Margin | 5 mm | İşin plotter orijininden uzaklığı |
 | Curve tol | 0,05 mm | Eğrilerin kaç düz adıma bölüneceği |
+| Rotate | 0 | Çeyrek tur. **0 = gördüğünüz gibi** |
 
 Plotter adresi **ayar sayfasında değil** — gönderirken sorulur ve
 hatırlanır. Bir makine adresi, geometri parametresi değil.
@@ -546,9 +579,9 @@ hatırlanır. Bir makine adresi, geometri parametresi değil.
 Ana menüden `13` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
 
 ```
-SETTINGS  (profile: Aluminium 2mm)
+SETTINGS  [Aluminium 2mm]
 
-[LED MODULE]
+[LED]
  1 Module spacing     100.00 mm
  2 LEDs per module         3
  3 Module power         0.72 W
@@ -557,7 +590,7 @@ SETTINGS  (profile: Aluminium 2mm)
  6 Min per outline         1
  7 Count method            1
  8 Correction factor    1.00
-[BOX LETTER]
+[BOX]
  9 Thickness            2.00 mm
 10 Strip height           80 mm
 11 Flexibility          0.80
@@ -572,15 +605,16 @@ SETTINGS  (profile: Aluminium 2mm)
 20 Coil length          3000 mm
 21 Joint allowance        20 mm
 21 Joint allow      20.00 22 Strip gap       10.00
-[ACP PANEL]
+[ACP]
 23 Fold size       50.00 24 Fold direction    1.00
 25 Keep source      1.00
-[CENTERLINE]
+[CENTER]
 26 Resolution       1.00 27 Simplify tol     0.30
 28 Smoothing        2.00 29 Min branch xW    1.00
 30 Extend ends      1.00
-[PLOTTER]
+[PLOT]
 31 Margin           5.00 32 Curve tol        0.05
+33 Rotate              0
 
 N=val  ?N=help        ?N   explain
 P=profiles  R=reset  Enter=close
@@ -696,7 +730,7 @@ Ana menü `6` (`ac2fBoxLetterStripProfile`). Üç adım:
 ```
 RUN SETTINGS - changes apply to this run only
 
-[BOX LETTER]
+[BOX]
  9 Thickness            2.50 mm *
 11 Flexibility          0.80
 ...

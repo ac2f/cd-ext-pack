@@ -428,6 +428,24 @@ sıkı eğriler kısa adım alır ve hata her yerde tolerans altında kalır.
 Ölçüldü: 0,5 / 0,1 / 0,05 / 0,01 mm toleranslarda gerçek sehim hep
 sınırın altında.
 
+### Yön
+
+Dönüşüm birebirdir: belge X'i HPGL X'i, belge Y'si HPGL Y'si. Corel'in
+ve HPGL'in Y ekseni de aynı yöne bakar, dolayısıyla döndürme yoktur.
+`Rotate` ayarı yalnızca makine eksenini telafi etmek içindir ve
+varsayılanı 0'dır.
+
+Döndürme, uzanım alınmadan **önce** uygulanır; sonra alınsaydı kenar
+payı 90 ve 270'te yanlış kenara düşerdi.
+
+### Ara dosya
+
+Modül CorelDRAW export süzgeci kullanmaz. Gönderimdeki geçici dosya
+yalnızca PowerShell sürecine devretme aracıdır ve başarıdan sonra
+silinir. Tamamen dosyasız bir yol (stdin borusu) mümkündür ama
+`WScript.Shell.Exec` konsol penceresini gizleyemez; `Run` ile gizli
+çalıştırma + geçici dosya, kısa bir siyah pencere çakmasına yeğlendi.
+
 ### Neden PowerShell
 
 VBA'nın socket'i yok. Seçenekler `ws2_32.dll` için `Declare` (32/64 bit

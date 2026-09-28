@@ -19,6 +19,16 @@ Attribute VB_Name = "ac2fPlot"
 '
 '  HPGL units are 40 per millimetre (1016 per inch).
 '
+'  ORIENTATION
+'  Nothing is rotated: document X becomes HPGL X and document Y
+'  becomes HPGL Y, so the job reaches the plotter exactly as it sits
+'  on screen. There is no export filter in the way to turn it.
+'
+'  If it still comes out turned, that is the machine: on most cutters
+'  the X axis runs along the media feed, so a wide job lands across
+'  the roll. The Rotate setting compensates for that and defaults to
+'  0, which is no rotation at all.
+'
 '  SENDING
 '  VBA has no socket of its own, so the bytes go out through a short
 '  PowerShell script using System.Net.Sockets.TcpClient. PowerShell is on
@@ -44,10 +54,12 @@ Private Const CONNECT_MS   As Long = 5000
 '---------------------------------------------------------------------
 Public Const AC2F_K_PL_MARGIN As String = "PLKenarPayiMM"
 Public Const AC2F_K_PL_TOL    As String = "PLEgriToleransiMM"
+Public Const AC2F_K_PL_ROT    As String = "PLDondurmeDerece"
 Public Const AC2F_K_PL_TARGET As String = "PLPlotterAdresi"   ' string, not on the sheet
 
 Public Const AC2F_DEF_PL_MARGIN As Double = 5#     ' margin from the origin (mm)
 Public Const AC2F_DEF_PL_TOL    As Double = 0.05   ' curve flattening tolerance (mm)
+Public Const AC2F_DEF_PL_ROT    As Long = 0        ' 0 = exactly as you see it
 Public Const AC2F_DEF_PL_TARGET As String = "192.168.1.100:9100"
 
 '---------------------------------------------------------------------
@@ -86,6 +98,7 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
     Dim port As Long
     Dim errText As String
     Dim bytesOut As Long
+    Dim rotDeg As Long
 
     If ActiveDocument Is Nothing Then
         ac2fWarn "Open a document first.", CAPTION_
@@ -144,6 +157,10 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
         Exit Sub
     End If
 
+    ' --- orientation --------------------------------------------------
+    rotDeg = ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT)
+    ac2fPLRotate rotDeg
+
     ' --- normalisation, from the geometry, not from parsed text -------
     minX = m_x(0): maxX = m_x(0): minY = m_y(0): maxY = m_y(0)
     For i = 1 To m_n - 1
@@ -163,7 +180,11 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
 
     If send Then
         If ac2fPLSendFile(path, host, port, errText) Then
-            ac2fInfo ac2fPLReport(True, host, port, path, bytesOut, margin, tol, _
+            ' The file was only a handoff to the sender; nothing is kept.
+            On Error Resume Next
+            Kill path
+            On Error GoTo Fail
+            ac2fInfo ac2fPLReport(True, host, port, "", bytesOut, margin, tol, _
                                   minX, minY, maxX, maxY, ""), CAPTION_
         Else
             ac2fWarn ac2fPLReport(False, host, port, path, bytesOut, margin, tol, _
@@ -371,6 +392,29 @@ Private Sub ac2fPLAddPt(ByVal x As Double, ByVal y As Double)
     m_x(m_n) = x
     m_y(m_n) = y
     m_n = m_n + 1
+End Sub
+
+' Turns the flattened points a whole number of quarter turns. Applied
+' before the extent is taken, so the margin still lands correctly
+' whichever way the job ends up facing.
+Private Sub ac2fPLRotate(ByVal deg As Long)
+    Dim i As Long, q As Long
+    Dim t As Double
+
+    q = ((deg Mod 360) + 360) Mod 360
+    q = ((q + 45) \ 90) Mod 4              ' snap to the nearest quarter
+    If q = 0 Then Exit Sub                 ' 0 = exactly as on screen
+
+    For i = 0 To m_n - 1
+        Select Case q
+            Case 1                          ' 90 counter-clockwise
+                t = m_x(i): m_x(i) = -m_y(i): m_y(i) = t
+            Case 2
+                m_x(i) = -m_x(i): m_y(i) = -m_y(i)
+            Case 3                          ' 270, i.e. 90 clockwise
+                t = m_x(i): m_x(i) = m_y(i): m_y(i) = -t
+        End Select
+    Next i
 End Sub
 
 '=====================================================================
@@ -855,7 +899,11 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
     If Len(host) > 0 Then
         s = s & "   Plotter             : " & host & ":" & port & vbCrLf
     End If
-    s = s & "   File                : " & path & vbCrLf
+    If Len(path) > 0 Then
+        s = s & "   File                : " & path & vbCrLf
+    Else
+        s = s & "   File                : none kept (streamed)" & vbCrLf
+    End If
     s = s & "   Bytes               : " & Format$(bytesOut, "#,##0") & vbCrLf
     s = s & "   Paths               : " & m_sn & vbCrLf
     s = s & "   Points              : " & Format$(m_n, "#,##0") & vbCrLf & vbCrLf
@@ -870,12 +918,16 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
     s = s & "   Y range             : " & CLng(margin * u) & " .. " & _
             CLng(margin * u + (maxY - minY) * u) & vbCrLf
     s = s & "   Curve tolerance     : " & ac2fFmt(tol) & " mm" & vbCrLf
+    s = s & "   Rotate              : " & ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) & _
+            " deg" & IIf(ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) = 0, _
+                         "  (as on screen)", "") & vbCrLf
 
     If Len(errText) > 0 Then
         s = s & vbCrLf & "REASON" & vbCrLf & "   " & errText & vbCrLf
         s = s & vbCrLf & "The file is written, so you can send it by hand."
     ElseIf Len(host) > 0 And ok Then
-        s = s & vbCrLf & "Coordinates are already shifted; nothing to fix."
+        s = s & vbCrLf & "Written straight from the geometry and streamed out." & vbCrLf
+        s = s & "No CorelDRAW export, no file left behind, nothing to fix."
     End If
 
     ac2fPLReport = s

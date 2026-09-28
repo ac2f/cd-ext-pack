@@ -80,7 +80,7 @@ def settings_sheet_length():
         return None, 0
 
     # Mirrors ac2fSheet: two columns, group headers, no unit in the grid.
-    lines = ['SETTINGS  (profile: ' + 'M' * 12 + ')', '']
+    lines = ['SETTINGS  [' + 'M' * 12 + ']', '']
     group, pending = None, ''
     for i, (grp, label, _unit) in enumerate(calls, 1):
         if grp != group:

@@ -192,6 +192,18 @@ düzeltilecek dosya yok.**
 192.168.1.100:9100
 ```
 
+### Yön: nasıl görüyorsanız öyle
+
+**Hiçbir şey döndürülmez.** Belge X'i plotter X'i, belge Y'si plotter
+Y'si olur; iş ekranda durduğu gibi kesilir. Arada döndürecek bir export
+süzgeci yoktur.
+
+Yine de dönük çıkıyorsa sebep makinedir: çoğu kesicide X ekseni malzeme
+besleme yönünde uzar, bu yüzden geniş bir iş ruloya enine düşer. `Rotate`
+ayarı (33) bunu telafi eder, **varsayılanı 0** — yani döndürme yok.
+90 saat yönünün tersine, 270 saat yönüne çevirir; en–boy takas olur ve
+kenar payı sonradan uygulandığı için iş yine köşeye oturur.
+
 ### Neden düzeltme adımı yok
 
 Export edilmiş bir `.plt`'nin olağan sorunu, geometrinin sayfanın verdiği
@@ -201,6 +213,17 @@ geometriden** uygulanıyor — ayrıştırılacak bir şey yok, düzeltilecek bi
 şey yok.
 
 HPGL birimi milimetrede 40'tır (inçte 1016).
+
+### Ara dosya var mı
+
+**CorelDRAW'ın PLT export'u hiç kullanılmaz** — modülde tek bir `Export`
+çağrısı yoktur. HPGL doğrudan geometriden yazılır.
+
+Gönderirken baytlar, gönderici sürece devretmek için geçici bir dosyadan
+geçer ve **gönderim başarılı olunca dosya silinir**; geriye bir şey
+kalmaz. Gönderim başarısız olursa dosya bilerek bırakılır, raporda yolu
+vardır, elle gönderebilirsiniz. Dosyayı kalıcı istiyorsanız
+`ac2fPlotSave` var.
 
 ### Gönderim yolu
 
