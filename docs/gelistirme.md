@@ -83,6 +83,23 @@ içindeki kesme işareti yorum başlatmaz.
 > tanımlayıcı (`CAPTION_`) devam işareti değildir; bu ayrım gözetilmezse
 > denetleyici sağlam dosyalarda yanlış alarm verir.
 
+### Ayrılmış sözcük denetimi
+
+VBA'nın ayrılmış sözcüğünü değişken adı yapmak derlemede yalnızca
+`Syntax error` verir — hangi belirtecin suçlu olduğu söylenmez, o yüzden
+CorelDRAW'da bulmak zordur. Denetleyici `<ad> As <tip>` bildirim
+örüntüsünü tarayıp iki listeye bakar:
+
+- **Ayrılmış sözcükler** — deyim anahtar sözcükleri ve `Sgn`, `Len`,
+  `Mid`, `Int`, `Abs` gibi MS-VBAL ayrılmış üye adları.
+- **Gölgelenen kütüphane fonksiyonları** — `Val`, `Format`, `Left`,
+  `Space` gibi kodun kendi çağırdığı adlar. Aynı adda bir yerel,
+  o yordamdaki çağrıyı sessizce değişkene bağlar.
+
+İki durum hariç tutulur: `Open path For Output As #1` bir bildirim
+değildir, ve `Type` alanları kendi ad alanındadır (`Name As String` bir
+UDT içinde yasaldır).
+
 ### Kontrol akışı karşılaştırması
 
 ```bash

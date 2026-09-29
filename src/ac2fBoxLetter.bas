@@ -372,7 +372,7 @@ End Function
 ' Solves c/L = 2*sin(t/2)/t for t by bisection.
 ' The right hand side is strictly decreasing on (0, 2*pi).
 Private Function ac2fBLTheta(ByVal chord As Double, ByVal arc As Double) As Double
-    Dim r As Double, lo As Double, hi As Double, mid As Double, f As Double
+    Dim r As Double, lo As Double, hi As Double, mp As Double, f As Double
     Dim i As Long
     Const PI2 As Double = 6.28318530717959
 
@@ -386,9 +386,9 @@ Private Function ac2fBLTheta(ByVal chord As Double, ByVal arc As Double) As Doub
 
     lo = 0.000001: hi = PI2 - 0.000001
     For i = 1 To 60
-        mid = (lo + hi) / 2#
-        f = 2# * Sin(mid / 2#) / mid
-        If f > r Then lo = mid Else hi = mid
+        mp = (lo + hi) / 2#
+        f = 2# * Sin(mp / 2#) / mp
+        If f > r Then lo = mp Else hi = mp
     Next i
     ac2fBLTheta = (lo + hi) / 2#
 End Function

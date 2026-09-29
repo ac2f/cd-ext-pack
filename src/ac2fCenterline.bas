@@ -113,7 +113,7 @@ Private Sub ac2fCLRun(ByVal joined As Boolean)
     Dim n As Long, i As Long
     Dim res As Double
     Dim groups As Long, paths As Long
-    Dim totLen As Double, width As Double
+    Dim totLen As Double, strokeW As Double
     Dim msg As String
 
     If ActiveDocument Is Nothing Then
@@ -152,7 +152,7 @@ Private Sub ac2fCLRun(ByVal joined As Boolean)
     ActiveDocument.BeginCommandGroup ac2fTitle("centerline")
 
     If joined Then
-        If ac2fCLOne(src, n, paths, totLen, width, msg) Then groups = 1
+        If ac2fCLOne(src, n, paths, totLen, strokeW, msg) Then groups = 1
     Else
         Dim one(0 To 0) As Shape
         Dim p As Long, tl As Double, wd As Double
@@ -163,7 +163,7 @@ Private Sub ac2fCLRun(ByVal joined As Boolean)
                 groups = groups + 1
                 paths = paths + p
                 totLen = totLen + tl
-                If wd > width Then width = wd
+                If wd > strokeW Then strokeW = wd
             End If
         Next i
     End If
@@ -182,7 +182,7 @@ Private Sub ac2fCLRun(ByVal joined As Boolean)
         Exit Sub
     End If
 
-    ac2fInfo ac2fCLReport(joined, groups, paths, totLen, width, msg), CAPTION_
+    ac2fInfo ac2fCLReport(joined, groups, paths, totLen, strokeW, msg), CAPTION_
     Exit Sub
 
 Fail:
@@ -197,7 +197,7 @@ End Sub
 ' Runs the whole pipeline over one set of shapes and draws the result.
 Private Function ac2fCLOne(ByRef shp() As Shape, ByVal n As Long, _
                            ByRef paths As Long, ByRef totLen As Double, _
-                           ByRef width As Double, ByRef msg As String) As Boolean
+                           ByRef strokeW As Double, ByRef msg As String) As Boolean
     Dim i As Long
     Dim x1 As Double, y1 As Double, w As Double, h As Double
     Dim bx1 As Double, by1 As Double, bx2 As Double, by2 As Double
@@ -259,14 +259,14 @@ Private Function ac2fCLOne(ByRef shp() As Shape, ByVal n As Long, _
     ' a stroke of width w and length L covers w * L.
     totLen = ac2fCLTotalLength()
     If totLen <= 0 Then Exit Function
-    width = (CDbl(m_filled) * m_res * m_res) / totLen
+    strokeW = (CDbl(m_filled) * m_res * m_res) / totLen
 
-    minBranch = ac2fGetNum(AC2F_K_CL_BRANCH, AC2F_DEF_CL_BRANCH) * width
+    minBranch = ac2fGetNum(AC2F_K_CL_BRANCH, AC2F_DEF_CL_BRANCH) * strokeW
     ac2fCLPrune minBranch
     If m_cn = 0 Then Exit Function
 
     If ac2fGetLng(AC2F_K_CL_EXTEND, AC2F_DEF_CL_EXTEND) <> 0 Then
-        ac2fCLExtend width
+        ac2fCLExtend strokeW
     End If
 
     ac2fCLSmooth CLng(ac2fGetNum(AC2F_K_CL_SMOOTH, CDbl(AC2F_DEF_CL_SMOOTH)))
@@ -325,7 +325,7 @@ Private Function ac2fCLFlattenCurve(ByVal cv As Curve) As Boolean
     Dim sp As SubPath, sg As Segment
     Dim ax As Double, ay As Double, bx As Double, by As Double
     Dim cxx As Double, cyy As Double, chord As Double
-    Dim arcL As Double, th As Double, sgn As Double
+    Dim arcL As Double, th As Double, turnDir As Double
     Dim steps As Long
 
     m_fn = 0: m_spn = 0
@@ -369,8 +369,8 @@ Private Function ac2fCLFlattenCurve(ByVal cv As Curve) As Boolean
                     If steps < 1 Then steps = 1
                     If steps > 400 Then steps = 400
 
-                    sgn = ac2fCLSegSign(sp, nSeg, k)
-                    ac2fCLEmitArc ax, ay, bx, by, arcL, th, sgn, steps
+                    turnDir = ac2fCLSegSign(sp, nSeg, k)
+                    ac2fCLEmitArc ax, ay, bx, by, arcL, th, turnDir, steps
                     If m_fn >= MAX_PTS Then Exit For
                 Next k
 
@@ -422,7 +422,7 @@ End Function
 Private Sub ac2fCLEmitArc(ByVal ax As Double, ByVal ay As Double, _
                           ByVal bx As Double, ByVal by As Double, _
                           ByVal arcL As Double, ByVal th As Double, _
-                          ByVal sgn As Double, ByVal steps As Long)
+                          ByVal turnDir As Double, ByVal steps As Long)
     Dim i As Long
     Dim r As Double, phi As Double, t0 As Double
     Dim cx As Double, cy As Double, a0 As Double, ang As Double
@@ -436,13 +436,13 @@ Private Sub ac2fCLEmitArc(ByVal ax As Double, ByVal ay As Double, _
 
     r = arcL / th
     phi = ac2fCLAtan2(by - ay, bx - ax)
-    t0 = phi - sgn * th / 2#
-    cx = ax + sgn * r * (-Sin(t0))
-    cy = ay + sgn * r * Cos(t0)
+    t0 = phi - turnDir * th / 2#
+    cx = ax + turnDir * r * (-Sin(t0))
+    cy = ay + turnDir * r * Cos(t0)
     a0 = ac2fCLAtan2(ay - cy, ax - cx)
 
     For i = 0 To steps - 1
-        ang = a0 + sgn * th * i / steps
+        ang = a0 + turnDir * th * i / steps
         ac2fCLAddPt cx + r * Cos(ang), cy + r * Sin(ang)
     Next i
 End Sub
@@ -468,8 +468,8 @@ Private Sub ac2fCLRasterShape(ByVal s As Shape)
     Dim nx As Long
     Dim ax As Double, ay As Double, bx As Double, by As Double
     Dim c0 As Long, c1 As Long
-    Dim base As Long
-    Dim sp0 As Long, spc As Long
+    Dim rowBase As Long
+    Dim sp0 As Long, spCount As Long
 
     If Not ac2fCLFlatten(s) Then Exit Sub
     ReDim xs(0 To 255)
@@ -479,10 +479,10 @@ Private Sub ac2fCLRasterShape(ByVal s As Shape)
         nx = 0
 
         For i = 0 To m_spn - 1
-            sp0 = m_sps(i): spc = m_spc(i)
-            For j = 0 To spc - 1
+            sp0 = m_sps(i): spCount = m_spc(i)
+            For j = 0 To spCount - 1
                 ax = m_fx(sp0 + j): ay = m_fy(sp0 + j)
-                k = sp0 + ((j + 1) Mod spc)
+                k = sp0 + ((j + 1) Mod spCount)
                 bx = m_fx(k): by = m_fy(k)
                 If (ay <= yc And by > yc) Or (by <= yc And ay > yc) Then
                     If nx > UBound(xs) Then ReDim Preserve xs(0 To (UBound(xs) + 1) * 2 - 1)
@@ -494,14 +494,14 @@ Private Sub ac2fCLRasterShape(ByVal s As Shape)
 
         If nx > 1 Then
             ac2fCLSortD xs, nx
-            base = row * m_W
+            rowBase = row * m_W
             For k = 0 To nx - 2 Step 2
                 c0 = Int((xs(k) - m_x0) / m_res)
                 c1 = Int((xs(k + 1) - m_x0) / m_res)
                 If c0 < 0 Then c0 = 0
                 If c1 > m_W - 1 Then c1 = m_W - 1
                 For j = c0 To c1
-                    m_grid(base + j) = 1
+                    m_grid(rowBase + j) = 1
                 Next j
             Next k
         End If
@@ -535,7 +535,7 @@ Private Sub ac2fCLThin()
     Dim a As Long, b As Long
     Dim rem_() As Long, nr As Long
     Dim changed As Boolean
-    Dim base As Long
+    Dim rowBase As Long
 
     ReDim rem_(0 To 4095)
 
@@ -544,17 +544,17 @@ Private Sub ac2fCLThin()
         For step_ = 0 To 1
             nr = 0
             For r = 1 To m_H - 2
-                base = r * m_W
+                rowBase = r * m_W
                 For c = 1 To m_W - 2
-                    If m_grid(base + c) <> 0 Then
-                        p2 = m_grid(base - m_W + c)
-                        p3 = m_grid(base - m_W + c + 1)
-                        p4 = m_grid(base + c + 1)
-                        p5 = m_grid(base + m_W + c + 1)
-                        p6 = m_grid(base + m_W + c)
-                        p7 = m_grid(base + m_W + c - 1)
-                        p8 = m_grid(base + c - 1)
-                        p9 = m_grid(base - m_W + c - 1)
+                    If m_grid(rowBase + c) <> 0 Then
+                        p2 = m_grid(rowBase - m_W + c)
+                        p3 = m_grid(rowBase - m_W + c + 1)
+                        p4 = m_grid(rowBase + c + 1)
+                        p5 = m_grid(rowBase + m_W + c + 1)
+                        p6 = m_grid(rowBase + m_W + c)
+                        p7 = m_grid(rowBase + m_W + c - 1)
+                        p8 = m_grid(rowBase + c - 1)
+                        p9 = m_grid(rowBase - m_W + c - 1)
 
                         b = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9
                         If b >= 2 And b <= 6 Then
@@ -573,13 +573,13 @@ Private Sub ac2fCLThin()
                                     If p2 * p4 * p6 = 0 And p4 * p6 * p8 = 0 Then
                                         If nr > UBound(rem_) Then _
                                             ReDim Preserve rem_(0 To (UBound(rem_) + 1) * 2 - 1)
-                                        rem_(nr) = base + c: nr = nr + 1
+                                        rem_(nr) = rowBase + c: nr = nr + 1
                                     End If
                                 Else
                                     If p2 * p4 * p8 = 0 And p2 * p6 * p8 = 0 Then
                                         If nr > UBound(rem_) Then _
                                             ReDim Preserve rem_(0 To (UBound(rem_) + 1) * 2 - 1)
-                                        rem_(nr) = base + c: nr = nr + 1
+                                        rem_(nr) = rowBase + c: nr = nr + 1
                                     End If
                                 End If
                             End If
@@ -607,19 +607,19 @@ End Sub
 Private Sub ac2fCLCleanup()
     Dim r As Long, c As Long, i As Long, j As Long
     Dim nb(0 To 7) As Long, nn As Long
-    Dim base As Long
+    Dim rowBase As Long
     Dim covered As Boolean
     Dim dr As Long, dc As Long
 
     For r = 1 To m_H - 2
-        base = r * m_W
+        rowBase = r * m_W
         For c = 1 To m_W - 2
-            If m_grid(base + c) <> 0 Then
+            If m_grid(rowBase + c) <> 0 Then
                 nn = 0
                 For dr = -1 To 1
                     For dc = -1 To 1
                         If dr <> 0 Or dc <> 0 Then
-                            If m_grid(base + dr * m_W + c + dc) <> 0 Then
+                            If m_grid(rowBase + dr * m_W + c + dc) <> 0 Then
                                 nb(nn) = (r + dr) * 65536 + (c + dc)
                                 nn = nn + 1
                             End If
@@ -640,7 +640,7 @@ Private Sub ac2fCLCleanup()
                             End If
                         Next j
                         If covered Then
-                            m_grid(base + c) = 0
+                            m_grid(rowBase + c) = 0
                             Exit For
                         End If
                     Next i
@@ -864,12 +864,12 @@ End Function
 ' towards the corners, and a single-pixel direction follows that fork.
 ' Measured on a known shape, the tail cut the end error from 12.1 mm to
 ' 1.8 mm.
-Private Sub ac2fCLExtend(ByVal width As Double)
+Private Sub ac2fCLExtend(ByVal strokeW As Double)
     Dim i As Long
     Dim ends() As Byte
     Dim a As Long, b As Long
 
-    If m_cn = 0 Or width <= 0 Then Exit Sub
+    If m_cn = 0 Or strokeW <= 0 Then Exit Sub
     ReDim ends(0 To m_W * m_H - 1)
 
     For i = 0 To m_cn - 1
@@ -880,12 +880,12 @@ Private Sub ac2fCLExtend(ByVal width As Double)
     Next i
 
     For i = 0 To m_cn - 1
-        If ends(m_pi(m_cs(i) + m_cc(i) - 1)) = 1 Then ac2fCLGrow i, False, width
-        If ends(m_pi(m_cs(i))) = 1 Then ac2fCLGrow i, True, width
+        If ends(m_pi(m_cs(i) + m_cc(i) - 1)) = 1 Then ac2fCLGrow i, False, strokeW
+        If ends(m_pi(m_cs(i))) = 1 Then ac2fCLGrow i, True, strokeW
     Next i
 End Sub
 
-Private Sub ac2fCLGrow(ByVal ci As Long, ByVal atStart As Boolean, ByVal width As Double)
+Private Sub ac2fCLGrow(ByVal ci As Long, ByVal atStart As Boolean, ByVal strokeW As Double)
     Dim s As Long, n As Long, k As Long, step_ As Long
     Dim ax As Double, ay As Double, bx As Double, by As Double
     Dim acc As Double, dx As Double, dy As Double, L As Double
@@ -902,7 +902,7 @@ Private Sub ac2fCLGrow(ByVal ci As Long, ByVal atStart As Boolean, ByVal width A
         For k = 1 To n - 1
             acc = acc + Sqr((m_px(s + k) - m_px(s + k - 1)) ^ 2 + (m_py(s + k) - m_py(s + k - 1)) ^ 2)
             bx = m_px(s + k): by = m_py(s + k)
-            If acc >= width Then Exit For
+            If acc >= strokeW Then Exit For
         Next k
     Else
         ax = m_px(s + n - 1): ay = m_py(s + n - 1)
@@ -911,7 +911,7 @@ Private Sub ac2fCLGrow(ByVal ci As Long, ByVal atStart As Boolean, ByVal width A
         For k = n - 2 To 0 Step -1
             acc = acc + Sqr((m_px(s + k + 1) - m_px(s + k)) ^ 2 + (m_py(s + k + 1) - m_py(s + k)) ^ 2)
             bx = m_px(s + k): by = m_py(s + k)
-            If acc >= width Then Exit For
+            If acc >= strokeW Then Exit For
         Next k
     End If
 
@@ -921,7 +921,7 @@ Private Sub ac2fCLGrow(ByVal ci As Long, ByVal atStart As Boolean, ByVal width A
     dx = dx / L: dy = dy / L
 
     t = m_res * 0.5
-    Do While t <= width
+    Do While t <= strokeW
         nx = ax + dx * t: ny = ay + dy * t
         If Not ac2fCLInside(nx, ny) Then Exit Do
         lastX = nx: lastY = ny: found = True
@@ -1177,7 +1177,7 @@ End Function
 
 Private Function ac2fCLReport(ByVal joined As Boolean, ByVal groups As Long, _
                               ByVal paths As Long, ByVal totLen As Double, _
-                              ByVal width As Double, ByVal msg As String) As String
+                              ByVal strokeW As Double, ByVal msg As String) As String
     Dim s As String
 
     s = "RESULT" & vbCrLf
@@ -1186,7 +1186,7 @@ Private Function ac2fCLReport(ByVal joined As Boolean, ByVal groups As Long, _
     s = s & "   Centre lines        : " & groups & vbCrLf
     s = s & "   Paths               : " & paths & vbCrLf
     s = s & "   Total length        : " & ac2fFmtLength(totLen) & vbCrLf
-    s = s & "   Mean stroke width   : " & ac2fFmt(width) & " mm" & vbCrLf & vbCrLf
+    s = s & "   Mean stroke width   : " & ac2fFmt(strokeW) & " mm" & vbCrLf & vbCrLf
 
     s = s & "SETTINGS USED" & vbCrLf
     s = s & "   Resolution          : " & ac2fFmt(m_res) & " mm" & vbCrLf
@@ -1205,7 +1205,7 @@ Private Function ac2fCLReport(ByVal joined As Boolean, ByVal groups As Long, _
 End Function
 
 Private Function ac2fCLTheta(ByVal chord As Double, ByVal arc As Double) As Double
-    Dim r As Double, lo As Double, hi As Double, mid As Double, f As Double
+    Dim r As Double, lo As Double, hi As Double, mp As Double, f As Double
     Dim i As Long
     Const PI2 As Double = 6.28318530717959
 
@@ -1218,9 +1218,9 @@ Private Function ac2fCLTheta(ByVal chord As Double, ByVal arc As Double) As Doub
     End If
     lo = 0.000001: hi = PI2 - 0.000001
     For i = 1 To 60
-        mid = (lo + hi) / 2#
-        f = 2# * Sin(mid / 2#) / mid
-        If f > r Then lo = mid Else hi = mid
+        mp = (lo + hi) / 2#
+        f = 2# * Sin(mp / 2#) / mp
+        If f > r Then lo = mp Else hi = mp
     Next i
     ac2fCLTheta = (lo + hi) / 2#
 End Function

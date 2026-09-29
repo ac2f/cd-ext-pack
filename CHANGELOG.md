@@ -2,6 +2,33 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.7.1] - 2026-09-29
+
+### Düzeltildi
+
+**Derleme hatası: `Syntax error`.** VBA'nın ayrılmış sözcükleri değişken
+adı olarak kullanılmıştı. Derleyici hangi belirtecin suçlu olduğunu
+söylemediği için satırı işaretleyip "Syntax error" demekle yetiniyor.
+
+| Nerede | Eski | Yeni |
+|---|---|---|
+| `ac2fPlot`, `ac2fCenterline` | `sgn` | `turnDir` |
+| `ac2fCenterline` | `width` | `strokeW` |
+| `ac2fCenterline` | `base`, `spc` | `rowBase`, `spCount` |
+| `ac2fCore`, `ac2fBoxLetter`, `ac2fCenterline` | `mid` | `mp` |
+
+Ayrıca **`ac2fSettings`'te gizli bir hata**: `ac2fProfileLoad` içinde
+`val` adlı yerel değişken `Val()` kütüphane fonksiyonunu gölgeliyordu,
+yani aynı yordamdaki `Val(val)` çağrısı bozuktu. `sVal` yapıldı.
+
+### Eklendi
+
+- `tools/lint.py` artık **VBA ayrılmış sözcüklerini ve kütüphane
+  fonksiyonu gölgelemesini** denetliyor. Bildirim örüntüsü
+  (`<ad> As <tip>`) taranır; `For Output As #1` gibi `Open` deyimleri ve
+  kendi ad alanı olan `Type` alanları hariç tutulur. Bu sınıftaki
+  hatalar bir daha CorelDRAW'a kadar gitmez.
+
 ## [1.7.0] - 2026-09-29
 
 ### Eklendi

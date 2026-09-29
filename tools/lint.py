@@ -58,6 +58,40 @@ def preprocess(raw):
 OPENERS = {'sub': 'Sub', 'function': 'Function', 'type': 'Type'}
 
 
+# VBA reserved identifiers. Declaring one as a variable, parameter or
+# field is a compile-time "Syntax error" with no explanation of which
+# token is at fault, so they are worth catching here rather than in
+# CorelDRAW. Two classes: statement keywords, and the reserved member
+# names (MS-VBAL) that intrinsic functions like Sgn and Len occupy.
+VBA_RESERVED = {w.lower() for w in """
+Abs Access Alias And Any Append Array As Base Binary Boolean ByRef Byte ByVal
+Call Case CBool CByte CCur CDate CDbl CDec CInt CLng CLngLng CLngPtr Close
+Const CSng CStr Currency CVar CVErr Date Debug Decimal Declare DefBool DefByte
+DefCur DefDate DefDbl DefDec DefInt DefLng DefObj DefSng DefStr DefVar Dim Do
+DoEvents Double Each Else ElseIf Empty End Enum Eqv Erase Error Event Exit
+False Fix For Friend Function Get Global GoSub GoTo If Imp Implements In Input
+InStr InStrB Int Integer Is LBound Len LenB Let Lib Like Line Local Lock Long
+Loop LSet Me Mid MidB Mod Name New Next Not Nothing Null Object On Open Option
+Optional Or Output ParamArray Preserve Print Private Property Public Put
+Random Read ReDim Rem Resume Return RSet Seek Select Set Sgn Shared Single
+Spc Static Step Stop String Sub Tab Text Then Time To True Type TypeOf UBound
+Unlock Until Variant Wend While Width With WithEvents Write Xor
+""".split()}
+
+# Library functions the code itself calls. A local of the same name
+# shadows the function inside that procedure, so the call silently binds
+# to the variable instead.
+VBA_SHADOW = {w.lower() for w in """
+Asc Atn Chr Cos CreateObject Dir Environ Exp FileLen Format FreeFile IIf
+InStrRev Join Kill LCase Left LOF Log Now Replace Right Round Rnd Shell Sin
+Space Split Sqr StrComp StrPtr Tan Timer Trim UCase Val
+""".split()}
+
+# "<name> As <type>" only shows up in declarations. "For Output As #1" and
+# "For Input As #1" are the Open statement, not declarations, so the token
+# before the name must not be For.
+DECL_RE = re.compile(r'(?<!\bFor)\s\b([A-Za-z_]\w*)\s*(?:\([^)]*\))?\s+As\s+', re.I)
+
 SHEET_LIMIT = 1000   # VBA InputBox prompt tops out around 1024 characters
 
 
@@ -122,7 +156,7 @@ def main():
         if not raw[0].startswith('Attribute VB_Name'):
             errors.append(f'{f}:1 ilk satir "Attribute VB_Name" olmali')
 
-        stack, prev_proc = [], None
+        stack, prev_proc, in_type = [], None, False
         for i, code in preprocess(raw):
             s = code.strip()
             if not s:
@@ -154,6 +188,7 @@ def main():
             if tm:
                 known_syms.add(tm.group(1))
                 stack.append(('Type', tm.group(1), i))
+                in_type = True          # UDT fields are their own namespace
                 continue
             dm = decl_re.match(code)
             if dm:
@@ -170,6 +205,7 @@ def main():
                 else:
                     stack.pop()
             elif low.startswith('end type'):
+                in_type = False
                 if not stack or stack[-1][0] != 'Type':
                     errors.append(f'{f}:{i} eslesmeyen End Type')
                 else:
@@ -208,6 +244,22 @@ def main():
             outside = re.sub(r'"[^"]*"', '""', code)
             for name in re.findall(r'\bac2f[A-Za-z_]\w*', outside):
                 calls[name].append(f'{f}:{i}')
+
+            # "<name> As <type>" only appears in declarations, so this
+            # catches Dim, Const, parameters and Type fields in one rule.
+            # A user defined type puts its fields in their own namespace,
+            # so "Name As String" is legal there and only there.
+            if not in_type:
+                for name in DECL_RE.findall(' ' + outside):
+                    low = name.lower()
+                    if low in VBA_RESERVED:
+                        errors.append(f'{f}:{i} "{name}" VBA ayrilmis sozcugu, '
+                                      f'degisken adi olamaz (derleyici sadece '
+                                      f'"Syntax error" der)')
+                    elif low in VBA_SHADOW:
+                        errors.append(f'{f}:{i} "{name}" VBA kutuphane '
+                                      f'fonksiyonunu golgeler, o yordamda '
+                                      f'{name}() cagrisi bozulur')
 
         if stack:
             errors.append(f'{f}: kapanmamis blok(lar): '

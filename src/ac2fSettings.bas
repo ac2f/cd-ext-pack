@@ -1052,7 +1052,7 @@ Public Function ac2fProfileLoad(ByVal nm As String) As Boolean
     Dim blob As String
     Dim parts() As String
     Dim i As Long, p As Long, idx As Long
-    Dim key As String, val As String
+    Dim key As String, sVal As String
 
     ac2fBuildTable
 
@@ -1070,11 +1070,11 @@ Public Function ac2fProfileLoad(ByVal nm As String) As Boolean
         p = InStr(parts(i), "=")
         If p > 0 Then
             key = Left$(parts(i), p - 1)
-            val = Mid$(parts(i), p + 1)
+            sVal = Mid$(parts(i), p + 1)
             idx = ac2fFindSetting(key)
             ' A key that is no longer in the table is ignored, so an old
             ' profile still loads after a setting is removed.
-            If idx > 0 Then ac2fSettingStore idx, Val(val), False
+            If idx > 0 Then ac2fSettingStore idx, Val(sVal), False
         End If
     Next i
 

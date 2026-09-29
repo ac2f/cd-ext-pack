@@ -14,7 +14,7 @@ Option Explicit
 ' Package identity
 '---------------------------------------------------------------------
 Public Const AC2F_NAME    As String = "ac2f pack"
-Public Const AC2F_VERSION As String = "1.7.0"
+Public Const AC2F_VERSION As String = "1.7.1"
 Public Const AC2F_REG_APP As String = "ac2fPack"
 Public Const AC2F_REG_SEC As String = "Ayarlar"
 Public Const AC2F_REG_PROF As String = "Profiles"
@@ -258,7 +258,7 @@ End Function
 ' Given a segment's chord and arc length this recovers its turn angle,
 ' and R = L / t its radius, without reading bezier control points.
 Public Function ac2fSolveTheta(ByVal chord As Double, ByVal arc As Double) As Double
-    Dim r As Double, lo As Double, hi As Double, mid As Double, f As Double
+    Dim r As Double, lo As Double, hi As Double, mp As Double, f As Double
     Dim i As Long
     Const PI2 As Double = 6.28318530717959
 
@@ -271,9 +271,9 @@ Public Function ac2fSolveTheta(ByVal chord As Double, ByVal arc As Double) As Do
     End If
     lo = 0.000001: hi = PI2 - 0.000001
     For i = 1 To 60
-        mid = (lo + hi) / 2#
-        f = 2# * Sin(mid / 2#) / mid
-        If f > r Then lo = mid Else hi = mid
+        mp = (lo + hi) / 2#
+        f = 2# * Sin(mp / 2#) / mp
+        If f > r Then lo = mp Else hi = mp
     Next i
     ac2fSolveTheta = (lo + hi) / 2#
 End Function

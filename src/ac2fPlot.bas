@@ -257,7 +257,7 @@ Private Sub ac2fPLCurve(ByVal cv As Curve, ByVal tol As Double)
     Dim sp As SubPath, sg As Segment
     Dim ax As Double, ay As Double, bx As Double, by As Double
     Dim cxx As Double, cyy As Double, chord As Double
-    Dim arcL As Double, th As Double, sgn As Double
+    Dim arcL As Double, th As Double, turnDir As Double
     Dim steps As Long, r As Double, stepLen As Double
 
     On Error Resume Next
@@ -308,8 +308,8 @@ Private Sub ac2fPLCurve(ByVal cv As Curve, ByVal tol As Double)
                         If steps > 2000 Then steps = 2000
                     End If
 
-                    sgn = ac2fPLSegSign(sp, nSeg, k)
-                    ac2fPLEmitArc ax, ay, bx, by, arcL, th, sgn, steps
+                    turnDir = ac2fPLSegSign(sp, nSeg, k)
+                    ac2fPLEmitArc ax, ay, bx, by, arcL, th, turnDir, steps
                     If m_n >= MAX_PTS Then Exit For
                 Next k
 
@@ -359,7 +359,7 @@ End Function
 Private Sub ac2fPLEmitArc(ByVal ax As Double, ByVal ay As Double, _
                           ByVal bx As Double, ByVal by As Double, _
                           ByVal arcL As Double, ByVal th As Double, _
-                          ByVal sgn As Double, ByVal steps As Long)
+                          ByVal turnDir As Double, ByVal steps As Long)
     Dim i As Long
     Dim r As Double, phi As Double, t0 As Double
     Dim cx As Double, cy As Double, a0 As Double, ang As Double
@@ -373,13 +373,13 @@ Private Sub ac2fPLEmitArc(ByVal ax As Double, ByVal ay As Double, _
 
     r = arcL / th
     phi = ac2fAtan2(by - ay, bx - ax)
-    t0 = phi - sgn * th / 2#
-    cx = ax + sgn * r * (-Sin(t0))
-    cy = ay + sgn * r * Cos(t0)
+    t0 = phi - turnDir * th / 2#
+    cx = ax + turnDir * r * (-Sin(t0))
+    cy = ay + turnDir * r * Cos(t0)
     a0 = ac2fAtan2(ay - cy, ax - cx)
 
     For i = 0 To steps - 1
-        ang = a0 + sgn * th * i / steps
+        ang = a0 + turnDir * th * i / steps
         ac2fPLAddPt cx + r * Cos(ang), cy + r * Sin(ang)
     Next i
 End Sub
