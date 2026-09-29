@@ -17,11 +17,13 @@
   7  -  Box letter report (no drawing)
   8  -  ACP panel V-grooves
   9  -  Centerline (reduce to a single line)
- 10  -  Send to plotter
- 11  -  Write HPGL to a file
- 12  -  Normalise an existing .plt and send
- 13  -  Settings and profiles
- 14  -  About
+ 10  -  Nesting (pack parts onto sheets)
+ 11  -  Nesting report (nothing moves)
+ 12  -  Send to plotter
+ 13  -  Write HPGL to a file
+ 14  -  Normalise an existing .plt and send
+ 15  -  Settings and profiles
+ 16  -  About
 ```
 
 Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
@@ -431,7 +433,98 @@ Uç konumu hatası 1,8 mm.
 
 ---
 
-## 7. Plotter'a gönderme
+## 7. Nesting
+
+Parçaları seçin, `ac2fNest` çalıştırın. Parçalar plakaya yerleşir,
+plaka sınırları gri çizilir.
+
+`ac2fNestReport` aynı hesabı yapar ama **hiçbir şeyi oynatmaz** — ayar
+denemek için.
+
+### Üç ayar kümesi
+
+Ayar sayfasında `#5` (NEST):
+
+| Ayar | Varsayılan | Ne yapar |
+|---|---|---|
+| Marg left | 10 mm | Sol kenardan pay |
+| Marg right | 10 mm | Sağ kenardan pay |
+| Marg top | 10 mm | Üst kenardan pay |
+| Marg bottom | 10 mm | Alt kenardan pay |
+| Part gap | 3 mm | Parçalar arası boşluk |
+| Rot step | 90° | Denenecek dönüş adımı |
+| Sheet W | 0 | Plaka eni. `0` = sayfa eni |
+| Sheet H | 0 | Plaka boyu. `0` = sayfa boyu |
+| Sheet gap | 20 mm | Birden çok plaka çizilirken arası |
+
+**Dört kenar bağımsızdır** — kıskaçların veya besleme makaralarının
+olduğu kenara geniş, diğer üçüne dar pay verebilirsiniz.
+
+**Part gap** kesiciye yer açar: bıçak için kerf + biraz, freze için en az
+uç çapı kadar, yoksa komşu parçayı keser. Boşluk her parçanın sağına ve
+üstüne eklenir; son sütun ve satır bu payı kullanabildiği için uç
+kenarlarda malzeme boşa gitmez.
+
+**Rot step**:
+
+| Değer | Denenen açılar |
+|---|---|
+| `0` | Yok — parçalar çizildiği gibi kalır |
+| `90` | 0, 90, 180, 270 |
+| `180` | 0, 180 — desenli/hasırlı malzeme için |
+| `45` | Sekiz açı |
+| `15` | En ince adım |
+
+Çeyrek turlar bedavadır (kutu kenarları takas olur). Başka bir açı için
+her parçanın gerçekten döndürülüp ölçülmesi gerekir; büyük işte küçük
+adım belirgin şekilde yavaşlar.
+
+### Sonuç
+
+```
+NESTED
+   Parts               : 40 of 40
+   Sheets              : 2
+   Material length     : 2240 mm
+   Rotated             : 7 part(s)
+   Fill                : 68,4 %
+   Rotation            : 8,1 % less material than without rotation
+
+SETTINGS USED
+   Sheet               : 1220 x 2440 mm
+   Margins L R T B     : 10  10  10  10 mm
+   Usable              : 1200 x 2420 mm
+   Part gap            : 3,00 mm
+   Rotation step       : 90 deg
+```
+
+**Material length** asıl para ölçüsüdür: her plakada gerçekten kullanılan
+yükseklik. Rulo işinde doğrudan tüketilen metreye karşılık gelir.
+
+### Döndürme neden asla zarar vermez
+
+Yerleştirici, her parça için skyline'ı **en alçak bırakan** yeri seçer.
+Bariz görünen "en düşük y" seçimi döndürmeyi zararlı hâle getiriyordu —
+ölçüldü, iki sette %8 ve %18 malzeme kaybı. Skyline yüksekliğine göre
+skorlayınca beş setin beşi de kazandı.
+
+Yine de kapsanmayan bir parça karışımında ters tepebilir, o yüzden
+döndürme açıkken iş **iki kez** yerleştirilir (döndürmeli ve döndürmesiz)
+ve iyi olan tutulur. Rapor hangisinin kazandığını yazar.
+
+### Bilinmesi gerekenler
+
+- **Sınırlayıcı kutuyla yerleştirilir**, gerçek konturla değil. İçbükey
+  parçalar birbirine geçmez; bir "C" harfinin boşluğuna küçük parça
+  konmaz.
+- Gruplar tek parça sayılır — bir grubu bozmaz.
+- Sığmayan parça **yerinde bırakılır** ve raporda sayılır.
+- `Ctrl+Z` her şeyi geri alır (tek komut grubu).
+- Sınırlar: 500 parça, 60 plaka.
+
+---
+
+## 8. Plotter'a gönderme
 
 Seçimi seçin, `ac2fPlotSend` çalıştırın. Tek soru gelir:
 
@@ -551,7 +644,7 @@ Ortadaki satır önemli: çizim tamamen pozitifse min 0,0 çıkar,
 normalizasyon sabit bir kaydırmaya döner, iş kenara oturmaz ve malzeme
 boşa gider.
 
-### Ayarlar (31-33)
+### Ayarlar (40-42)
 
 | Ayar | Varsayılan | Ne yapar |
 |---|---|---|
@@ -574,51 +667,29 @@ hatırlanır. Bir makine adresi, geometri parametresi değil.
 
 ---
 
-## 8. Ayarlar — tek sayfa
+## 9. Ayarlar — tek sayfa, gruplara bölünmüş
 
-Ana menüden `13` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
+Ana menüden `15` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
 
 ```
 SETTINGS  [Aluminium 2mm]
 
-[LED]
- 1 Module spacing     100.00 mm
- 2 LEDs per module         3
- 3 Module power         0.72 W
- 4 Power supply           60 W
- 5 Safety margin          20 %
- 6 Min per outline         1
- 7 Count method            1
- 8 Correction factor    1.00
-[BOX]
- 9 Thickness            2.00 mm
-10 Strip height           80 mm
-11 Flexibility          0.80
-12 Reference face          1
-13 K factor             0.42
-14 Groove depth ratio   0.75
-15 Max groove mouth     1.20 mm
-16 Surface tolerance    0.15 mm
-17 Min groove spacing    3.0 mm
-18 Max groove spacing   60.0 mm
-19 Corner threshold     5.00 deg
-20 Coil length          3000 mm
-21 Joint allowance        20 mm
-21 Joint allow      20.00 22 Strip gap       10.00
-[ACP]
-23 Fold size       50.00 24 Fold direction    1.00
-25 Keep source      1.00
-[CENTER]
-26 Resolution       1.00 27 Simplify tol     0.30
-28 Smoothing        2.00 29 Min branch xW    1.00
-30 Extend ends      1.00
-[PLOT]
-31 Margin           5.00 32 Curve tol        0.05
-33 Rotate              0
+[NEST]  page 5/6
+31 Marg left           10 32 Marg right          10
+33 Marg top            10 34 Marg bottom         10
+35 Part gap             3 36 Rot step            90
+37 Sheet W           1220 38 Sheet H           2440
+39 Sheet gap           20
 
-N=val  ?N=help        ?N   explain
-P=profiles  R=reset  Enter=close
+1 LED  2 BOX  3 ACP  4 CENTER  5 NEST  6 PLOT
+
+N=val  ?N=help  #n=page  P=profiles  R=reset  Enter=close
 ```
+
+42 ayar tek `InputBox` istemine (≈1024 karakter) hiçbir düzende
+sığmadığı için sayfa **gruba göre bölündü**. Ama **ayar numaraları
+geneldir**: `36=180` yazmak hangi sayfada olursanız olun çalışır. Yani
+hâlâ tek menü — soru zinciri değil.
 
 ### Komutlar
 
@@ -630,6 +701,7 @@ P=profiles  R=reset  Enter=close
 | `?11` | 11 numaralı ayarın **ayrıntılı açıklaması** |
 | `Flexibility=0.9` | Numara yerine ayar adı |
 | `?Flexibility` | Ada göre açıklama |
+| `#5` | 5 numaralı gruba geç |
 | `P` | Profil menüsü |
 | `R` | Tüm ayarları varsayılana döndür (profiller korunur) |
 | Boş + Enter | Kapat |
@@ -673,7 +745,7 @@ Range    : 0.01 and up
 
 ---
 
-## 9. Profiller
+## 10. Profiller
 
 Ayar sayfasında `P`, ya da doğrudan `ac2fProfiles`.
 
@@ -718,7 +790,7 @@ tanınmayan anahtarlar sessizce atlanır.
 
 ---
 
-## 10. Profille çalıştırma ve geçici değişiklik
+## 11. Profille çalıştırma ve geçici değişiklik
 
 Ana menü `6` (`ac2fBoxLetterStripProfile`). Üç adım:
 
@@ -743,7 +815,7 @@ Enter     run
 Geçici değerler **kayıtlı ayarlarınıza yazılmaz** ve çizim biter bitmez
 silinir. Aynı profille tek bir kalınlığı deneyip görmek için budur.
 
-Kalıcı olmasını istiyorsanız ayar sayfasından (`13`) değiştirin, sonra
+Kalıcı olmasını istiyorsanız ayar sayfasından (`15`) değiştirin, sonra
 `P` → `S <ad>` ile profile kaydedin.
 
 ---

@@ -2,6 +2,54 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.7.0] - 2026-09-29
+
+### Eklendi
+
+- **`ac2fNest`** — parçaları plakalara yerleştirir (ana menü 10).
+  Her kenardan ayrı pay, parçalar arası boşluk ve döndürme adımı
+  ayarlanabilir. `ac2fNestReport` hesaplayıp raporlar, hiçbir şeyi
+  oynatmaz.
+- Dokuz yeni ayar: dört kenar payı, parça aralığı, dönme adımı,
+  plaka en/boy, plakalar arası boşluk.
+
+### Algoritma
+
+Sınırlayıcı kutular üzerinde skyline bottom-left. Parçalar en uzun
+kenara göre sıralanır; her parça için tüm açılar ve skyline basamakları
+denenir, **skyline'ı en alçak bırakan** yerleşim seçilir.
+
+Skor seçimi ölçülerek yapıldı. "En düşük y" seçimi döndürmeyi zararlı
+hâle getiriyordu:
+
+| Set | En düşük y | Skyline yüksekliği |
+|---|---|---|
+| Eşit kutular | −%8,3 | **+%8,1** |
+| Karışık | +%1,6 | **+%7,2** |
+| Uzun şeritler | +%5,8 | **+%17,6** |
+| Dar-uzun | −%18,5 | **+%5,0** |
+| 450×160 | +%7,6 | **+%13,5** |
+
+Testlerin kapsamadığı bir karışımda yine ters tepebileceği için,
+döndürme açıkken iş iki kez yerleştirilir (döndürmeli ve döndürmesiz) ve
+iyi olan tutulur. Döndürme asla malzeme kaybettirmez.
+
+Beş sette çakışma ve sınır denetimi yapıldı: temiz.
+
+### Değişti
+
+- **Ayar sayfası gruba göre sayfalandı.** 42 ayar tek `InputBox`
+  istemine (≈1024 karakter) hiçbir düzende sığmıyordu. Artık bir grup
+  gösteriliyor, `#n` ile geçiliyor; **ayar numaraları genel** olduğu için
+  `N=value` her sayfadan çalışır — hâlâ tek menü, soru zinciri değil.
+  En büyük sayfa 524 karakter.
+- Değer sütunu 7 karaktere çıktı ve sayfada kompakt biçim kullanılıyor
+  (binlik ayırıcı yok, tam sayıda ondalık yok). Önceden `1220.00` sütuna
+  sığmayıp `1220.0` diye kırpılıyordu.
+- `ac2fAbout` artık tüm ayarları dökmüyor — 42 satır mesaj kutusuna da
+  sığmıyor. Grup adları ve sayıları gösteriliyor.
+- `tools/lint.py` artık en büyük **sayfayı** ölçüyor, tüm listeyi değil.
+
 ## [1.6.1] - 2026-09-28
 
 ### Netleştirme

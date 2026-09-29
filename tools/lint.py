@@ -79,26 +79,35 @@ def settings_sheet_length():
     if not calls:
         return None, 0
 
-    # Mirrors ac2fSheet: two columns, group headers, no unit in the grid.
-    lines = ['SETTINGS  [' + 'M' * 12 + ']', '']
-    group, pending = None, ''
-    for i, (grp, label, _unit) in enumerate(calls, 1):
-        if grp != group:
-            if pending:
-                lines.append(pending)
+    # Mirrors ac2fSheet: one group per page, two columns, no unit column.
+    # The sheet is paged, so what must stay under the limit is the
+    # LARGEST page, not the whole table.
+    groups = []
+    for grp, label, _unit in calls:
+        if not groups or groups[-1][0] != grp:
+            groups.append((grp, []))
+        groups[-1][1].append(label)
+
+    index = '  '.join('%d %s' % (i, g) for i, (g, _) in enumerate(groups, 1))
+    worst, n = 0, 0
+    for gi, (grp, labels) in enumerate(groups, 1):
+        lines = ['SETTINGS  [' + 'M' * 12 + ']', '',
+                 '[%s]  page %d/%d' % (grp, gi, len(groups))]
+        pending = ''
+        for label in labels:
+            cell = '%2d %s %s' % (99, label.ljust(lab_w)[:lab_w], '9' * val_w)
+            if not pending:
+                pending = cell
+            else:
+                lines.append(pending.ljust(lab_w + val_w + 5) + cell)
                 pending = ''
-            group = grp
-            lines.append('[%s]' % grp)
-        cell = '%2d %s %s' % (i, label.ljust(lab_w)[:lab_w], '0.00'.rjust(val_w))
-        if not pending:
-            pending = cell
-        else:
-            lines.append(pending.ljust(lab_w + val_w + 5) + cell)
-            pending = ''
-    if pending:
-        lines.append(pending)
-    lines += ['', 'N=val  ?N=help  P=profiles  R=reset  Enter=close']
-    return len('\r\n'.join(lines)), len(calls)
+        if pending:
+            lines.append(pending)
+        lines += ['', index, '',
+                  'N=val  ?N=help  #n=page  P=profiles  R=reset  Enter=close']
+        worst = max(worst, len('\r\n'.join(lines)))
+        n += len(labels)
+    return worst, n
 
 
 def main():
@@ -212,13 +221,13 @@ def main():
     sheet_len, n_set = settings_sheet_length()
     if sheet_len is not None:
         if sheet_len > SHEET_LIMIT:
-            errors.append(f'ac2fSettings sayfasi {sheet_len} karakter '
+            errors.append(f'ac2fSettings en buyuk sayfasi {sheet_len} karakter '
                           f'({n_set} ayar) - InputBox siniri asilir, '
-                          f'LAB_W kucultun veya etiketleri kisaltin')
+                          f'grubu bolun veya etiketleri kisaltin')
 
     print(f'{len(files)} dosya, {len(defs)} yordam', end='')
     if sheet_len is not None:
-        print(f', ayar sayfasi {sheet_len} karakter ({n_set} ayar)', end='')
+        print(f', en buyuk ayar sayfasi {sheet_len} karakter ({n_set} ayar)', end='')
     print()
     if errors:
         print('\nSORUNLAR:')

@@ -20,7 +20,7 @@ Yine de satır sonlarını CRLF yapmak için betiği çalıştırabilirsiniz:
 powershell -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
-`build\` klasöründe dokuz dosya oluşur:
+`build\` klasöründe on dosya oluşur:
 
 ```
 ac2fCore.bas
@@ -30,6 +30,7 @@ ac2fBoxLetter.bas
 ac2fPanel.bas
 ac2fCenterline.bas
 ac2fPlot.bas
+ac2fNest.bas
 ac2fSettings.bas
 ac2fMenu.bas
 ```
@@ -54,7 +55,7 @@ ac2fMenu.bas
 
 ## 3. Modülleri içe aktar
 
-`ac2fPack` projesi seçiliyken, dokuz dosyanın **her biri** için:
+`ac2fPack` projesi seçiliyken, on dosyanın **her biri** için:
 
 `File > Import File...` → `build\ac2*.bas` → **Open**
 
@@ -70,6 +71,7 @@ ac2fPack
     ├── ac2fPanel
     ├── ac2fCenterline
     ├── ac2fPlot
+    ├── ac2fNest
     ├── ac2fSettings
     └── ac2fMenu
 ```
@@ -124,6 +126,23 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
+
+### Sürüm 1.6.x'ten 1.7.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fNest.bas` | **Yeni** — doğrudan içe aktarın |
+| `ac2fCore.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fSettings.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fMenu.bas` | **Değişti** — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Yeni makrolar: `ac2fNest`, `ac2fNestReport`. Ayarlarınız korunur.
+Ana menü: nesting `10`-`11`, plotter `12`-`14`, ayarlar `15`,
+hakkında `16`.
+
+Ayar sayfası artık gruba göre sayfalı — `#n` ile geçilir, ayar
+numaraları her sayfadan çalışır.
 
 ### Sürüm 1.5.0'dan 1.6.0'a
 

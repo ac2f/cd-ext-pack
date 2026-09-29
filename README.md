@@ -16,6 +16,7 @@ alüminyum kompozit paneller için V derz çizgilerini üretir ve neon LED
 | `ac2fBoxLetter` | **Kutu harf şeridi** — bordür açınımı ve derz yerleşimi |
 | `ac2fPanel` | **ACP panel derzi** — alüminyum kompozit V derz yerleşimi |
 | `ac2fCenterline` | **Orta hat** — dolu tasarımı tek çizgiye düşürür |
+| `ac2fNest` | **Nesting** — parçaları plakalara yerleştirir |
 | `ac2fPlot` | **Plotter** — HPGL üretip ağdan doğrudan gönderir |
 | `ac2fSettings` | **Ayar sayfası ve profiller** — tüm ayarlar tek yerde |
 | `ac2fMenu` | Ana menü, hakkında |
@@ -39,6 +40,8 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fCenterline` | Tek çizgiye düşürür (birleşik / ayrı ayrı sorar) |
 | `ac2fCenterlineJoined` | Tüm seçimi tek bölge sayar — birleşik el yazısı |
 | `ac2fCenterlineSeparate` | Her nesneyi ayrı ayrı düşürür |
+| `ac2fNest` | Seçili parçaları plakalara yerleştirir |
+| `ac2fNestReport` | Hesaplar ve raporlar, hiçbir şeyi oynatmaz |
 | `ac2fPlotSend` | Seçimi HPGL olarak plotter'a gönderir |
 | `ac2fPlotSave` | HPGL'i dosyaya yazar (incelemek için) |
 | `ac2fPlotFixSend` | Var olan bir `.plt`'yi normalize edip gönderir |
@@ -183,6 +186,52 @@ Orta hattı bilinen şekiller üzerinde:
 
 Uç konumu hatası 1,8 mm (uç uzatma olmadan 12,1 mm).
 
+## Nesting
+
+Parçaları seçin, `ac2fNest` çalıştırın. **Her kenardan ayrı boşluk**,
+**parçalar arası boşluk** ve **döndürme adımı** ayarlanabilir (ayar
+sayfası, `#5` NEST).
+
+| Ayar | Varsayılan | Ne yapar |
+|---|---|---|
+| Marg left / right / top / bottom | 10 mm | Her kenardan ayrı pay |
+| Part gap | 3 mm | Parçalar arası boşluk |
+| Rot step | 90° | Denenecek dönüş adımı. `0` = olduğu gibi |
+| Sheet W / H | 0 | Plaka ölçüsü. `0` = sayfa ölçüsü |
+| Sheet gap | 20 mm | Birden çok plaka çizilirken arası |
+
+`Rot step`: `0` hiç döndürmez, `90` dört yönü dener, `180` yalnız yarım
+tur (desenli/hasırlı malzeme için), `15` en ince adım.
+
+### Algoritma ve bir uyarı
+
+Sınırlayıcı kutular üzerinde **skyline bottom-left**. Parçalar en uzun
+kenara göre sıralanır; her parça için tüm açılar ve tüm skyline
+basamakları denenir ve **skyline'ı en alçak bırakan** yerleşim seçilir.
+
+Bu skor seçimi kritik. Bariz görünen "en düşük y" seçimi döndürmeyi
+**zararlı** hâle getiriyor — beş parça setinde ölçtüm, ikisinde %8 ve
+%18 malzeme kaybettirdi. Skyline yüksekliğine göre skorlayınca aynı
+setler %8, %7, %18, %5 ve %13 kazandı, hiçbiri gerilemedi:
+
+| Set | En düşük y | **Skyline yüksekliği** |
+|---|---|---|
+| Eşit kutular | −%8,3 | **+%8,1** |
+| Karışık | +%1,6 | **+%7,2** |
+| Uzun şeritler | +%5,8 | **+%17,6** |
+| Dar-uzun | −%18,5 | **+%5,0** |
+| 450×160 | +%7,6 | **+%13,5** |
+
+Testlerin kapsamadığı bir parça karışımında yine de ters tepebilir, o
+yüzden döndürme açıkken iş **iki kez** yerleştirilir — döndürmeli ve
+döndürmesiz — ve iyi olan tutulur. **Döndürme asla malzeme kaybettirmez.**
+
+> Parçalar **sınırlayıcı kutuyla** yerleştirilir, gerçek konturla değil.
+> İçbükey parçalar birbirine geçmez.
+
+Sığmayan parçalar yerinde bırakılır ve raporda belirtilir. `Ctrl+Z`
+her şeyi geri alır.
+
 ## Plotter'a gönderme
 
 Seçimi seçin, `ac2fPlotSend` çalıştırın, adresi onaylayın. **Export yok,
@@ -252,7 +301,7 @@ döner — iş kenarda kalmaz, malzeme boşa gider.
 
 ## Ayarlar ve profiller
 
-**Tüm ayarlar tek sayfada.** Ana menüden `13` ile açılır; 32 ayarın hepsi
+**Tüm ayarlar tek sayfada.** Ana menüden `15` ile açılır; 42 ayar
 numaralı olarak listelenir:
 
 ```
@@ -353,4 +402,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.6.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.7.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

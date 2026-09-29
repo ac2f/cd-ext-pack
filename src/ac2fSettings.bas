@@ -34,7 +34,7 @@ Public Const AC2F_KIND_INT  As Long = 1
 ' the label itself. Two columns at width 14 render 939 characters.
 ' tools/lint.py measures this and fails if it creeps up on the limit.
 Private Const LAB_W As Long = 14
-Private Const VAL_W As Long = 6
+Private Const VAL_W As Long = 7
 
 Public Type ac2fSetting
     Key    As String
@@ -50,6 +50,7 @@ End Type
 
 Private m_set() As ac2fSetting
 Private m_setN  As Long
+Private m_page  As Long   ' group currently shown on the sheet
 
 '=====================================================================
 ' SETTINGS TABLE
@@ -397,6 +398,81 @@ Private Sub ac2fBuildTable()
         "the end error down from 12.1 mm to 1.8 mm." & vbCrLf & vbCrLf & _
         "1 = extend, 0 = leave the ends where thinning put them."
 
+    '--- Nesting ------------------------------------------------------
+    ac2fAddSetting AC2F_K_NS_ML, "NEST", "Marg left", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_ML, 0, 0, _
+        "Clear space kept along the left edge of the sheet." & vbCrLf & vbCrLf & _
+        "Each edge has its own figure, so you can leave a wide strip " & _
+        "where the clamps or the grit rollers sit and keep the other " & _
+        "three tight." & vbCrLf & vbCrLf & _
+        "What is left after all four margins is the usable area, and " & _
+        "that is the only part the packer will use."
+
+    ac2fAddSetting AC2F_K_NS_MR, "NEST", "Marg right", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_MR, 0, 0, _
+        "Clear space kept along the right edge of the sheet." & vbCrLf & vbCrLf & _
+        "See Marg left. The four margins are independent."
+
+    ac2fAddSetting AC2F_K_NS_MT, "NEST", "Marg top", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_MT, 0, 0, _
+        "Clear space kept along the top edge of the sheet." & vbCrLf & vbCrLf & _
+        "On a roll this is the far end, so it caps how much length one " & _
+        "sheet may use before the packer starts another."
+
+    ac2fAddSetting AC2F_K_NS_MB, "NEST", "Marg bottom", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_MB, 0, 0, _
+        "Clear space kept along the bottom edge of the sheet." & vbCrLf & vbCrLf & _
+        "Packing starts from the bottom left of the usable area, so " & _
+        "this is where the first part lands."
+
+    ac2fAddSetting AC2F_K_NS_GAP, "NEST", "Part gap", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_GAP, 0, 0, _
+        "Space kept between neighbouring parts." & vbCrLf & vbCrLf & _
+        "Give the cutter room: a knife needs the kerf plus a little, a " & _
+        "router bit needs at least its own diameter or it will cut into " & _
+        "the part next door." & vbCrLf & vbCrLf & _
+        "The gap is added to the right and top of each part as it is " & _
+        "placed, and the last column and row are allowed to use it, so " & _
+        "no material is wasted at the far edges." & vbCrLf & vbCrLf & _
+        "0 butts parts against each other, which only makes sense when " & _
+        "neighbours share a cut."
+
+    ac2fAddSetting AC2F_K_NS_ROT, "NEST", "Rot step", "deg", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_ROT, 0, 0, _
+        "The turns the packer is allowed to try, as a step in degrees." & _
+        vbCrLf & vbCrLf & _
+        "0 keeps every part exactly as drawn. 90 lets it try 0, 90, 180 " & _
+        "and 270. 180 allows only a half turn, which suits material " & _
+        "with a grain or a print direction. 45 gives eight angles, 15 " & _
+        "gives the finest the tool accepts." & vbCrLf & vbCrLf & _
+        "Quarter turns are free: the bounding box simply swaps sides. " & _
+        "Any other angle has to be measured by actually turning each " & _
+        "part, so a small step on a large job takes noticeably longer." & _
+        vbCrLf & vbCrLf & _
+        "Rotation can never cost you material. When it is allowed the " & _
+        "job is packed twice, with and without, and the better result " & _
+        "is kept. The report says which won."
+
+    ac2fAddSetting AC2F_K_NS_SW, "NEST", "Sheet W", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_SW, 0, 0, _
+        "Width of the material. 0 takes the width of the page." & vbCrLf & vbCrLf & _
+        "For roll work this is the roll width, and it is the dimension " & _
+        "that really decides how well a job nests."
+
+    ac2fAddSetting AC2F_K_NS_SH, "NEST", "Sheet H", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_SH, 0, 0, _
+        "Height of the material. 0 takes the height of the page." & vbCrLf & vbCrLf & _
+        "Parts that no longer fit start another sheet, drawn alongside " & _
+        "the first. On a roll, set this to the longest piece you are " & _
+        "willing to pull off in one go; the report tells you how much " & _
+        "of it was actually used."
+
+    ac2fAddSetting AC2F_K_NS_SGAP, "NEST", "Sheet gap", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_SGAP, 0, 0, _
+        "Space left between sheets when more than one is drawn." & vbCrLf & vbCrLf & _
+        "Only affects how the result is laid out on your page, never " & _
+        "the packing itself."
+
     '--- Plotter ------------------------------------------------------
     ac2fAddSetting AC2F_K_PL_MARGIN, "PLOT", "Margin", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_PL_MARGIN, 0, 0, _
@@ -541,6 +617,22 @@ Public Function ac2fSettingStore(ByVal idx As Long, ByVal v As Double, _
     ac2fSettingStore = x
 End Function
 
+' Value as shown in the grid. Deliberately narrower than ac2fSettingText:
+' no thousands separator and no trailing zeros, so a sheet width like
+' 1220 does not overflow the column and get clipped to "1220.0".
+Private Function ac2fSheetVal(ByVal idx As Long) As String
+    Dim st As ac2fSetting
+    Dim v As Double
+
+    st = ac2fSettingAt(idx)
+    v = ac2fSettingValue(idx)
+    If st.Kind = AC2F_KIND_INT Or Abs(v - Int(v)) < 0.0000001 Then
+        ac2fSheetVal = Format$(v, "0")
+    Else
+        ac2fSheetVal = Format$(v, "0.###")
+    End If
+End Function
+
 Private Function ac2fSettingText(ByVal idx As Long) As String
     Dim st As ac2fSetting
     Dim v As Double
@@ -575,10 +667,16 @@ Private Function ac2fSheet(ByVal tempMode As Boolean) As String
     Dim s As String
     Dim i As Long
     Dim st As ac2fSetting
-    Dim grp As String
     Dim prof As String
     Dim cell As String
     Dim pending As String
+    Dim g As Long, ng As Long
+    Dim cur As String
+
+    ng = ac2fGroupCount()
+    If m_page < 1 Then m_page = 1
+    If m_page > ng Then m_page = ng
+    cur = ac2fGroupName(m_page)
 
     prof = ac2fActiveProfile()
     If Len(prof) = 0 Then prof = "<none>"
@@ -587,44 +685,77 @@ Private Function ac2fSheet(ByVal tempMode As Boolean) As String
     If Len(prof) > 12 Then prof = Left$(prof, 11) & "~"
 
     If tempMode Then
-        s = "RUN SETTINGS - changes apply to this run only" & vbCrLf
+        s = "RUN SETTINGS - this run only" & vbCrLf
     Else
         s = "SETTINGS  [" & prof & "]" & vbCrLf
     End If
-    s = s & vbCrLf
+    s = s & vbCrLf & "[" & cur & "]  page " & m_page & "/" & ng & vbCrLf
 
+    ' Only the current group is drawn. All the settings together no longer
+    ' fit the InputBox prompt limit, but the numbers are global: N=value
+    ' works from any page, so this is still one menu, not a chain.
     For i = 1 To m_setN
         st = ac2fSettingAt(i)
-        If st.Group <> grp Then
-            If Len(pending) > 0 Then
-                s = s & pending & vbCrLf
+        If st.Group = cur Then
+            cell = ac2fRPad(CStr(i), 2) & " " & ac2fPad(st.Label, LAB_W) & " " & _
+                   ac2fRPad(ac2fSheetVal(i), VAL_W)
+            If ac2fIsOverridden(st.Key) Then cell = cell & "*"
+
+            If Len(pending) = 0 Then
+                pending = cell
+            Else
+                s = s & ac2fPad(pending, LAB_W + VAL_W + 5) & cell & vbCrLf
                 pending = ""
             End If
-            grp = st.Group
-            s = s & "[" & grp & "]" & vbCrLf
-        End If
-
-        cell = ac2fRPad(CStr(i), 2) & " " & ac2fPad(st.Label, LAB_W) & " " & _
-               ac2fRPad(ac2fSettingText(i), VAL_W)
-        If ac2fIsOverridden(st.Key) Then cell = cell & "*"
-
-        If Len(pending) = 0 Then
-            pending = cell
-        Else
-            s = s & ac2fPad(pending, LAB_W + VAL_W + 5) & cell & vbCrLf
-            pending = ""
         End If
     Next i
     If Len(pending) > 0 Then s = s & pending & vbCrLf
 
     s = s & vbCrLf
+    For g = 1 To ng
+        s = s & g & " " & ac2fGroupName(g) & "  "
+    Next g
+    s = s & vbCrLf & vbCrLf
+
     If tempMode Then
-        s = s & "N=val  ?N=help  Enter=run  * = this run only"
+        s = s & "N=val  ?N=help  #n=page  Enter=run  * = this run only"
     Else
-        s = s & "N=val  ?N=help  P=profiles  R=reset  Enter=close"
+        s = s & "N=val  ?N=help  #n=page  P=profiles  R=reset  Enter=close"
     End If
 
     ac2fSheet = s
+End Function
+
+'---------------------------------------------------------------------
+' Groups, in the order the table declares them.
+'---------------------------------------------------------------------
+Public Function ac2fGroupCount() As Long
+    Dim i As Long, n As Long
+    Dim last As String
+    ac2fBuildTable
+    For i = 1 To m_setN
+        If ac2fSettingAt(i).Group <> last Then
+            last = ac2fSettingAt(i).Group
+            n = n + 1
+        End If
+    Next i
+    ac2fGroupCount = n
+End Function
+
+Public Function ac2fGroupName(ByVal idx As Long) As String
+    Dim i As Long, n As Long
+    Dim last As String
+    ac2fBuildTable
+    For i = 1 To m_setN
+        If ac2fSettingAt(i).Group <> last Then
+            last = ac2fSettingAt(i).Group
+            n = n + 1
+            If n = idx Then
+                ac2fGroupName = last
+                Exit Function
+            End If
+        End If
+    Next i
 End Function
 
 Private Function ac2fIsOverridden(ByVal key As String) As Boolean
@@ -652,6 +783,18 @@ Private Function ac2fHandle(ByVal cmd As String, ByVal tempMode As Boolean) As B
                      "Use its number, for example ?11", CAPTION_
         Else
             ac2fExplain idx
+        End If
+        Exit Function
+    End If
+
+    ' #n moves to another group. The setting numbers stay global, so this
+    ' only changes what is on screen.
+    If Left$(t, 1) = "#" Then
+        idx = CLng(ac2fParseNum(Mid$(t, 2), 0))
+        If idx >= 1 And idx <= ac2fGroupCount() Then
+            m_page = idx
+        Else
+            ac2fWarn "There is no page " & Mid$(t, 2) & ".", CAPTION_
         End If
         Exit Function
     End If
@@ -990,20 +1133,21 @@ End Sub
 ' The settings sheet without its command footer, for the About box.
 Public Function ac2fSettingsBrief() As String
     Dim s As String
-    Dim i As Long
-    Dim st As ac2fSetting
-    Dim grp As String
+    Dim g As Long, i As Long, n As Long
+    Dim nm As String
 
     ac2fBuildTable
-    For i = 1 To m_setN
-        st = ac2fSettingAt(i)
-        If st.Group <> grp Then
-            grp = st.Group
-            s = s & "-- " & grp & " --" & vbCrLf
-        End If
-        s = s & "   " & ac2fPad(st.Label, LAB_W) & " " & _
-                ac2fRPad(ac2fSettingText(i), VAL_W) & " " & st.Unit & vbCrLf
-    Next i
+    ' Listing every setting would overrun the message box as well, so the
+    ' About box gets the shape of the table rather than its contents.
+    For g = 1 To ac2fGroupCount()
+        nm = ac2fGroupName(g)
+        n = 0
+        For i = 1 To m_setN
+            If ac2fSettingAt(i).Group = nm Then n = n + 1
+        Next i
+        s = s & "   " & g & "  " & ac2fPad(nm, 10) & n & " settings" & vbCrLf
+    Next g
+    s = s & "   " & m_setN & " in total" & vbCrLf
     ac2fSettingsBrief = s
 End Function
 

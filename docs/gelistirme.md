@@ -109,7 +109,8 @@ ac2fMenu ────┬──> ac2fLength ─────┐
              ├──> ac2fBoxLetter ──┤
              ├──> ac2fPanel ──────┤
              ├──> ac2fCenterline ─┤
-             ├──> ac2fPlot ───────┼──> ac2fCore
+             ├──> ac2fPlot ───────┤
+             ├──> ac2fNest ───────┼──> ac2fCore
              └──> ac2fSettings ───┘
 ```
 
@@ -469,6 +470,59 @@ matematik yardımcıları (`ac2fSolveTheta`, `ac2fAtan2`, `ac2fWrapAngle`)
 özel kopyalarını koruyor. Doğrulanmış modülleri aynı turda kurcalamamak
 için bilinçli bırakıldı — açma katmanının tek yere çıkarılması bir
 takip işidir.
+
+## Nesting (`ac2fNest`)
+
+Sınırlayıcı kutular üzerinde skyline bottom-left. Skyline, `(x, w, y)`
+parçalarından oluşan bir profildir; her yerleştirmede bölünür ve aynı
+yükseklikteki komşular birleştirilir.
+
+### Skor seçimi ölçüldü
+
+Aday yerleşimler arasından **skyline'ı en alçak bırakan** (`y + h`)
+seçilir, eşitlikte altta gömülü kalan alan az olan. Bariz görünen "en
+düşük `y`" seçimi döndürmeyi **zararlı** hâle getiriyor:
+
+| Set | en düşük y | y + h |
+|---|---|---|
+| Eşit kutular | −%8,3 | **+%8,1** |
+| Karışık | +%1,6 | **+%7,2** |
+| Uzun şeritler | +%5,8 | **+%17,6** |
+| Dar-uzun | −%18,5 | **+%5,0** |
+| 450×160 | +%7,6 | **+%13,5** |
+
+Sebep: düşük oturan ama uzun bir parça, skyline'ı biraz yüksek oturan
+kısa bir parçadan daha çok yükseltir ve sonraki parçaları yukarı iter.
+
+### Döndürme neden zarar veremez
+
+Ölçülmemiş bir parça karışımında sezgisel yine ters tepebilir. Bu yüzden
+döndürme açıkken `ac2fNSPack` iki kez çağrılır — `allowRot` False ve True
+— ve `ac2fNSKeepBest` az malzeme kullananı tutar. Maliyet iki kat
+yerleştirme, ki bu etkileşimli olmayan bir işlem için önemsizdir.
+
+Yerleşemeyen parça, toplam maliyete 1.000.000 eklenerek cezalandırılır;
+böylece "hepsini yerleştiren ama uzun" çözüm, "kısa ama parça düşüren"
+çözüme her zaman yeğlenir.
+
+### Açı başına kutu
+
+Çeyrek turlarda kutu analitik olarak takas edilir. Başka açılarda gerçek
+kutuyu yalnız şeklin kendisi verir, bu yüzden parça fiilen döndürülüp
+ölçülür ve geri döndürülür. Varsayılan adım 90 olduğu için olağan
+durumda hiç fiziksel döndürme olmaz.
+
+### Sayfalı ayar ekranı
+
+42 ayar tek `InputBox` istemine sığmıyor. Sayfa gruba göre bölündü ama
+**ayar numaraları genel** kaldı: `N=value` her sayfadan çalışır, yani
+kullanıcı açısından hâlâ tek menü. `tools/lint.py` artık en büyük
+sayfayı ölçer.
+
+Sayfadaki değerler `ac2fSheetVal` ile kompakt biçimlenir (binlik ayırıcı
+yok, tam sayıda ondalık yok); `ac2fSettingText` tam biçimi `?N` ve
+raporlar için korur. Bu ayrım olmadan `1220.00` sütuna sığmayıp
+`1220.0` diye kırpılıyordu.
 
 ## Yeni bir araç eklemek
 
