@@ -2,6 +2,52 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.8.0] - 2026-10-01
+
+### Sorun: makine yolları geziyor ama kesmiyor
+
+Belirti çok şey söylüyor: `PD` koordinatları **hareket olarak**
+çalışıyor, ama bıçak inmiyor. Yani `PD` belirteci cihaza ulaşmıyor ya da
+bıçak kuvveti sıfırlanmış. İki olası sebep bulundu ve ikisi de giderildi.
+
+**1. Çok uzun `PD` komutları.** Üretilen dosyada komut başına 40
+koordinat çifti vardı; 180 noktalı bir daire için **402 karakterlik**
+satırlar. Giriş tamponu ya da komut ayrıştırıcısı bunu kaldıramayan bir
+kesici satırın sonunu düşürür; sonraki `PD` bozuk komutun parçası olarak
+yutulur, kaleme inme emri hiç ulaşmaz ve makine şekilleri bıçak yukarıda
+dolaşır — **tam olarak görülen belirti.**
+
+**2. `IN;` panel ayarlarını siliyor.** `IN` cihazı açılış
+varsayılanlarına döndürür; pek çok kesicide bu, panelden ayarlanan bıçak
+kuvvetini ve takımı da siler.
+
+### Eklendi
+
+- **`ac2fPlotTest`** (ana menü 13) — gerçek işin kullandığı **aynı
+  yazıcı ve göndericiden** 50 mm'lik bir kare gönderir. Üç farklı sorunu
+  bir dakikada ayırır:
+
+  | Sonuç | Anlamı |
+  |---|---|
+  | Temiz kesti | Makine ve bağlantı iyi; sorun gerçek işin dosyasında → `PD pairs = 1` |
+  | Gezdi ama kesmedi | Makine hiç kesmiyor → bıçak kuvveti/derinliği, ya da `Preamble = 2` |
+  | Hiç kıpırdamadı | Ulaşmadı → adres, port, kablo |
+
+- Üç yeni ayar:
+  - **`PD pairs`** (varsayılan **1**) — komut başına koordinat çifti.
+    1 ile her komut bir düzine karakter; hiçbir kesici zorlanmaz.
+    Dosya %38 büyüyor, ki bu önemsiz.
+  - **`Preamble`** (varsayılan 1) — `1 = IN;SP1;PA;`, `2 = SP1;PA;`
+    (IN yok, panel ayarları korunur), `0 = hiçbiri`.
+  - **`Send delay`** (varsayılan 0) — kilobayt başına duraklama. Yalnız
+    tamponu küçük, akış denetimi olmayan ethernet–seri dönüştürücüler
+    için; bayt düşerse aynı belirti görülür.
+
+### Değişti
+
+- **Varsayılan `PD pairs` 40'tan 1'e indirildi.** Dosya biraz büyüyor,
+  uyumluluk belirgin şekilde artıyor.
+
 ## [1.7.1] - 2026-09-29
 
 ### Düzeltildi

@@ -520,6 +520,51 @@ Private Sub ac2fBuildTable()
         "over, and the margin is applied afterwards, so the job still " & _
         "lands in the corner either way." & vbCrLf & vbCrLf & _
         "Anything that is not a multiple of 90 is snapped to the nearest."
+
+    ac2fAddSetting AC2F_K_PL_PAIRS, "PLOT", "PD pairs", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_PL_PAIRS), 1, 200, _
+        "How many coordinate pairs are packed into one PD command." & _
+        vbCrLf & vbCrLf & _
+        "1 writes PD200,400; per point. Longer files, but every command " & _
+        "is a dozen characters and any cutter can swallow it." & vbCrLf & vbCrLf & _
+        "40 packs forty pairs into one line of around 400 characters. " & _
+        "Smaller files, and fine on a machine with a generous parser." & _
+        vbCrLf & vbCrLf & _
+        "This is the first thing to change when the carriage traces the " & _
+        "whole job but never cuts. A cutter whose input buffer or " & _
+        "command parser cannot take a 400 character line drops the end " & _
+        "of it; the next PD then gets swallowed as part of the broken " & _
+        "command, the pen is never told to go down, and the machine " & _
+        "follows the shapes with the knife up." & vbCrLf & vbCrLf & _
+        "Going from 1 to 40 saves about a quarter of the file size, " & _
+        "which is rarely worth the risk."
+
+    ac2fAddSetting AC2F_K_PL_PRE, "PLOT", "Preamble", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_PL_PRE), 0, 2, _
+        "Which setup commands are sent before the job." & vbCrLf & vbCrLf & _
+        "1 = IN;SP1;PA;  the usual opener." & vbCrLf & _
+        "2 = SP1;PA;     the same without IN." & vbCrLf & _
+        "0 = nothing, just the moves." & vbCrLf & vbCrLf & _
+        "IN resets the device to its power-on defaults. On a good many " & _
+        "cutters that also throws away the knife force and the tool you " & _
+        "set on the front panel, and the machine then walks the job " & _
+        "with the knife up." & vbCrLf & vbCrLf & _
+        "So if the test square traces instead of cutting, try 2. The " & _
+        "closing PU0,0;SP0; is sent with 1 and 2, and left out with 0."
+
+    ac2fAddSetting AC2F_K_PL_DELAY, "PLOT", "Send delay", "ms", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_PL_DELAY), 0, 5000, _
+        "Pause after every kilobyte sent. 0 sends the file in one go." & _
+        vbCrLf & vbCrLf & _
+        "Leave it at 0. It is there for the one case it fixes: an " & _
+        "ethernet to serial adapter with a small buffer and no flow " & _
+        "control, which quietly drops bytes when a long file arrives " & _
+        "faster than the serial side can drain it. Lost bytes in the " & _
+        "middle of a command produce exactly the same symptom as a " & _
+        "parser that cannot cope, the job traced with the knife up." & _
+        vbCrLf & vbCrLf & _
+        "If PD pairs = 1 did not help and the machine is on such an " & _
+        "adapter, try 20."
 End Sub
 
 Private Sub ac2fAddSetting(ByVal key As String, ByVal grp As String, _

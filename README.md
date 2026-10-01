@@ -43,6 +43,7 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fNest` | Seçili parçaları plakalara yerleştirir |
 | `ac2fNestReport` | Hesaplar ve raporlar, hiçbir şeyi oynatmaz |
 | `ac2fPlotSend` | Seçimi HPGL olarak plotter'a gönderir |
+| `ac2fPlotTest` | 50 mm test karesi gönderir — makine mi dosya mı, ayırır |
 | `ac2fPlotSave` | HPGL'i dosyaya yazar (incelemek için) |
 | `ac2fPlotFixSend` | Var olan bir `.plt`'yi normalize edip gönderir |
 | `ac2fSettings` | **Tüm ayarlar ve profiller — tek sayfa** |
@@ -284,6 +285,28 @@ reddedilirse gerçek sebebi görüyorsunuz.
 
 Bu **ham TCP akışı**; 9100 ya da bir telnet portunda dinleyen
 plotter'ların beklediği şey. Telnet protokolü anlaşması yapılmaz.
+
+### Kesmiyorsa: önce test karesi
+
+Makine yolları geziyor ama **kesmiyorsa**, `ac2fPlotTest` (ana menü 13)
+gerçek işin kullandığı aynı yazıcı ve göndericiden 50 mm'lik bir kare
+gönderir:
+
+| Sonuç | Anlamı | Ne yapmalı |
+|---|---|---|
+| Temiz kesti | Makine iyi, sorun işin dosyasında | `PD pairs = 1` |
+| Gezdi, kesmedi | Makine hiç kesmiyor | Bıçak kuvveti/derinliği; `Preamble = 2` |
+| Kıpırdamadı | Ulaşmadı | Adres, port, kablo |
+
+İki ayar bu iş için:
+
+- **`PD pairs`** — komut başına koordinat çifti. `1` ile her komut bir
+  düzine karakter olur. Eskiden 40'tı ve 180 noktalı bir daire için
+  **402 karakterlik** satırlar üretiyordu; bunu kaldıramayan bir kesici
+  satırın sonunu düşürür, sonraki `PD` yutulur, bıçak hiç inmez.
+- **`Preamble`** — `2` yaparsanız `IN;` gönderilmez. `IN` cihazı açılış
+  varsayılanlarına döndürür ve pek çok kesicide panelden ayarladığınız
+  **bıçak kuvvetini de siler**.
 
 ### Diğer iki makro
 

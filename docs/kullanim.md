@@ -20,10 +20,11 @@
  10  -  Nesting (pack parts onto sheets)
  11  -  Nesting report (nothing moves)
  12  -  Send to plotter
- 13  -  Write HPGL to a file
- 14  -  Normalise an existing .plt and send
- 15  -  Settings and profiles
- 16  -  About
+ 13  -  Plotter test square (50 mm)
+ 14  -  Write HPGL to a file
+ 15  -  Normalise an existing .plt and send
+ 16  -  Settings and profiles
+ 17  -  About
 ```
 
 Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
@@ -621,6 +622,35 @@ The file is written, so you can send it by hand.
 > plotter'ların beklediği şey. Telnet protokolü anlaşması (IAC kaçırma)
 > yapılmaz; plotter'lar anlaşma istemediği için bu doğru davranıştır.
 
+### Gezinip kesmiyorsa
+
+Bu belirti nettir: `PD` koordinatları hareket olarak çalışıyor ama bıçak
+inmiyor. `ac2fPlotTest` (ana menü 13) bunu bir dakikada teşhis eder —
+gerçek işin kullandığı **aynı** yazıcı ve göndericiden 50 mm'lik bir
+kare gönderir.
+
+| Sonuç | Anlamı | Çözüm |
+|---|---|---|
+| **Temiz kesti** | Makine, bağlantı ve ayarlar iyi. Sorun gerçek işin dosyasında. | `PD pairs = 1` |
+| **Gezdi ama kesmedi** | Makine hiç kesmiyor. | Bıçak kuvveti, derinlik, takım seçimi; sonra `Preamble = 2` |
+| **Hiç kıpırdamadı** | Dosya ulaşmadı. | Adres, port, kablo |
+
+**`PD pairs` neden önemli:** eskiden komut başına 40 koordinat çifti
+yazılıyordu — 180 noktalı bir daire için **402 karakterlik** satırlar.
+Giriş tamponu veya ayrıştırıcısı bunu kaldıramayan bir kesici satırın
+sonunu düşürür; sonraki `PD` bozuk komutun parçası olarak yutulur,
+kaleme inme emri ulaşmaz ve makine şekilleri bıçak yukarıda dolaşır.
+`1` ile her komut 12 karakter olur, dosya yalnız %38 büyür.
+
+**`Preamble` neden önemli:** `IN;` cihazı açılış varsayılanlarına
+döndürür. Pek çok kesicide bu, panelden ayarladığınız **bıçak kuvvetini
+ve takımı da siler**. `2` yaparsanız `IN;` gönderilmez, panel ayarları
+olduğu gibi kalır.
+
+**`Send delay`:** 0'da bırakın. Yalnız tamponu küçük, akış denetimi
+olmayan ethernet–seri dönüştürücüler içindir; bayt düşerse aynı belirti
+görülür. İlk iki ayar işe yaramadıysa 20 deneyin.
+
 ### Diğer iki makro
 
 | Makro | Ne yapar |
@@ -644,10 +674,13 @@ Ortadaki satır önemli: çizim tamamen pozitifse min 0,0 çıkar,
 normalizasyon sabit bir kaydırmaya döner, iş kenara oturmaz ve malzeme
 boşa gider.
 
-### Ayarlar (40-42)
+### Ayarlar (40-45)
 
 | Ayar | Varsayılan | Ne yapar |
 |---|---|---|
+| PD pairs | 1 | Komut başına koordinat çifti. Kesmiyorsa buradan başlayın |
+| Preamble | 1 | `2` = `IN;` gönderme (panel ayarları korunur) |
+| Send delay | 0 | KB başına duraklama. Seri dönüştürücü için |
 | Margin | 5 mm | İşin plotter orijininden uzaklığı |
 | Curve tol | 0,05 mm | Eğrilerin kaç düz adıma bölüneceği |
 | Rotate | 0 | Çeyrek tur. **0 = gördüğünüz gibi** |
@@ -669,7 +702,7 @@ hatırlanır. Bir makine adresi, geometri parametresi değil.
 
 ## 9. Ayarlar — tek sayfa, gruplara bölünmüş
 
-Ana menüden `15` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
+Ana menüden `16` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
 
 ```
 SETTINGS  [Aluminium 2mm]
@@ -815,7 +848,7 @@ Enter     run
 Geçici değerler **kayıtlı ayarlarınıza yazılmaz** ve çizim biter bitmez
 silinir. Aynı profille tek bir kalınlığı deneyip görmek için budur.
 
-Kalıcı olmasını istiyorsanız ayar sayfasından (`15`) değiştirin, sonra
+Kalıcı olmasını istiyorsanız ayar sayfasından (`16`) değiştirin, sonra
 `P` → `S <ad>` ile profile kaydedin.
 
 ---

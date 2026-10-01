@@ -127,6 +127,20 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.7.x'ten 1.8.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fPlot.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fSettings.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fMenu.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fCore.bas` | **Değişti** (sürüm) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Yeni makro: `ac2fPlotTest` (ana menü 13). Plotter menü numaraları
+kaydı: gönder `12`, test `13`, dosyaya yaz `14`, `.plt` düzelt `15`,
+ayarlar `16`, hakkında `17`.
+
 ### Sürüm 1.6.x'ten 1.7.0'a
 
 | Dosya | Ne yapmalı |

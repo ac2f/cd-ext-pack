@@ -46,7 +46,7 @@ Private Const CAPTION_ As String = "Plotter"
 Public Const AC2F_UNITS_PER_MM As Double = 40#   ' HPGL resolution
 
 Private Const MAX_PTS      As Long = 500000
-Private Const PD_PER_LINE  As Long = 40          ' coordinate pairs per PD
+Private Const CHUNK_BYTES  As Long = 1024        ' used when a send delay is set
 Private Const CONNECT_MS   As Long = 5000
 
 '---------------------------------------------------------------------
@@ -55,11 +55,17 @@ Private Const CONNECT_MS   As Long = 5000
 Public Const AC2F_K_PL_MARGIN As String = "PLKenarPayiMM"
 Public Const AC2F_K_PL_TOL    As String = "PLEgriToleransiMM"
 Public Const AC2F_K_PL_ROT    As String = "PLDondurmeDerece"
+Public Const AC2F_K_PL_PAIRS  As String = "PLPDCiftSayisi"
+Public Const AC2F_K_PL_PRE    As String = "PLOnsoz"
+Public Const AC2F_K_PL_DELAY  As String = "PLGonderimGecikmesiMS"
 Public Const AC2F_K_PL_TARGET As String = "PLPlotterAdresi"   ' string, not on the sheet
 
 Public Const AC2F_DEF_PL_MARGIN As Double = 5#     ' margin from the origin (mm)
 Public Const AC2F_DEF_PL_TOL    As Double = 0.05   ' curve flattening tolerance (mm)
 Public Const AC2F_DEF_PL_ROT    As Long = 0        ' 0 = exactly as you see it
+Public Const AC2F_DEF_PL_PAIRS  As Long = 1        ' coordinate pairs per PD
+Public Const AC2F_DEF_PL_PRE    As Long = 1        ' 0 none, 1 IN;SP1;PA;, 2 SP1;PA;
+Public Const AC2F_DEF_PL_DELAY  As Long = 0        ' ms per 1 KB, 0 = send in one go
 Public Const AC2F_DEF_PL_TARGET As String = "192.168.1.100:9100"
 
 '---------------------------------------------------------------------
@@ -80,6 +86,58 @@ End Sub
 Public Sub ac2fPlotSave()
 Attribute ac2fPlotSave.VB_Description = "ac2f pack: Write the selection to an HPGL .plt file"
     ac2fPLRun False
+End Sub
+
+' Sends a plain 50 mm square through exactly the same writer and sender
+' a real job uses. One minute, and it tells three very different
+' problems apart. See the message it prints.
+Public Sub ac2fPlotTest()
+Attribute ac2fPlotTest.VB_Description = "ac2f pack: Send a 50 mm test square to the plotter"
+    Const SIDE As Double = 50#
+    Dim host As String, port As Long
+    Dim path As String, errText As String
+    Dim bytesOut As Long
+    Dim margin As Double
+
+    If Not ac2fPLAskTarget(host, port) Then Exit Sub
+
+    margin = ac2fGetNum(AC2F_K_PL_MARGIN, AC2F_DEF_PL_MARGIN)
+    If margin < 0 Then margin = 0
+
+    m_n = 0: m_sn = 0
+    ReDim m_x(0 To 7): ReDim m_y(0 To 7)
+    ReDim m_ss(0 To 0): ReDim m_sc(0 To 0): ReDim m_scl(0 To 0)
+    ac2fPLAddPt 0, 0
+    ac2fPLAddPt SIDE, 0
+    ac2fPLAddPt SIDE, SIDE
+    ac2fPLAddPt 0, SIDE
+    m_ss(0) = 0: m_sc(0) = 4: m_scl(0) = True
+    m_sn = 1
+
+    path = ac2fPLTempPath("ac2f_test.plt")
+    bytesOut = ac2fPLWrite(path, margin * AC2F_UNITS_PER_MM, margin * AC2F_UNITS_PER_MM)
+    If bytesOut = 0 Then
+        ac2fWarn "Could not write " & path, CAPTION_
+        Exit Sub
+    End If
+
+    If ac2fPLSendFile(path, host, port, errText) Then
+        ac2fInfo "A " & ac2fFmt(SIDE, 0) & " mm square went to " & host & ":" & port & _
+                 "  (" & bytesOut & " bytes)" & vbCrLf & vbCrLf & _
+                 "IT CUT CLEANLY" & vbCrLf & _
+                 "   Machine and connection are fine. If a real job only " & _
+                 "traces, its file is what upsets the cutter: set PD pairs " & _
+                 "to 1." & vbCrLf & vbCrLf & _
+                 "IT TRACED BUT DID NOT CUT" & vbCrLf & _
+                 "   The machine is not cutting at all. Check knife force, " & _
+                 "blade depth and tool selection, then try Preamble = 2, " & _
+                 "which stops IN; from wiping the panel settings." & vbCrLf & vbCrLf & _
+                 "NOTHING MOVED" & vbCrLf & _
+                 "   It never arrived. Check the address, port and cable.", CAPTION_
+    Else
+        ac2fWarn "The test square could not be sent." & vbCrLf & vbCrLf & _
+                 errText & vbCrLf & vbCrLf & "File: " & path, CAPTION_
+    End If
 End Sub
 
 '=====================================================================
@@ -429,14 +487,26 @@ Private Function ac2fPLWrite(ByVal path As String, ByVal dx As Double, _
     Dim line_ As String
     Dim cnt As Long
     Dim total As Long
+    Dim perPD As Long
+    Dim pre As Long
+
+    perPD = ac2fGetLng(AC2F_K_PL_PAIRS, AC2F_DEF_PL_PAIRS)
+    If perPD < 1 Then perPD = 1
+    pre = ac2fGetLng(AC2F_K_PL_PRE, AC2F_DEF_PL_PRE)
 
     On Error GoTo Fail
     f = FreeFile
     Open path For Output As #f
 
-    Print #f, "IN;"
-    Print #f, "SP1;"
-    Print #f, "PA;"
+    ' IN resets the device to its power-on defaults. On a good many
+    ' cutters that also throws away the knife force and the tool set on
+    ' the panel, and the machine then traces the job without cutting.
+    ' Preamble 2 keeps the panel settings; 0 sends no preamble at all.
+    If pre = 1 Then Print #f, "IN;"
+    If pre >= 1 Then
+        Print #f, "SP1;"
+        Print #f, "PA;"
+    End If
 
     For i = 0 To m_sn - 1
         s = m_ss(i): n = m_sc(i)
@@ -447,7 +517,7 @@ Private Function ac2fPLWrite(ByVal path As String, ByVal dx As Double, _
             If cnt > 0 Then line_ = line_ & ","
             line_ = line_ & ac2fPLU(m_x(s + k), dx) & "," & ac2fPLU(m_y(s + k), dy)
             cnt = cnt + 1
-            If cnt >= PD_PER_LINE Then
+            If cnt >= perPD Then
                 Print #f, "PD" & line_ & ";"
                 line_ = "": cnt = 0
             End If
@@ -462,8 +532,10 @@ Private Function ac2fPLWrite(ByVal path As String, ByVal dx As Double, _
         If cnt > 0 Then Print #f, "PD" & line_ & ";"
     Next i
 
-    Print #f, "PU0,0;"
-    Print #f, "SP0;"
+    If pre >= 1 Then
+        Print #f, "PU0,0;"
+        Print #f, "SP0;"
+    End If
     Close #f
 
     total = ac2fPLFileSize(path)
@@ -546,6 +618,8 @@ Private Function ac2fPLSendFile(ByVal path As String, ByVal host As String, _
           " -Target """ & host & """" & _
           " -Port " & port & _
           " -TimeoutMs " & CONNECT_MS & _
+          " -ChunkBytes " & CHUNK_BYTES & _
+          " -ChunkDelayMs " & ac2fGetLng(AC2F_K_PL_DELAY, AC2F_DEF_PL_DELAY) & _
           " -LogPath """ & logf & """"
 
     rc = sh.Run(cmd, 0, True)
@@ -579,7 +653,9 @@ Private Function ac2fPLWriteSender(ByVal ps As String) As Boolean
     Print #f, "  [string]$Target,"
     Print #f, "  [int]$Port,"
     Print #f, "  [string]$LogPath,"
-    Print #f, "  [int]$TimeoutMs = 5000"
+    Print #f, "  [int]$TimeoutMs = 5000,"
+    Print #f, "  [int]$ChunkBytes = 0,"
+    Print #f, "  [int]$ChunkDelayMs = 0"
     Print #f, ")"
     Print #f, "$ErrorActionPreference = 'Stop'"
     Print #f, "try {"
@@ -593,8 +669,19 @@ Private Function ac2fPLWriteSender(ByVal ps As String) As Boolean
     Print #f, "  }"
     Print #f, "  $client.EndConnect($iar)"
     Print #f, "  $stream = $client.GetStream()"
-    Print #f, "  $stream.Write($bytes, 0, $bytes.Length)"
-    Print #f, "  $stream.Flush()"
+    Print #f, "  if ($ChunkBytes -gt 0 -and $ChunkDelayMs -gt 0) {"
+    Print #f, "    $off = 0"
+    Print #f, "    while ($off -lt $bytes.Length) {"
+    Print #f, "      $n = [Math]::Min($ChunkBytes, $bytes.Length - $off)"
+    Print #f, "      $stream.Write($bytes, $off, $n)"
+    Print #f, "      $stream.Flush()"
+    Print #f, "      $off += $n"
+    Print #f, "      Start-Sleep -Milliseconds $ChunkDelayMs"
+    Print #f, "    }"
+    Print #f, "  } else {"
+    Print #f, "    $stream.Write($bytes, 0, $bytes.Length)"
+    Print #f, "    $stream.Flush()"
+    Print #f, "  }"
     Print #f, "  Start-Sleep -Milliseconds 400"
     Print #f, "  $stream.Close()"
     Print #f, "  $client.Close()"
@@ -848,6 +935,14 @@ End Function
 ' FILE AND REPORT HELPERS
 '=====================================================================
 
+Public Function ac2fPLPreName(ByVal p As Long) As String
+    Select Case p
+        Case 0:    ac2fPLPreName = "none"
+        Case 2:    ac2fPLPreName = "SP1;PA;  (no IN, panel settings kept)"
+        Case Else: ac2fPLPreName = "IN;SP1;PA;"
+    End Select
+End Function
+
 Private Function ac2fPLTempPath(ByVal nm As String) As String
     Dim t As String
     On Error Resume Next
@@ -918,6 +1013,8 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
     s = s & "   Y range             : " & CLng(margin * u) & " .. " & _
             CLng(margin * u + (maxY - minY) * u) & vbCrLf
     s = s & "   Curve tolerance     : " & ac2fFmt(tol) & " mm" & vbCrLf
+    s = s & "   PD pairs            : " & ac2fGetLng(AC2F_K_PL_PAIRS, AC2F_DEF_PL_PAIRS) & vbCrLf
+    s = s & "   Preamble            : " & ac2fPLPreName(ac2fGetLng(AC2F_K_PL_PRE, AC2F_DEF_PL_PRE)) & vbCrLf
     s = s & "   Rotate              : " & ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) & _
             " deg" & IIf(ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) = 0, _
                          "  (as on screen)", "") & vbCrLf
