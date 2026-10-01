@@ -521,6 +521,20 @@ Private Sub ac2fBuildTable()
         "lands in the corner either way." & vbCrLf & vbCrLf & _
         "Anything that is not a multiple of 90 is snapped to the nearest."
 
+    ac2fAddSetting AC2F_K_PL_MIR, "PLOT", "Mirror", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_PL_MIR), 0, 3, _
+        "Flips the job before it is sent. 0 sends it unflipped." & _
+        vbCrLf & vbCrLf & _
+        "1 = left to right" & vbCrLf & _
+        "2 = top to bottom" & vbCrLf & _
+        "3 = both" & vbCrLf & vbCrLf & _
+        "Turning cannot undo a flip, and some machines flip one axis, so " & _
+        "this is a separate control from Rotate. Flipping happens after " & _
+        "the rotation." & vbCrLf & vbCrLf & _
+        "Send the test L to find out: if it comes back as a mirror " & _
+        "image, with the foot pointing the wrong way, set 1. If it is " & _
+        "upside down with the foot at the top, set 2."
+
     ac2fAddSetting AC2F_K_PL_PAIRS, "PLOT", "PD pairs", "", _
         AC2F_KIND_INT, CDbl(AC2F_DEF_PL_PAIRS), 1, 200, _
         "How many coordinate pairs are packed into one PD command." & _

@@ -127,6 +127,11 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.8.0'dan 1.8.1'e
+
+`ac2fPlot`, `ac2fSettings`, `ac2fCore` değişti — üçünü silip yeniden
+aktarın. Yeni `Mirror` ayarı, test şekli artık asimetrik bir L.
+
 ### Sürüm 1.7.x'ten 1.8.0'a
 
 | Dosya | Ne yapmalı |

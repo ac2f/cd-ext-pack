@@ -2,6 +2,35 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.8.1] - 2026-10-01
+
+### Netleştirme
+
+`ac2fPlot` işi **birebir** gönderiyor: belge X'i plotter X'i, belge Y'si
+plotter Y'si, `Rotate` varsayılanı 0. Kod kontrol edildi, döndürme
+yalnızca ayar sıfırdan farklıysa uygulanıyor. 90 derece makineden
+geliyor — çoğu kesicide X ekseni malzeme besleme yönünde uzar.
+
+Çözüm `Rotate` ayarı (ayar 42): **270** ya da **90**. Hangisi
+olduğunu test aşağıdaki şekille bir seferde söyler.
+
+### Düzeltildi
+
+- **Test şekli artık asimetrik.** 50 mm'lik kare yönlenme hakkında
+  hiçbir şey gösteremiyordu: hangi yöne çevrilse aynı görünür,
+  aynalansa yine karedir. Yerine **40 × 80 mm bir L** kondu — uzun
+  bacak solda, ayak sağa bakar. Dört dönüşün ve üç aynalamanın hepsi
+  birbirinden ayırt edilebiliyor (doğrulandı).
+- **Test artık `Rotate` ve `Mirror` ayarlarını uyguluyor.** Önceden
+  bunları atlıyordu, yani testin söylediği şey gerçek işte olanla
+  aynı değildi. Artık ikisi de aynı yönlendirme adımından geçiyor.
+
+### Eklendi
+
+- **`Mirror` ayarı** (0 yok, 1 sol-sağ, 2 alt-üst, 3 ikisi). Döndürme
+  aynalanmış bir ekseni düzeltemez ve bazı makineler bir ekseni
+  aynalar; bu yüzden ayrı bir denetim. Döndürmeden **sonra** uygulanır.
+
 ## [1.8.0] - 2026-10-01
 
 ### Sorun: makine yolları geziyor ama kesmiyor

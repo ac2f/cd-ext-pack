@@ -55,6 +55,7 @@ Private Const CONNECT_MS   As Long = 5000
 Public Const AC2F_K_PL_MARGIN As String = "PLKenarPayiMM"
 Public Const AC2F_K_PL_TOL    As String = "PLEgriToleransiMM"
 Public Const AC2F_K_PL_ROT    As String = "PLDondurmeDerece"
+Public Const AC2F_K_PL_MIR    As String = "PLAynalama"
 Public Const AC2F_K_PL_PAIRS  As String = "PLPDCiftSayisi"
 Public Const AC2F_K_PL_PRE    As String = "PLOnsoz"
 Public Const AC2F_K_PL_DELAY  As String = "PLGonderimGecikmesiMS"
@@ -63,6 +64,7 @@ Public Const AC2F_K_PL_TARGET As String = "PLPlotterAdresi"   ' string, not on t
 Public Const AC2F_DEF_PL_MARGIN As Double = 5#     ' margin from the origin (mm)
 Public Const AC2F_DEF_PL_TOL    As Double = 0.05   ' curve flattening tolerance (mm)
 Public Const AC2F_DEF_PL_ROT    As Long = 0        ' 0 = exactly as you see it
+Public Const AC2F_DEF_PL_MIR    As Long = 0        ' 0 none, 1 flip X, 2 flip Y, 3 both
 Public Const AC2F_DEF_PL_PAIRS  As Long = 1        ' coordinate pairs per PD
 Public Const AC2F_DEF_PL_PRE    As Long = 1        ' 0 none, 1 IN;SP1;PA;, 2 SP1;PA;
 Public Const AC2F_DEF_PL_DELAY  As Long = 0        ' ms per 1 KB, 0 = send in one go
@@ -88,54 +90,80 @@ Attribute ac2fPlotSave.VB_Description = "ac2f pack: Write the selection to an HP
     ac2fPLRun False
 End Sub
 
-' Sends a plain 50 mm square through exactly the same writer and sender
-' a real job uses. One minute, and it tells three very different
-' problems apart. See the message it prints.
+' Sends a 40 x 80 mm letter L through exactly the same writer, sender
+' and orientation step a real job uses.
+'
+' The shape is deliberately lopsided in both axes. A square cannot show
+' you anything about orientation: it looks identical whichever way the
+' machine turns it, and mirrored it is still a square. An L tells you in
+' one send whether the job is turned, mirrored, scaled or simply not
+' being cut.
 Public Sub ac2fPlotTest()
-Attribute ac2fPlotTest.VB_Description = "ac2f pack: Send a 50 mm test square to the plotter"
-    Const SIDE As Double = 50#
+Attribute ac2fPlotTest.VB_Description = "ac2f pack: Send a test L to the plotter to check cutting and orientation"
     Dim host As String, port As Long
     Dim path As String, errText As String
     Dim bytesOut As Long
     Dim margin As Double
+    Dim minX As Double, minY As Double
+    Dim i As Long
 
     If Not ac2fPLAskTarget(host, port) Then Exit Sub
 
     margin = ac2fGetNum(AC2F_K_PL_MARGIN, AC2F_DEF_PL_MARGIN)
     If margin < 0 Then margin = 0
 
+    ' tall leg on the left, foot to the right
     m_n = 0: m_sn = 0
-    ReDim m_x(0 To 7): ReDim m_y(0 To 7)
+    ReDim m_x(0 To 15): ReDim m_y(0 To 15)
     ReDim m_ss(0 To 0): ReDim m_sc(0 To 0): ReDim m_scl(0 To 0)
     ac2fPLAddPt 0, 0
-    ac2fPLAddPt SIDE, 0
-    ac2fPLAddPt SIDE, SIDE
-    ac2fPLAddPt 0, SIDE
-    m_ss(0) = 0: m_sc(0) = 4: m_scl(0) = True
+    ac2fPLAddPt 40, 0
+    ac2fPLAddPt 40, 20
+    ac2fPLAddPt 15, 20
+    ac2fPLAddPt 15, 80
+    ac2fPLAddPt 0, 80
+    m_ss(0) = 0: m_sc(0) = 6: m_scl(0) = True
     m_sn = 1
 
+    ac2fPLOrient
+
+    minX = m_x(0): minY = m_y(0)
+    For i = 1 To m_n - 1
+        If m_x(i) < minX Then minX = m_x(i)
+        If m_y(i) < minY Then minY = m_y(i)
+    Next i
+
     path = ac2fPLTempPath("ac2f_test.plt")
-    bytesOut = ac2fPLWrite(path, margin * AC2F_UNITS_PER_MM, margin * AC2F_UNITS_PER_MM)
+    bytesOut = ac2fPLWrite(path, margin * AC2F_UNITS_PER_MM - minX * AC2F_UNITS_PER_MM, _
+                                 margin * AC2F_UNITS_PER_MM - minY * AC2F_UNITS_PER_MM)
     If bytesOut = 0 Then
         ac2fWarn "Could not write " & path, CAPTION_
         Exit Sub
     End If
 
     If ac2fPLSendFile(path, host, port, errText) Then
-        ac2fInfo "A " & ac2fFmt(SIDE, 0) & " mm square went to " & host & ":" & port & _
-                 "  (" & bytesOut & " bytes)" & vbCrLf & vbCrLf & _
-                 "IT CUT CLEANLY" & vbCrLf & _
-                 "   Machine and connection are fine. If a real job only " & _
-                 "traces, its file is what upsets the cutter: set PD pairs " & _
-                 "to 1." & vbCrLf & vbCrLf & _
-                 "IT TRACED BUT DID NOT CUT" & vbCrLf & _
-                 "   The machine is not cutting at all. Check knife force, " & _
-                 "blade depth and tool selection, then try Preamble = 2, " & _
-                 "which stops IN; from wiping the panel settings." & vbCrLf & vbCrLf & _
-                 "NOTHING MOVED" & vbCrLf & _
-                 "   It never arrived. Check the address, port and cable.", CAPTION_
+        ac2fInfo _
+            "A test L went to " & host & ":" & port & vbCrLf & _
+            "Rotate " & ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) & _
+            ", Mirror " & ac2fGetLng(AC2F_K_PL_MIR, AC2F_DEF_PL_MIR) & vbCrLf & vbCrLf & _
+            "It should cut this, 40 mm wide and 80 mm tall:" & vbCrLf & vbCrLf & _
+            "      |" & vbCrLf & _
+            "      |" & vbCrLf & _
+            "      |___" & vbCrLf & vbCrLf & _
+            "Tall leg on the LEFT, foot pointing RIGHT, 80 mm the tall way." & _
+            vbCrLf & vbCrLf & _
+            "LYING ON ITS SIDE" & vbCrLf & _
+            "   The machine swaps the axes. Set Rotate to 270 and send " & _
+            "again; if that turns it the wrong way, use 90." & vbCrLf & vbCrLf & _
+            "A MIRROR IMAGE, foot pointing LEFT" & vbCrLf & _
+            "   Set Mirror to 1. Upside down instead, set Mirror to 2." & vbCrLf & vbCrLf & _
+            "RIGHT SHAPE BUT ONLY TRACED" & vbCrLf & _
+            "   The machine is not cutting. Knife force, blade depth, " & _
+            "tool, then try Preamble = 2." & vbCrLf & vbCrLf & _
+            "NOTHING MOVED" & vbCrLf & _
+            "   It never arrived. Check address, port and cable.", CAPTION_
     Else
-        ac2fWarn "The test square could not be sent." & vbCrLf & vbCrLf & _
+        ac2fWarn "The test could not be sent." & vbCrLf & vbCrLf & _
                  errText & vbCrLf & vbCrLf & "File: " & path, CAPTION_
     End If
 End Sub
@@ -217,7 +245,7 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
 
     ' --- orientation --------------------------------------------------
     rotDeg = ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT)
-    ac2fPLRotate rotDeg
+    ac2fPLOrient
 
     ' --- normalisation, from the geometry, not from parsed text -------
     minX = m_x(0): maxX = m_x(0): minY = m_y(0): maxY = m_y(0)
@@ -455,6 +483,24 @@ End Sub
 ' Turns the flattened points a whole number of quarter turns. Applied
 ' before the extent is taken, so the margin still lands correctly
 ' whichever way the job ends up facing.
+' Rotation then mirroring, in that order, on the flattened points.
+' Both the real job and the test shape go through here, so whatever the
+' test tells you to set is exactly what a real job will do.
+Private Sub ac2fPLOrient()
+    ac2fPLRotate ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT)
+    ac2fPLMirror ac2fGetLng(AC2F_K_PL_MIR, AC2F_DEF_PL_MIR)
+End Sub
+
+' Rotation cannot undo a mirrored axis, and some machines do mirror one.
+Private Sub ac2fPLMirror(ByVal m As Long)
+    Dim i As Long
+    If m <= 0 Then Exit Sub
+    For i = 0 To m_n - 1
+        If m = 1 Or m = 3 Then m_x(i) = -m_x(i)
+        If m = 2 Or m = 3 Then m_y(i) = -m_y(i)
+    Next i
+End Sub
+
 Private Sub ac2fPLRotate(ByVal deg As Long)
     Dim i As Long, q As Long
     Dim t As Double
@@ -935,6 +981,15 @@ End Function
 ' FILE AND REPORT HELPERS
 '=====================================================================
 
+Public Function ac2fPLMirName(ByVal m As Long) As String
+    Select Case m
+        Case 1:    ac2fPLMirName = "flipped left to right"
+        Case 2:    ac2fPLMirName = "flipped top to bottom"
+        Case 3:    ac2fPLMirName = "flipped both ways"
+        Case Else: ac2fPLMirName = "none"
+    End Select
+End Function
+
 Public Function ac2fPLPreName(ByVal p As Long) As String
     Select Case p
         Case 0:    ac2fPLPreName = "none"
@@ -1013,6 +1068,7 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
     s = s & "   Y range             : " & CLng(margin * u) & " .. " & _
             CLng(margin * u + (maxY - minY) * u) & vbCrLf
     s = s & "   Curve tolerance     : " & ac2fFmt(tol) & " mm" & vbCrLf
+    s = s & "   Mirror              : " & ac2fPLMirName(ac2fGetLng(AC2F_K_PL_MIR, AC2F_DEF_PL_MIR)) & vbCrLf
     s = s & "   PD pairs            : " & ac2fGetLng(AC2F_K_PL_PAIRS, AC2F_DEF_PL_PAIRS) & vbCrLf
     s = s & "   Preamble            : " & ac2fPLPreName(ac2fGetLng(AC2F_K_PL_PRE, AC2F_DEF_PL_PRE)) & vbCrLf
     s = s & "   Rotate              : " & ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) & _

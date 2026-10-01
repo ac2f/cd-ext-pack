@@ -622,18 +622,43 @@ The file is written, so you can send it by hand.
 > plotter'ların beklediği şey. Telnet protokolü anlaşması (IAC kaçırma)
 > yapılmaz; plotter'lar anlaşma istemediği için bu doğru davranıştır.
 
+### Dönük geliyorsa
+
+Paket işi **birebir** gönderir: belge X'i plotter X'i, belge Y'si
+plotter Y'si. Arada döndüren bir şey yok, `Rotate` varsayılanı 0.
+
+Yine de dönük çıkıyorsa sebep **makinedir**: çoğu kesicide X ekseni
+malzeme besleme yönünde uzar, bu yüzden geniş bir iş ruloya enine
+düşer. Telafisi `Rotate` ayarıdır (42) — **270** ya da **90**. Hangisi
+olduğunu test L'si bir seferde söyler.
+
+Döndürme **aynalanmış** bir ekseni düzeltemez; onun için ayrı bir
+`Mirror` ayarı (41) var ve döndürmeden sonra uygulanır.
+
 ### Gezinip kesmiyorsa
 
 Bu belirti nettir: `PD` koordinatları hareket olarak çalışıyor ama bıçak
-inmiyor. `ac2fPlotTest` (ana menü 13) bunu bir dakikada teşhis eder —
-gerçek işin kullandığı **aynı** yazıcı ve göndericiden 50 mm'lik bir
-kare gönderir.
+inmiyor. `ac2fPlotTest` (ana menü 13) bunu bir dakikada teşhis eder — gerçek işin
+kullandığı **aynı** yazıcı, gönderici ve yönlendirme adımından
+40 × 80 mm'lik bir **L** gönderir:
+
+```
+   |
+   |
+   |___     uzun bacak SOLDA, ayak SAĞA, 80 mm uzun yön
+```
 
 | Sonuç | Anlamı | Çözüm |
 |---|---|---|
-| **Temiz kesti** | Makine, bağlantı ve ayarlar iyi. Sorun gerçek işin dosyasında. | `PD pairs = 1` |
-| **Gezdi ama kesmedi** | Makine hiç kesmiyor. | Bıçak kuvveti, derinlik, takım seçimi; sonra `Preamble = 2` |
-| **Hiç kıpırdamadı** | Dosya ulaşmadı. | Adres, port, kablo |
+| **Doğru şekil, temiz kesti** | Her şey yolunda | — |
+| **Yan yatmış** (80 mm enine) | Makine eksenleri takas ediyor | `Rotate = 270`; ters olursa `90` |
+| **Ayna görüntüsü** (ayak solda) | Makine bir ekseni aynalıyor | `Mirror = 1`; baş aşağıysa `2` |
+| **Doğru şekil ama sadece gezdi** | Makine hiç kesmiyor | Bıçak kuvveti, derinlik, takım; sonra `Preamble = 2` |
+| **Hiç kıpırdamadı** | Ulaşmadı | Adres, port, kablo |
+
+Test, `Rotate` ve `Mirror` ayarlarını uygular — yani testte doğru çıkan
+değer gerçek işte de doğrudur. Kare yerine L olmasının sebebi: kare
+hangi yöne çevrilse aynı görünür, aynalansa yine karedir.
 
 **`PD pairs` neden önemli:** eskiden komut başına 40 koordinat çifti
 yazılıyordu — 180 noktalı bir daire için **402 karakterlik** satırlar.
@@ -674,10 +699,11 @@ Ortadaki satır önemli: çizim tamamen pozitifse min 0,0 çıkar,
 normalizasyon sabit bir kaydırmaya döner, iş kenara oturmaz ve malzeme
 boşa gider.
 
-### Ayarlar (40-45)
+### Ayarlar (40-46)
 
 | Ayar | Varsayılan | Ne yapar |
 |---|---|---|
+| Mirror | 0 | `1` sol-sağ, `2` alt-üst, `3` ikisi. Ayna görüntüsü gelirse |
 | PD pairs | 1 | Komut başına koordinat çifti. Kesmiyorsa buradan başlayın |
 | Preamble | 1 | `2` = `IN;` gönderme (panel ayarları korunur) |
 | Send delay | 0 | KB başına duraklama. Seri dönüştürücü için |

@@ -286,17 +286,27 @@ reddedilirse gerçek sebebi görüyorsunuz.
 Bu **ham TCP akışı**; 9100 ya da bir telnet portunda dinleyen
 plotter'ların beklediği şey. Telnet protokolü anlaşması yapılmaz.
 
-### Kesmiyorsa: önce test karesi
+### Dönük ya da kesmiyorsa: önce test L'si
 
-Makine yolları geziyor ama **kesmiyorsa**, `ac2fPlotTest` (ana menü 13)
-gerçek işin kullandığı aynı yazıcı ve göndericiden 50 mm'lik bir kare
-gönderir:
+`ac2fPlotTest` (ana menü 13) gerçek işin kullandığı **aynı** yazıcı,
+gönderici ve yönlendirme adımından 40 × 80 mm'lik bir **L** gönderir:
+
+```
+   |
+   |
+   |___     uzun bacak SOLDA, ayak SAĞA, 80 mm uzun yön
+```
 
 | Sonuç | Anlamı | Ne yapmalı |
 |---|---|---|
-| Temiz kesti | Makine iyi, sorun işin dosyasında | `PD pairs = 1` |
-| Gezdi, kesmedi | Makine hiç kesmiyor | Bıçak kuvveti/derinliği; `Preamble = 2` |
+| Doğru şekil, temiz kesti | Her şey yolunda | — |
+| **Yan yatmış** | Makine eksenleri takas ediyor | `Rotate = 270`, ters olursa `90` |
+| **Ayna görüntüsü** | Makine bir ekseni aynalıyor | `Mirror = 1` (ya da baş aşağıysa `2`) |
+| Doğru şekil ama sadece gezdi | Makine hiç kesmiyor | Bıçak kuvveti/derinliği; `Preamble = 2` |
 | Kıpırdamadı | Ulaşmadı | Adres, port, kablo |
+
+Kare neden olmaz: hangi yöne çevrilse aynı görünür, aynalansa yine
+karedir. L dört dönüşü ve üç aynalamayı birbirinden ayırır.
 
 İki ayar bu iş için:
 
