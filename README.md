@@ -43,7 +43,8 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fNest` | Seçili parçaları plakalara yerleştirir |
 | `ac2fNestReport` | Hesaplar ve raporlar, hiçbir şeyi oynatmaz |
 | `ac2fPlotSend` | Seçimi HPGL olarak plotter'a gönderir |
-| `ac2fPlotTest` | 50 mm test karesi gönderir — makine mi dosya mı, ayırır |
+| `ac2fPlotOrderPreview` | Seçimi kesim sırasına göre sayfada numaralandırır |
+| `ac2fPlotTest` | 40 × 80 mm test L'si gönderir — makine mi dosya mı, ayırır |
 | `ac2fPlotSave` | HPGL'i dosyaya yazar (incelemek için) |
 | `ac2fPlotFixSend` | Var olan bir `.plt`'yi normalize edip gönderir |
 | `ac2fSettings` | **Tüm ayarlar ve profiller — tek sayfa** |
@@ -250,9 +251,76 @@ süzgeci yoktur.
 
 Yine de dönük çıkıyorsa sebep makinedir: çoğu kesicide X ekseni malzeme
 besleme yönünde uzar, bu yüzden geniş bir iş ruloya enine düşer. `Rotate`
-ayarı (33) bunu telafi eder, **varsayılanı 0** — yani döndürme yok.
+ayarı (42) bunu telafi eder, **varsayılanı 0** — yani döndürme yok.
 90 saat yönünün tersine, 270 saat yönüne çevirir; en–boy takas olur ve
 kenar payı sonradan uygulandığı için iş yine köşeye oturur.
+
+### Kesim sırası: hangi kontur önce gider
+
+Kutu harf şeridi bükerken sıra, makineyi kaç kez kurduğunuzu belirler.
+Paket konturları önce **harflere** ayırır, sonra harfleri bir iş sırasına
+dizer.
+
+**1. İçine alma.** Her kapalı kontur diğerlerine karşı sınanır: ilk
+noktası içine düşüyor mu, ve öteki daha büyük mü? Hiçbir şeyin içinde
+olmayan kontur bir **dış**, bir dışın içindeki kontur onun **göbeği**
+(A'nın ortası), göbeğin içindeki yine bir dıştır. Bir dış ve kapsadığı
+her şey **bir harftir**.
+
+**2. Çalışma sırası.** Harfler soldan sağa dizilir. X'te üst üste binen
+harfler bir **sütun** sayılır ve sütun içinde yukarıdan aşağı gidilir —
+"soldan sağa, önce üst" bir sayfada satır satır duran parçalar için
+budur.
+
+**3. Önce aynılar.** Bir harfe gelindiğinde, ondan sonraki **aynı
+şekilli** bütün harfler hemen arkasına çekilir. `NOBOBOXB` kelimesindeki
+üç `O`, araya `B` ve `X` girmeden peş peşe bükülür: üç kurulum yerine
+bir kurulum.
+
+| `Order` (ayar 44) | Sıra |
+|---|---|
+| `0` | Belgedeki hâliyle |
+| `1` *(varsayılan)* | Soldan sağa, önce üst |
+| `2` | Aynısı, ama **önce ovalliği olmayan** harfler, sonra eğriler |
+| `3` | 2 ile aynı, ama **göbekler en sona** |
+
+`NOBOBOXB` için sonuç (doğrulandı):
+
+```
+1 ->  N  O O. O O. O O.  B B.1 B.2  B B.1 B.2  B B.1 B.2  X
+2 ->  N  X  O O. O O. O O.  B B.1 B.2  B B.1 B.2  B B.1 B.2
+3 ->  N  X  O O O  B B B  |  O. O. O.  B.1 B.2  B.1 B.2  B.1 B.2
+```
+
+`.` ile bitenler göbek. `2`, rulolu bir bükme makinesi içindir: düz işin
+tamamı, rulolar hiç devreye girmeden biter. `3` daha ileri gider,
+hiçbir dış bir göbeği beklemez; göbekler de harflerle **aynı sırayı**
+korur.
+
+**Aynı sayılma ölçütü.** İki harf; kontur sayısı, uzunluk, kapsadığı
+alan ve kutu ölçüsü `Match tol` (48) içinde uyuşuyorsa aynıdır. En ve
+boy yer değişebilir, yani çeyrek tur döndürülmüş bir kopya da aynı
+sayılır. **Aynalanmış kopya sayılmaz** — ters yöne bükülür, kendi
+kurulumunu ister; alanın işareti bunu yakalar.
+
+**Gruplama sırayı ezer.** `Group same` (45) açıkken soldan sağa sıra
+bozulabilir; zaten amacı budur. Sayfadaki sıra kurulum sayısından daha
+önemliyse `0` yapın.
+
+| Ayar | Varsayılan | Ne işe yarar |
+|---|---|---|
+| `Order` (44) | `1` | Yukarıdaki dört algoritma |
+| `Group same` (45) | `1` | Aynı harfleri peş peşe bük |
+| `Column overlap` (46) | 5 mm | Bir sütun sayılmak için gereken X bindirmesi |
+| `Curve limit` (47) | 0,5 mm | Bir harfin "eğri" sayılması için gereken şişkinlik |
+| `Match tol` (48) | 0,5 mm | İki harfin aynı sayılması için gereken yakınlık |
+
+Sıra **ekranda gördüğünüz çizim üzerinden**, `Rotate` ve `Mirror`'dan
+önce hesaplanır; yani "sol" her zaman ekranınızın solu.
+
+**Göndermeden önce görün.** Ana menü `13` (`ac2fPlotOrderPreview`)
+seçimi sayfada kesim sırasına göre numaralandırır. Tek `Undo` hepsini
+siler.
 
 ### Neden düzeltme adımı yok
 
@@ -288,7 +356,7 @@ plotter'ların beklediği şey. Telnet protokolü anlaşması yapılmaz.
 
 ### Dönük ya da kesmiyorsa: önce test L'si
 
-`ac2fPlotTest` (ana menü 13) gerçek işin kullandığı **aynı** yazıcı,
+`ac2fPlotTest` (ana menü 14) gerçek işin kullandığı **aynı** yazıcı,
 gönderici ve yönlendirme adımından 40 × 80 mm'lik bir **L** gönderir:
 
 ```
@@ -334,7 +402,7 @@ döner — iş kenarda kalmaz, malzeme boşa gider.
 
 ## Ayarlar ve profiller
 
-**Tüm ayarlar tek sayfada.** Ana menüden `15` ile açılır; 42 ayar
+**Tüm ayarlar tek sayfada.** Ana menüden `17` ile açılır; 51 ayar
 numaralı olarak listelenir:
 
 ```
@@ -435,4 +503,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.7.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.9.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

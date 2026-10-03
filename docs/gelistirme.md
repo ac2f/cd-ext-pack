@@ -446,6 +446,51 @@ sıkı eğriler kısa adım alır ve hata her yerde tolerans altında kalır.
 Ölçüldü: 0,5 / 0,1 / 0,05 / 0,01 mm toleranslarda gerçek sehim hep
 sınırın altında.
 
+### Kesim sırası
+
+Konturlar **harflere** ayrılıp sıraya dizilir. Üç karar var.
+
+**Harf nedir.** İçine alma ile bulunur: kapalı bir kontur, kendisinden
+**kesin olarak daha büyük** (|alan| karşılaştırması) ve kutusu kendi
+kutusunu kapsayan bir konturun içinde mi? Eleme geçilirse ilk noktası
+için tek–çift ışın testi yapılır. "Kesin olarak daha büyük" koşulu iki
+işi birden görür: eşit kopyaların birbirini ebeveyn göstermesini ve
+dolayısıyla döngü oluşmasını engeller. Derinlik tek ise göbek, çift ise
+dış; kök dışa kadar çıkılarak harf kimliği atanır.
+
+**Sıra.** Harfler `X0`'a göre dizilir, X'te üst üste binenler bir sütun
+sayılır (yeni sütun, sol kenar sütunun sağ kenarını `Column overlap`
+kadar geçtiğinde başlar), sütun içinde `Y1` azalan sırada gidilir.
+Bindirme eşiğiyle çalışmanın nedeni: bir satırdaki kelimede harfler
+yan yanadır ve her biri kendi sütunu olur, sayfaya satır satır dizilmiş
+parçalarda ise tam binerler ve doğru biçimde sütun oluştururlar.
+
+**Aynılık.** `ac2fPLSameGlyph`: kontur sayısı, uzunluk, kapsanan alan ve
+sıralanmış kutu ölçüleri (`min(w,h)`, `max(w,h)` — çeyrek tur dönmüş
+kopya da aynı sayılsın diye), hepsi `Match tol` artı büyük harfler için
+oransal bir pay içinde. Ek olarak **işaretli alanın işareti** eşleşmek
+zorunda: aynalanmış bir kopyanın uzunluğu ve kutusu aynıdır ama işareti
+terstir, ve ters yöne bükülür. Bu, eşleştirmeyi kasten temkinli yapar —
+yanlış ayırmanın bedeli bir kurulum, yanlış birleştirmenin bedeli hatalı
+parçadır.
+
+Hesap **belge koordinatlarında**, `ac2fPLOrient`'ten önce yapılır.
+Noktalar taşınmaz; yalnız kontur dizin dizileri (`m_ss`, `m_sc`, `m_scl`
+ve üstverileri) yeniden sıralanır. `ac2fPLApplyOrder` tam bir
+permütasyon üretemezse sıralama **hiç** uygulanmaz; yarı sıralı bir iş
+göndermekten iyidir.
+
+### Eğrilik ölçüsü
+
+Bir segmentin kirişinden sapması. Dönüş açısı `th` biliniyorsa tam
+sagitta `r·(1 − cos(th/2))`. Açı çözücünün eşiğinin ((yay−kiriş)/yay ≥
+2e-4) altında kalan sığ yaylar için `Sqr(24·kiriş·(yay − kiriş))/8`
+yaklaşımı kullanılır. Ölçülen hata: θ = 0,1 rad'da %0,01, θ = 0,3'te
+%0,06 — yani tam da kullanıldığı aralıkta kesin. S biçimli bir segment
+iki yöne döndüğü için ikisinde de küçük ölçer; orada yalnız kirişe
+eklediği uzunluk kalır. Bu bilinen sınırdır ve bir harfin birden çok
+segmenti olduğu için pratikte sorun çıkarmaz.
+
 ### Yön
 
 Dönüşüm birebirdir: belge X'i HPGL X'i, belge Y'si HPGL Y'si. Corel'in

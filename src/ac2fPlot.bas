@@ -19,6 +19,13 @@ Attribute VB_Name = "ac2fPlot"
 '
 '  HPGL units are 40 per millimetre (1016 per inch).
 '
+'  CUTTING ORDER
+'  The order the outlines leave in is not the order they happen to sit
+'  in the document. Contours are grouped into letters by containment,
+'  the letters are put in a working order, and identical letters are
+'  bent one after another so the machine is set up once per shape.
+'  See the ORDER section below.
+'
 '  ORIENTATION
 '  Nothing is rotated: document X becomes HPGL X and document Y
 '  becomes HPGL Y, so the job reaches the plotter exactly as it sits
@@ -59,6 +66,11 @@ Public Const AC2F_K_PL_MIR    As String = "PLAynalama"
 Public Const AC2F_K_PL_PAIRS  As String = "PLPDCiftSayisi"
 Public Const AC2F_K_PL_PRE    As String = "PLOnsoz"
 Public Const AC2F_K_PL_DELAY  As String = "PLGonderimGecikmesiMS"
+Public Const AC2F_K_PL_ORDER  As String = "PLSiralama"
+Public Const AC2F_K_PL_GROUP  As String = "PLAyniParcalariGrupla"
+Public Const AC2F_K_PL_COLGAP As String = "PLSutunBindirmesiMM"
+Public Const AC2F_K_PL_CURVE  As String = "PLEgrilikEsigiMM"
+Public Const AC2F_K_PL_MATCH  As String = "PLEslesmeToleransiMM"
 Public Const AC2F_K_PL_TARGET As String = "PLPlotterAdresi"   ' string, not on the sheet
 
 Public Const AC2F_DEF_PL_MARGIN As Double = 5#     ' margin from the origin (mm)
@@ -68,6 +80,11 @@ Public Const AC2F_DEF_PL_MIR    As Long = 0        ' 0 none, 1 flip X, 2 flip Y,
 Public Const AC2F_DEF_PL_PAIRS  As Long = 1        ' coordinate pairs per PD
 Public Const AC2F_DEF_PL_PRE    As Long = 1        ' 0 none, 1 IN;SP1;PA;, 2 SP1;PA;
 Public Const AC2F_DEF_PL_DELAY  As Long = 0        ' ms per 1 KB, 0 = send in one go
+Public Const AC2F_DEF_PL_ORDER  As Long = 1        ' 0 off, 1 left to right, 2 straights first, 3 outsides first
+Public Const AC2F_DEF_PL_GROUP  As Long = 1        ' 1 = bend identical parts together
+Public Const AC2F_DEF_PL_COLGAP As Double = 5#     ' overlap that keeps two parts in one column (mm)
+Public Const AC2F_DEF_PL_CURVE  As Double = 0.5    ' bulge that makes a segment count as curved (mm)
+Public Const AC2F_DEF_PL_MATCH  As Double = 0.5    ' how close two parts must be to count as the same (mm)
 Public Const AC2F_DEF_PL_TARGET As String = "192.168.1.100:9100"
 
 '---------------------------------------------------------------------
@@ -75,6 +92,33 @@ Public Const AC2F_DEF_PL_TARGET As String = "192.168.1.100:9100"
 '---------------------------------------------------------------------
 Private m_x() As Double, m_y() As Double, m_n As Long
 Private m_ss() As Long, m_sc() As Long, m_scl() As Boolean, m_sn As Long
+
+' Per contour, filled as it is flattened and used by the ordering.
+Private m_sx0() As Double, m_sy0() As Double
+Private m_sx1() As Double, m_sy1() As Double
+Private m_sar() As Double          ' signed area, mm2 (its sign spots a mirror)
+Private m_slen() As Double         ' outline length, mm
+Private m_sbulge() As Double       ' largest departure from a straight line, mm
+Private m_sgl() As Long            ' which letter this contour belongs to
+Private m_sin() As Boolean         ' True for a counter (the hole in an A)
+Private m_sord() As Long           ' contours sorted left to right, top first
+
+' Per letter. A letter is one outside contour plus whatever it encloses.
+Private Type ac2fPLGlyph
+    X0      As Double
+    Y0      As Double
+    X1      As Double
+    Y1      As Double
+    PathLen As Double
+    SignArea As Double
+    Parts   As Long
+    Curved  As Boolean
+    Col     As Long
+End Type
+
+Private m_g() As ac2fPLGlyph, m_gn As Long
+Private m_gseq() As Long, m_gseqN As Long
+Private m_groups As Long           ' distinct shapes among the letters
 
 '=====================================================================
 ' MACROS
@@ -113,9 +157,7 @@ Attribute ac2fPlotTest.VB_Description = "ac2f pack: Send a test L to the plotter
     If margin < 0 Then margin = 0
 
     ' tall leg on the left, foot to the right
-    m_n = 0: m_sn = 0
-    ReDim m_x(0 To 15): ReDim m_y(0 To 15)
-    ReDim m_ss(0 To 0): ReDim m_sc(0 To 0): ReDim m_scl(0 To 0)
+    ac2fPLResetGeom
     ac2fPLAddPt 0, 0
     ac2fPLAddPt 40, 0
     ac2fPLAddPt 40, 20
@@ -168,6 +210,107 @@ Attribute ac2fPlotTest.VB_Description = "ac2f pack: Send a test L to the plotter
     End If
 End Sub
 
+' Numbers the selection in the order it would be cut, on the page, so
+' the order can be checked before anything is sent. One Undo clears it.
+Public Sub ac2fPlotOrderPreview()
+Attribute ac2fPlotOrderPreview.VB_Description = "ac2f pack: Number the selection in the order it would be cut"
+    Dim sr As ShapeRange
+    Dim oldUnit As cdrUnit, unitChanged As Boolean
+    Dim tol As Double
+    Dim alg As Long
+    Dim i As Long, drawn As Long
+    Dim t As Shape
+    Dim cx As Double, cy As Double, sz As Double
+
+    If ActiveDocument Is Nothing Then
+        ac2fWarn "Open a document first.", CAPTION_
+        Exit Sub
+    End If
+    Set sr = ActiveSelectionRange
+    If sr Is Nothing Then
+        ac2fWarn "Select what you want to check.", CAPTION_
+        Exit Sub
+    End If
+    If sr.Count = 0 Then
+        ac2fWarn "Select what you want to check.", CAPTION_
+        Exit Sub
+    End If
+
+    tol = ac2fGetNum(AC2F_K_PL_TOL, AC2F_DEF_PL_TOL)
+    If tol <= 0 Then tol = AC2F_DEF_PL_TOL
+
+    On Error GoTo Fail
+    oldUnit = ActiveDocument.Unit
+    If oldUnit <> cdrMillimeter Then
+        ActiveDocument.Unit = cdrMillimeter
+        unitChanged = True
+    End If
+
+    ac2fPLCollect sr, tol
+    If m_sn = 0 Then
+        If unitChanged Then ActiveDocument.Unit = oldUnit
+        ac2fWarn "Nothing plottable in the selection.", CAPTION_
+        Exit Sub
+    End If
+
+    alg = ac2fPLOrderNow()
+    If alg = 0 Then
+        If unitChanged Then ActiveDocument.Unit = oldUnit
+        If ac2fGetLng(AC2F_K_PL_ORDER, AC2F_DEF_PL_ORDER) <= 0 Then
+            ac2fWarn "Ordering is switched off, so there is nothing to show." & _
+                     vbCrLf & vbCrLf & "Set Order to 1, 2 or 3 in the settings.", CAPTION_
+        ElseIf m_sn < 2 Then
+            ac2fWarn "There is one outline in the selection, so there is no " & _
+                     "order to show.", CAPTION_
+        Else
+            ac2fWarn "The order could not be worked out for this selection, " & _
+                     "so nothing was changed.", CAPTION_
+        End If
+        Exit Sub
+    End If
+
+    ActiveDocument.BeginCommandGroup ac2fTitle("cut order")
+    For i = 0 To m_sn - 1
+        cx = (m_sx0(i) + m_sx1(i)) / 2#
+        cy = (m_sy0(i) + m_sy1(i)) / 2#
+        Set t = Nothing
+        On Error Resume Next
+        Set t = ActiveLayer.CreateArtisticText(cx, cy, CStr(i + 1))
+        If Not t Is Nothing Then
+            ' Sized against the outline it belongs to, so the numbers
+            ' stay readable on a 2 m letter and on a 30 mm counter.
+            sz = (m_sy1(i) - m_sy0(i)) / 4# / 0.3527778
+            If sz < 8# Then sz = 8#
+            If sz > 200# Then sz = 200#
+            t.Text.Story.Size = sz
+            drawn = drawn + 1
+        End If
+        On Error GoTo Fail
+    Next i
+    ActiveDocument.EndCommandGroup
+
+    On Error Resume Next
+    If unitChanged Then ActiveDocument.Unit = oldUnit
+    On Error GoTo 0
+
+    ac2fInfo "CUT ORDER" & vbCrLf & _
+             "   Rule                : " & ac2fPLOrderName(alg) & vbCrLf & _
+             "   Letters             : " & m_gn & vbCrLf & _
+             "   Contours            : " & m_sn & "  (" & ac2fPLInnerCount() & _
+             " counters)" & vbCrLf & _
+             "   Setups              : " & m_groups & vbCrLf & _
+             "   Numbers placed      : " & drawn & vbCrLf & vbCrLf & _
+             "The numbers start at the middle of each outline, in the order " & _
+             "they would leave for the plotter. One Undo removes them all.", CAPTION_
+    Exit Sub
+
+Fail:
+    On Error Resume Next
+    ActiveDocument.EndCommandGroup
+    If unitChanged Then ActiveDocument.Unit = oldUnit
+    ac2fWarn "The preview failed: " & Err.Description, CAPTION_
+End Sub
+
 '=====================================================================
 ' SELECTION -> HPGL
 '=====================================================================
@@ -184,7 +327,7 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
     Dim port As Long
     Dim errText As String
     Dim bytesOut As Long
-    Dim rotDeg As Long
+    Dim orderAlg As Long
 
     If ActiveDocument Is Nothing Then
         ac2fWarn "Open a document first.", CAPTION_
@@ -225,13 +368,7 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
         unitChanged = True
     End If
 
-    m_n = 0: m_sn = 0
-    ReDim m_x(0 To 8191): ReDim m_y(0 To 8191)
-    ReDim m_ss(0 To 255): ReDim m_sc(0 To 255): ReDim m_scl(0 To 255)
-
-    For i = 1 To sr.Count
-        ac2fPLShape sr(i), tol
-    Next i
+    ac2fPLCollect sr, tol
 
     On Error Resume Next
     If unitChanged Then ActiveDocument.Unit = oldUnit
@@ -243,8 +380,12 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
         Exit Sub
     End If
 
+    ' --- cutting order ------------------------------------------------
+    ' Worked out in document coordinates, before anything is turned, so
+    ' "left to right" means left to right on screen.
+    orderAlg = ac2fPLOrderNow()
+
     ' --- orientation --------------------------------------------------
-    rotDeg = ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT)
     ac2fPLOrient
 
     ' --- normalisation, from the geometry, not from parsed text -------
@@ -271,14 +412,14 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
             Kill path
             On Error GoTo Fail
             ac2fInfo ac2fPLReport(True, host, port, "", bytesOut, margin, tol, _
-                                  minX, minY, maxX, maxY, ""), CAPTION_
+                                  minX, minY, maxX, maxY, "", orderAlg), CAPTION_
         Else
             ac2fWarn ac2fPLReport(False, host, port, path, bytesOut, margin, tol, _
-                                  minX, minY, maxX, maxY, errText), CAPTION_
+                                  minX, minY, maxX, maxY, errText, orderAlg), CAPTION_
         End If
     Else
         ac2fInfo ac2fPLReport(True, "", 0, path, bytesOut, margin, tol, _
-                              minX, minY, maxX, maxY, ""), CAPTION_
+                              minX, minY, maxX, maxY, "", orderAlg), CAPTION_
     End If
     Exit Sub
 
@@ -345,6 +486,7 @@ Private Sub ac2fPLCurve(ByVal cv As Curve, ByVal tol As Double)
     Dim cxx As Double, cyy As Double, chord As Double
     Dim arcL As Double, th As Double, turnDir As Double
     Dim steps As Long, r As Double, stepLen As Double
+    Dim bulge As Double, maxBulge As Double
 
     On Error Resume Next
     nSub = cv.SubPaths.Count
@@ -359,16 +501,13 @@ Private Sub ac2fPLCurve(ByVal cv As Curve, ByVal tol As Double)
         On Error GoTo 0
         If Not sp Is Nothing Then
             If nSeg > 0 Then
-                If m_sn > UBound(m_ss) Then
-                    ReDim Preserve m_ss(0 To (UBound(m_ss) + 1) * 2 - 1)
-                    ReDim Preserve m_sc(0 To UBound(m_ss))
-                    ReDim Preserve m_scl(0 To UBound(m_ss))
-                End If
+                ac2fPLEnsureSub
                 m_ss(m_sn) = m_n
                 m_scl(m_sn) = False
                 On Error Resume Next
                 m_scl(m_sn) = sp.Closed
                 On Error GoTo 0
+                maxBulge = 0
 
                 For k = 1 To nSeg
                     Set sg = sp.Segments(k)
@@ -394,6 +533,23 @@ Private Sub ac2fPLCurve(ByVal cv As Curve, ByVal tol As Double)
                         If steps > 2000 Then steps = 2000
                     End If
 
+                    ' How far this segment strays from its own chord.
+                    ' With the turn angle known the sagitta is exact. A
+                    ' curve too shallow for the angle solver still has to
+                    ' be measured, and for small angles the sagitta is
+                    ' close to Sqr(24 * chord * (arc - chord)) / 8. An S
+                    ' turns both ways and shows up in neither, only in
+                    ' the length it adds over the chord.
+                    bulge = arcL - chord
+                    If th > 0.000000001 Then
+                        r = arcL / th
+                        If r * (1# - Cos(th / 2#)) > bulge Then bulge = r * (1# - Cos(th / 2#))
+                    ElseIf arcL > chord And chord > 0 Then
+                        If Sqr(24# * chord * (arcL - chord)) / 8# > bulge Then _
+                            bulge = Sqr(24# * chord * (arcL - chord)) / 8#
+                    End If
+                    If bulge > maxBulge Then maxBulge = bulge
+
                     turnDir = ac2fPLSegSign(sp, nSeg, k)
                     ac2fPLEmitArc ax, ay, bx, by, arcL, th, turnDir, steps
                     If m_n >= MAX_PTS Then Exit For
@@ -405,6 +561,8 @@ Private Sub ac2fPLCurve(ByVal cv As Curve, ByVal tol As Double)
 
                 m_sc(m_sn) = m_n - m_ss(m_sn)
                 If m_sc(m_sn) >= 2 Then
+                    m_sbulge(m_sn) = maxBulge
+                    ac2fPLFinishSub m_sn
                     m_sn = m_sn + 1
                 Else
                     m_n = m_ss(m_sn)
@@ -479,6 +637,547 @@ Private Sub ac2fPLAddPt(ByVal x As Double, ByVal y As Double)
     m_y(m_n) = y
     m_n = m_n + 1
 End Sub
+
+'=====================================================================
+' ORDER
+'
+' The order outlines leave in decides how much the bender is set up
+' and reset. Three steps do the work.
+'
+' 1  CONTAINMENT.  Every closed contour is tested against every other:
+'    does its first point fall inside, and is the other one bigger?
+'    A contour with no container is an outside, one inside an outside
+'    is a counter, one inside a counter is an island again. An outside
+'    and everything it encloses make one letter.
+'
+' 2  WORKING ORDER.  Letters are sorted left to right. Letters that
+'    overlap in X form a column and are taken top down inside it, which
+'    is what "left to right, top first" means on a sheet with rows.
+'
+' 3  IDENTICAL FIRST.  When a letter is reached, every later letter
+'    that is the same shape is pulled up behind it. Three identical O
+'    in a word are bent one after another, on one setup, instead of
+'    three times with B and X in between.
+'
+' A letter counts as the same when it has the same number of contours,
+' the same length, the same enclosed area and the same bounding box,
+' each within the match tolerance. Width and height may swap over, so a
+' copy turned a quarter turn still counts. The sign of the area has to
+' match as well, which keeps a mirrored copy out: it bends the other
+' way and is not the same job.
+'
+' Algorithm 2 runs the whole thing twice, straight-sided letters first
+' and curved ones after, so the rollers are engaged once. Algorithm 3
+' goes further and holds every counter back to the end, so all the
+' outsides are finished before the first hole is started.
+'=====================================================================
+
+Private Sub ac2fPLResetGeom()
+    m_n = 0: m_sn = 0: m_gn = 0: m_gseqN = 0: m_groups = 0
+    ReDim m_x(0 To 8191): ReDim m_y(0 To 8191)
+    ReDim m_ss(0 To 255): ReDim m_sc(0 To 255): ReDim m_scl(0 To 255)
+    ReDim m_sx0(0 To 255): ReDim m_sy0(0 To 255)
+    ReDim m_sx1(0 To 255): ReDim m_sy1(0 To 255)
+    ReDim m_sar(0 To 255): ReDim m_slen(0 To 255)
+    ReDim m_sbulge(0 To 255): ReDim m_sgl(0 To 255)
+    ReDim m_sin(0 To 255): ReDim m_sord(0 To 255)
+End Sub
+
+Private Sub ac2fPLEnsureSub()
+    Dim nu As Long
+    If m_sn <= UBound(m_ss) Then Exit Sub
+    nu = (UBound(m_ss) + 1) * 2 - 1
+    ReDim Preserve m_ss(0 To nu)
+    ReDim Preserve m_sc(0 To nu)
+    ReDim Preserve m_scl(0 To nu)
+    ReDim Preserve m_sx0(0 To nu)
+    ReDim Preserve m_sy0(0 To nu)
+    ReDim Preserve m_sx1(0 To nu)
+    ReDim Preserve m_sy1(0 To nu)
+    ReDim Preserve m_sar(0 To nu)
+    ReDim Preserve m_slen(0 To nu)
+    ReDim Preserve m_sbulge(0 To nu)
+    ReDim Preserve m_sgl(0 To nu)
+    ReDim Preserve m_sin(0 To nu)
+    ReDim Preserve m_sord(0 To nu)
+End Sub
+
+' Box, length and signed area of one finished contour. The area is
+' taken round the closed ring either way, since an open path still has
+' to be told from its neighbours; only the length leaves out the
+' closing step when the path is open.
+Private Sub ac2fPLFinishSub(ByVal i As Long)
+    Dim s As Long, n As Long, k As Long
+    Dim ax As Double, ay As Double, bx As Double, by As Double
+    Dim acc As Double, plen As Double
+
+    s = m_ss(i): n = m_sc(i)
+    m_sx0(i) = m_x(s): m_sx1(i) = m_x(s)
+    m_sy0(i) = m_y(s): m_sy1(i) = m_y(s)
+
+    For k = 0 To n - 1
+        ax = m_x(s + k): ay = m_y(s + k)
+        If ax < m_sx0(i) Then m_sx0(i) = ax
+        If ax > m_sx1(i) Then m_sx1(i) = ax
+        If ay < m_sy0(i) Then m_sy0(i) = ay
+        If ay > m_sy1(i) Then m_sy1(i) = ay
+
+        If k = n - 1 Then
+            bx = m_x(s): by = m_y(s)
+        Else
+            bx = m_x(s + k + 1): by = m_y(s + k + 1)
+        End If
+        acc = acc + (ax * by - bx * ay)
+        If k < n - 1 Or m_scl(i) Then
+            plen = plen + Sqr((bx - ax) * (bx - ax) + (by - ay) * (by - ay))
+        End If
+    Next k
+
+    m_sar(i) = acc / 2#
+    m_slen(i) = plen
+End Sub
+
+Private Sub ac2fPLCollect(ByVal sr As ShapeRange, ByVal tol As Double)
+    Dim i As Long
+    ac2fPLResetGeom
+    For i = 1 To sr.Count
+        ac2fPLShape sr(i), tol
+    Next i
+End Sub
+
+' Containment, letters, and the contour list sorted left to right.
+Private Sub ac2fPLAnalyse()
+    Dim i As Long, j As Long, g As Long
+    Dim best As Long, bestA As Double, a As Double
+    Dim par() As Long
+    Dim depth As Long, q As Long, guard As Long
+    Dim curveMin As Double
+
+    If m_sn = 0 Then Exit Sub
+    curveMin = ac2fGetNum(AC2F_K_PL_CURVE, AC2F_DEF_PL_CURVE)
+    If curveMin < 0 Then curveMin = 0
+
+    ReDim par(0 To m_sn)
+    For i = 0 To m_sn - 1
+        best = -1: bestA = 0
+        For j = 0 To m_sn - 1
+            If j <> i Then
+                If m_scl(j) Then
+                    ' only a strictly larger contour can be the parent,
+                    ' which also stops two coincident copies pointing at
+                    ' each other and making a loop
+                    If Abs(m_sar(j)) > Abs(m_sar(i)) Then
+                        If m_sx0(j) <= m_sx0(i) And m_sy0(j) <= m_sy0(i) And _
+                           m_sx1(j) >= m_sx1(i) And m_sy1(j) >= m_sy1(i) Then
+                            If ac2fPLInside(i, j) Then
+                                a = Abs(m_sar(j))
+                                If best < 0 Or a < bestA Then
+                                    best = j: bestA = a
+                                End If
+                            End If
+                        End If
+                    End If
+                End If
+            End If
+        Next j
+        par(i) = best
+    Next i
+
+    For i = 0 To m_sn - 1
+        depth = 0: q = par(i): guard = 0
+        Do While q >= 0 And guard <= m_sn
+            depth = depth + 1: q = par(q): guard = guard + 1
+        Loop
+        m_sin(i) = ((depth Mod 2) = 1)
+        m_sgl(i) = -1
+    Next i
+
+    m_gn = 0
+    For i = 0 To m_sn - 1
+        If par(i) < 0 Then
+            m_sgl(i) = m_gn
+            m_gn = m_gn + 1
+        End If
+    Next i
+    For i = 0 To m_sn - 1
+        If m_sgl(i) < 0 Then
+            q = i: guard = 0
+            Do While par(q) >= 0 And guard <= m_sn
+                q = par(q): guard = guard + 1
+            Loop
+            ' The walk always ends on a root, which already has its
+            ' number. Anything else would mean a loop in the chain, and
+            ' that contour is better off standing alone than indexing
+            ' past the end of the letter table.
+            If m_sgl(q) >= 0 Then
+                m_sgl(i) = m_sgl(q)
+            Else
+                m_sgl(i) = m_gn
+                m_gn = m_gn + 1
+            End If
+        End If
+    Next i
+
+    ReDim m_g(0 To m_gn)
+    For i = 0 To m_sn - 1
+        g = m_sgl(i)
+        If m_g(g).Parts = 0 Then
+            m_g(g).X0 = m_sx0(i): m_g(g).X1 = m_sx1(i)
+            m_g(g).Y0 = m_sy0(i): m_g(g).Y1 = m_sy1(i)
+        Else
+            If m_sx0(i) < m_g(g).X0 Then m_g(g).X0 = m_sx0(i)
+            If m_sx1(i) > m_g(g).X1 Then m_g(g).X1 = m_sx1(i)
+            If m_sy0(i) < m_g(g).Y0 Then m_g(g).Y0 = m_sy0(i)
+            If m_sy1(i) > m_g(g).Y1 Then m_g(g).Y1 = m_sy1(i)
+        End If
+        m_g(g).Parts = m_g(g).Parts + 1
+        m_g(g).PathLen = m_g(g).PathLen + m_slen(i)
+        m_g(g).SignArea = m_g(g).SignArea + m_sar(i)
+        If m_sbulge(i) >= curveMin Then m_g(g).Curved = True
+    Next i
+
+    ac2fPLSortContours
+End Sub
+
+' Is the first point of contour i inside contour j? Even-odd ray cast.
+Private Function ac2fPLInside(ByVal i As Long, ByVal j As Long) As Boolean
+    Dim px As Double, py As Double
+    Dim s As Long, n As Long, k As Long
+    Dim x1 As Double, y1 As Double, x2 As Double, y2 As Double
+    Dim inside As Boolean
+
+    px = m_x(m_ss(i)): py = m_y(m_ss(i))
+    s = m_ss(j): n = m_sc(j)
+    For k = 0 To n - 1
+        x1 = m_x(s + k): y1 = m_y(s + k)
+        If k = n - 1 Then
+            x2 = m_x(s): y2 = m_y(s)
+        Else
+            x2 = m_x(s + k + 1): y2 = m_y(s + k + 1)
+        End If
+        If (y1 > py) <> (y2 > py) Then
+            If px < x1 + (py - y1) * (x2 - x1) / (y2 - y1) Then inside = Not inside
+        End If
+    Next k
+    ac2fPLInside = inside
+End Function
+
+' Contours left to right, top first. Used inside a letter so that two
+' identical letters always have their counters in the same order.
+Private Sub ac2fPLSortContours()
+    Dim i As Long, j As Long, v As Long
+    For i = 0 To m_sn - 1
+        m_sord(i) = i
+    Next i
+    For i = 1 To m_sn - 1
+        v = m_sord(i)
+        j = i - 1
+        Do While j >= 0
+            If m_sx0(m_sord(j)) > m_sx0(v) Or _
+               (m_sx0(m_sord(j)) = m_sx0(v) And m_sy1(m_sord(j)) < m_sy1(v)) Then
+                m_sord(j + 1) = m_sord(j)
+                j = j - 1
+            Else
+                Exit Do
+            End If
+        Loop
+        m_sord(j + 1) = v
+    Next i
+End Sub
+
+'---------------------------------------------------------------------
+' Letter order
+'---------------------------------------------------------------------
+Private Sub ac2fPLBuildOrder(ByVal alg As Long)
+    ReDim m_gseq(0 To m_gn)
+    m_gseqN = 0
+    m_groups = 0
+    If alg >= 2 Then
+        ac2fPLPhase 0          ' straight sided
+        ac2fPLPhase 1          ' curved
+    Else
+        ac2fPLPhase 2          ' all of them, in one pass
+    End If
+End Sub
+
+' One pass of the ordering over the letters that match 'want':
+' 0 the straight sided ones, 1 the curved ones, 2 all of them.
+Private Sub ac2fPLPhase(ByVal want As Long)
+    Dim idx() As Long, n As Long, i As Long
+    Dim takeIt As Boolean
+
+    If m_gn = 0 Then Exit Sub
+    ReDim idx(0 To m_gn)
+    n = 0
+    For i = 0 To m_gn - 1
+        If want = 2 Then
+            takeIt = True
+        ElseIf want = 1 Then
+            takeIt = m_g(i).Curved
+        Else
+            takeIt = Not m_g(i).Curved
+        End If
+        If takeIt Then
+            idx(n) = i: n = n + 1
+        End If
+    Next i
+    If n = 0 Then Exit Sub
+
+    ac2fPLSortLR idx, n
+    ac2fPLColumns idx, n
+    ac2fPLSortCols idx, n
+    If ac2fGetLng(AC2F_K_PL_GROUP, AC2F_DEF_PL_GROUP) <> 0 Then
+        ac2fPLGroupSame idx, n
+    Else
+        m_groups = m_groups + n
+    End If
+
+    For i = 0 To n - 1
+        m_gseq(m_gseqN) = idx(i)
+        m_gseqN = m_gseqN + 1
+    Next i
+End Sub
+
+Private Sub ac2fPLSortLR(ByRef idx() As Long, ByVal n As Long)
+    Dim i As Long, j As Long, v As Long
+    For i = 1 To n - 1
+        v = idx(i)
+        j = i - 1
+        Do While j >= 0
+            If m_g(idx(j)).X0 > m_g(v).X0 Or _
+               (m_g(idx(j)).X0 = m_g(v).X0 And m_g(idx(j)).Y1 < m_g(v).Y1) Then
+                idx(j + 1) = idx(j)
+                j = j - 1
+            Else
+                Exit Do
+            End If
+        Loop
+        idx(j + 1) = v
+    Next i
+End Sub
+
+' Letters that overlap in X belong to the same column. A new column
+' starts where a letter's left edge clears the column's right edge by
+' more than the overlap allowance.
+Private Sub ac2fPLColumns(ByRef idx() As Long, ByVal n As Long)
+    Dim i As Long, col As Long
+    Dim rightEdge As Double, gap As Double
+
+    gap = ac2fGetNum(AC2F_K_PL_COLGAP, AC2F_DEF_PL_COLGAP)
+    col = 0
+    rightEdge = m_g(idx(0)).X1
+    m_g(idx(0)).Col = 0
+    For i = 1 To n - 1
+        If m_g(idx(i)).X0 >= rightEdge - gap Then
+            col = col + 1
+            rightEdge = m_g(idx(i)).X1
+        ElseIf m_g(idx(i)).X1 > rightEdge Then
+            rightEdge = m_g(idx(i)).X1
+        End If
+        m_g(idx(i)).Col = col
+    Next i
+End Sub
+
+Private Sub ac2fPLSortCols(ByRef idx() As Long, ByVal n As Long)
+    Dim i As Long, j As Long, v As Long
+    For i = 1 To n - 1
+        v = idx(i)
+        j = i - 1
+        Do While j >= 0
+            If ac2fPLColAfter(idx(j), v) Then
+                idx(j + 1) = idx(j)
+                j = j - 1
+            Else
+                Exit Do
+            End If
+        Loop
+        idx(j + 1) = v
+    Next i
+End Sub
+
+' True when letter a should come after letter b: later column, or the
+' same column and lower down, or level and further right.
+Private Function ac2fPLColAfter(ByVal a As Long, ByVal b As Long) As Boolean
+    If m_g(a).Col <> m_g(b).Col Then
+        ac2fPLColAfter = (m_g(a).Col > m_g(b).Col)
+        Exit Function
+    End If
+    If Abs(m_g(a).Y1 - m_g(b).Y1) > 0.001 Then
+        ac2fPLColAfter = (m_g(a).Y1 < m_g(b).Y1)
+        Exit Function
+    End If
+    ac2fPLColAfter = (m_g(a).X0 > m_g(b).X0)
+End Function
+
+' Pulls every later copy of a letter up behind the first one.
+Private Sub ac2fPLGroupSame(ByRef idx() As Long, ByVal n As Long)
+    Dim out() As Long, used() As Boolean
+    Dim i As Long, j As Long, k As Long
+
+    ReDim out(0 To n)
+    ReDim used(0 To n)
+    k = 0
+    For i = 0 To n - 1
+        If Not used(i) Then
+            used(i) = True
+            out(k) = idx(i): k = k + 1
+            m_groups = m_groups + 1
+            For j = i + 1 To n - 1
+                If Not used(j) Then
+                    If ac2fPLSameGlyph(idx(i), idx(j)) Then
+                        used(j) = True
+                        out(k) = idx(j): k = k + 1
+                    End If
+                End If
+            Next j
+        End If
+    Next i
+    For i = 0 To n - 1
+        idx(i) = out(i)
+    Next i
+End Sub
+
+' Same shape, so the same setup on the bender.
+Private Function ac2fPLSameGlyph(ByVal a As Long, ByVal b As Long) As Boolean
+    Dim tol As Double, t As Double
+    Dim w1 As Double, h1 As Double, w2 As Double, h2 As Double
+
+    tol = ac2fGetNum(AC2F_K_PL_MATCH, AC2F_DEF_PL_MATCH)
+    If tol < 0 Then tol = 0
+
+    If m_g(a).Parts <> m_g(b).Parts Then Exit Function
+    If m_g(a).Curved <> m_g(b).Curved Then Exit Function
+
+    t = tol
+    If 0.002 * m_g(a).PathLen > t Then t = 0.002 * m_g(a).PathLen
+    If Abs(m_g(a).PathLen - m_g(b).PathLen) > t Then Exit Function
+
+    ' A mirrored copy has the same length and the same box but the other
+    ' sign of area, and it bends the other way, so it is not the same job.
+    If (m_g(a).SignArea < 0) <> (m_g(b).SignArea < 0) Then Exit Function
+
+    t = tol * tol * 10#
+    If 0.004 * Abs(m_g(a).SignArea) > t Then t = 0.004 * Abs(m_g(a).SignArea)
+    If Abs(Abs(m_g(a).SignArea) - Abs(m_g(b).SignArea)) > t Then Exit Function
+
+    w1 = m_g(a).X1 - m_g(a).X0: h1 = m_g(a).Y1 - m_g(a).Y0
+    w2 = m_g(b).X1 - m_g(b).X0: h2 = m_g(b).Y1 - m_g(b).Y0
+    If w1 > h1 Then t = w1: w1 = h1: h1 = t
+    If w2 > h2 Then t = w2: w2 = h2: h2 = t
+    If Abs(w1 - w2) > tol Then Exit Function
+    If Abs(h1 - h2) > tol Then Exit Function
+
+    ac2fPLSameGlyph = True
+End Function
+
+'---------------------------------------------------------------------
+' Turning the letter order into a contour order
+'---------------------------------------------------------------------
+Private Function ac2fPLApplyOrder(ByVal alg As Long) As Boolean
+    Dim perm() As Long, np As Long
+    Dim i As Long
+
+    If m_sn = 0 Then Exit Function
+    ReDim perm(0 To m_sn)
+    np = 0
+
+    If alg >= 3 Then
+        ' every outside first, then every counter in the same order
+        For i = 0 To m_gseqN - 1
+            ac2fPLTake m_gseq(i), False, perm, np
+        Next i
+        For i = 0 To m_gseqN - 1
+            ac2fPLTake m_gseq(i), True, perm, np
+        Next i
+    Else
+        For i = 0 To m_gseqN - 1
+            ac2fPLTake m_gseq(i), False, perm, np
+            ac2fPLTake m_gseq(i), True, perm, np
+        Next i
+    End If
+
+    ' Anything short of a complete permutation is left alone rather than
+    ' sent half ordered and half not.
+    If np <> m_sn Then Exit Function
+
+    ac2fPLPermute perm
+    ac2fPLApplyOrder = True
+End Function
+
+Private Sub ac2fPLTake(ByVal g As Long, ByVal wantInner As Boolean, _
+                       ByRef perm() As Long, ByRef np As Long)
+    Dim k As Long, c As Long
+    For k = 0 To m_sn - 1
+        c = m_sord(k)
+        If m_sgl(c) = g Then
+            If m_sin(c) = wantInner Then
+                perm(np) = c
+                np = np + 1
+            End If
+        End If
+    Next k
+End Sub
+
+' Only the contour index arrays move. The points stay where they are.
+Private Sub ac2fPLPermute(ByRef perm() As Long)
+    Dim i As Long, c As Long
+    Dim ss() As Long, sc() As Long, scl() As Boolean
+    Dim x0() As Double, y0() As Double, x1() As Double, y1() As Double
+    Dim ar() As Double, ln() As Double, bg() As Double
+    Dim gl() As Long, inn() As Boolean
+
+    ReDim ss(0 To m_sn): ReDim sc(0 To m_sn): ReDim scl(0 To m_sn)
+    ReDim x0(0 To m_sn): ReDim y0(0 To m_sn)
+    ReDim x1(0 To m_sn): ReDim y1(0 To m_sn)
+    ReDim ar(0 To m_sn): ReDim ln(0 To m_sn): ReDim bg(0 To m_sn)
+    ReDim gl(0 To m_sn): ReDim inn(0 To m_sn)
+
+    For i = 0 To m_sn - 1
+        c = perm(i)
+        ss(i) = m_ss(c): sc(i) = m_sc(c): scl(i) = m_scl(c)
+        x0(i) = m_sx0(c): y0(i) = m_sy0(c)
+        x1(i) = m_sx1(c): y1(i) = m_sy1(c)
+        ar(i) = m_sar(c): ln(i) = m_slen(c): bg(i) = m_sbulge(c)
+        gl(i) = m_sgl(c): inn(i) = m_sin(c)
+    Next i
+    For i = 0 To m_sn - 1
+        m_ss(i) = ss(i): m_sc(i) = sc(i): m_scl(i) = scl(i)
+        m_sx0(i) = x0(i): m_sy0(i) = y0(i)
+        m_sx1(i) = x1(i): m_sy1(i) = y1(i)
+        m_sar(i) = ar(i): m_slen(i) = ln(i): m_sbulge(i) = bg(i)
+        m_sgl(i) = gl(i): m_sin(i) = inn(i)
+    Next i
+End Sub
+
+' Orders what has just been collected and reports which algorithm ran.
+' 0 means the contours were left in the order the document gave them.
+Private Function ac2fPLOrderNow() As Long
+    Dim alg As Long
+    alg = ac2fGetLng(AC2F_K_PL_ORDER, AC2F_DEF_PL_ORDER)
+    If alg <= 0 Or m_sn < 2 Then Exit Function
+    If alg > 3 Then alg = 3
+    ac2fPLAnalyse
+    ac2fPLBuildOrder alg
+    If Not ac2fPLApplyOrder(alg) Then Exit Function
+    ac2fPLOrderNow = alg
+End Function
+
+Private Function ac2fPLInnerCount() As Long
+    Dim i As Long, n As Long
+    For i = 0 To m_sn - 1
+        If m_sin(i) Then n = n + 1
+    Next i
+    ac2fPLInnerCount = n
+End Function
+
+Public Function ac2fPLOrderName(ByVal alg As Long) As String
+    Select Case alg
+        Case 1:    ac2fPLOrderName = "left to right, top first"
+        Case 2:    ac2fPLOrderName = "straight sided first, then curved"
+        Case 3:    ac2fPLOrderName = "outsides first, counters last"
+        Case Else: ac2fPLOrderName = "as the document has them"
+    End Select
+End Function
 
 ' Turns the flattened points a whole number of quarter turns. Applied
 ' before the extent is taken, so the margin still lands correctly
@@ -1033,7 +1732,8 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
                               ByVal bytesOut As Long, ByVal margin As Double, _
                               ByVal tol As Double, ByVal minX As Double, _
                               ByVal minY As Double, ByVal maxX As Double, _
-                              ByVal maxY As Double, ByVal errText As String) As String
+                              ByVal maxY As Double, ByVal errText As String, _
+                              ByVal orderAlg As Long) As String
     Dim s As String
     Dim u As Double
     u = AC2F_UNITS_PER_MM
@@ -1057,6 +1757,22 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
     s = s & "   Bytes               : " & Format$(bytesOut, "#,##0") & vbCrLf
     s = s & "   Paths               : " & m_sn & vbCrLf
     s = s & "   Points              : " & Format$(m_n, "#,##0") & vbCrLf & vbCrLf
+
+    s = s & "ORDER" & vbCrLf
+    s = s & "   Rule                : " & ac2fPLOrderName(orderAlg) & vbCrLf
+    If orderAlg > 0 Then
+        s = s & "   Letters             : " & m_gn & "  (" & _
+                (m_sn - ac2fPLInnerCount()) & " outside, " & _
+                ac2fPLInnerCount() & " counters)" & vbCrLf
+        If ac2fGetLng(AC2F_K_PL_GROUP, AC2F_DEF_PL_GROUP) <> 0 Then
+            s = s & "   Setups              : " & m_groups & _
+                    IIf(m_groups < m_gn, "  (identical letters bent together)", _
+                                         "  (no two letters alike)") & vbCrLf
+        Else
+            s = s & "   Setups              : grouping off" & vbCrLf
+        End If
+    End If
+    s = s & vbCrLf
 
     s = s & "PLACEMENT" & vbCrLf
     s = s & "   Size                : " & ac2fFmt(maxX - minX) & " x " & _

@@ -127,6 +127,13 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.8.1'den 1.9.0'a
+
+`ac2fPlot`, `ac2fSettings`, `ac2fMenu`, `ac2fCore` değişti — dördünü
+silip yeniden aktarın. Kesim sırası ve gruplama geldi; ayarlarınız
+korunur. Ana menü numaraları kaydı: önizleme `13`, test `14`, dosyaya
+yaz `15`, `.plt` düzelt `16`, ayarlar `17`, hakkında `18`.
+
 ### Sürüm 1.8.0'dan 1.8.1'e
 
 `ac2fPlot`, `ac2fSettings`, `ac2fCore` değişti — üçünü silip yeniden

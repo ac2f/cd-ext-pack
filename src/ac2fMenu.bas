@@ -37,11 +37,12 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         " 10  -  Nesting (pack parts onto sheets)" & vbCrLf & _
         " 11  -  Nesting report (nothing moves)" & vbCrLf & _
         " 12  -  Send to plotter" & vbCrLf & _
-        " 13  -  Plotter test square (50 mm)" & vbCrLf & _
-        " 14  -  Write HPGL to a file" & vbCrLf & _
-        " 15  -  Normalise an existing .plt and send" & vbCrLf & _
-        " 16  -  Settings and profiles" & vbCrLf & _
-        " 17  -  About" & vbCrLf
+        " 13  -  Number the selection in cutting order" & vbCrLf & _
+        " 14  -  Plotter test shape (40 x 80 L)" & vbCrLf & _
+        " 15  -  Write HPGL to a file" & vbCrLf & _
+        " 16  -  Normalise an existing .plt and send" & vbCrLf & _
+        " 17  -  Settings and profiles" & vbCrLf & _
+        " 18  -  About" & vbCrLf
 
     choice = InputBox(m, ac2fTitle(CAPTION_), "1")
     If StrPtr(choice) = 0 Then Exit Sub          ' Cancel
@@ -61,11 +62,12 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         Case "10": ac2fNest
         Case "11": ac2fNestReport
         Case "12": ac2fPlotSend
-        Case "13": ac2fPlotTest
-        Case "14": ac2fPlotSave
-        Case "15": ac2fPlotFixSend
-        Case "16": ac2fSettings
-        Case "17": ac2fAbout
+        Case "13": ac2fPlotOrderPreview
+        Case "14": ac2fPlotTest
+        Case "15": ac2fPlotSave
+        Case "16": ac2fPlotFixSend
+        Case "17": ac2fSettings
+        Case "18": ac2fAbout
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_
     End Select
@@ -104,12 +106,16 @@ Attribute ac2fAbout.VB_Description = "ac2f pack: Version and contents"
     s = s & "     Writes HPGL straight from the selection and" & vbCrLf
     s = s & "     streams it over the network. No export, and" & vbCrLf
     s = s & "     no file to fix afterwards." & vbCrLf & vbCrLf
+    s = s & "   - Cutting order" & vbCrLf
+    s = s & "     Sorts the outlines left to right, keeps each" & vbCrLf
+    s = s & "     letter together, bends identical letters on" & vbCrLf
+    s = s & "     one setup, and can hold the counters back." & vbCrLf & vbCrLf
     prof = ac2fActiveProfile()
     If Len(prof) = 0 Then prof = "<none>"
 
     s = s & "CURRENT SETTINGS  (profile: " & prof & ")" & vbCrLf
     s = s & ac2fSettingsBrief() & vbCrLf
-    s = s & "Change any of them from the main menu, option 16." & vbCrLf
+    s = s & "Change any of them from the main menu, option 17." & vbCrLf
     s = s & "There, ?N explains what setting N does."
 
     ac2fInfo s, "About"

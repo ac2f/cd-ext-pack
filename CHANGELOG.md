@@ -2,6 +2,77 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.9.0] - 2026-10-03
+
+### Eklendi: kesim sırası ve gruplama (`ac2fPlot`)
+
+Kutu harf şeridi bükerken sıra, makinenin kaç kez kurulduğunu belirler.
+Konturlar artık önce **harflere** ayrılıyor, sonra harfler bir iş
+sırasına diziliyor.
+
+**İçine alma.** Her kapalı kontur ötekilere karşı sınanıyor: ilk noktası
+içine düşüyor mu, ve öteki daha büyük mü (kesişen kutu ön elemesi, sonra
+tek–çift ışın testi). Hiçbir şeyin içinde olmayan kontur bir *dış*, bir
+dışın içindeki *göbek*, göbeğin içindeki yine dış. Bir dış ve kapsadığı
+her şey bir harf.
+
+**Üç algoritma** (`Order`, ayar 44):
+
+| Değer | Sıra |
+|---|---|
+| `0` | Belgedeki hâliyle |
+| `1` *(varsayılan)* | Soldan sağa, önce üst |
+| `2` | Aynısı, ama önce ovalliği olmayan harfler, sonra eğriler |
+| `3` | 2 ile aynı, ama göbekler en sona (kendi aralarında aynı sıra) |
+
+**Önce aynılar** (`Group same`, ayar 45). Bir harfe gelindiğinde ondan
+sonraki aynı şekilli bütün harfler hemen arkasına çekiliyor. `NOBOBOXB`
+için üç `O` peş peşe bükülüyor — sekiz harf, **dört kurulum**.
+
+Doğrulanan çıktı:
+
+```
+1 ->  N  O O. O O. O O.  B B.1 B.2  B B.1 B.2  B B.1 B.2  X
+2 ->  N  X  O O. O O. O O.  B B.1 B.2  B B.1 B.2  B B.1 B.2
+3 ->  N  X  O O O  B B B  |  O. O. O.  B.1 B.2  B.1 B.2  B.1 B.2
+```
+
+**Aynı sayılma ölçütü**: kontur sayısı, uzunluk, kapsanan alan ve kutu
+ölçüsü, hepsi `Match tol` (48) içinde. En ve boy yer değişebilir, yani
+çeyrek tur döndürülmüş kopya da aynı sayılır. **Aynalanmış kopya
+sayılmaz** — ters yöne bükülür ve kendi kurulumunu ister; işaretli
+alanın işareti bunu yakalar.
+
+**Sütunlar.** X'te üst üste binen harfler bir sütun sayılıp yukarıdan
+aşağı gidiliyor. Bir satırdaki kelime için her harf kendi sütunu olur ve
+sıra düz soldan sağa kalır; sayfaya satır satır dizilmiş parçalarda ise
+sütun sütun aşağı inilir. Bindirme eşiği `Column overlap` (46).
+
+**Eğrilik ölçüsü** (`Curve limit`, 47): segmentin kirişinden en çok
+saptığı miktar. Dönüş açısı bilindiğinde tam sagitta; açı çözücünün
+altında kalan sığ yaylarda `Sqr(24 · kiriş · (yay − kiriş)) / 8`
+yaklaşımı (θ ≤ 0,1 rad'da hata %0,01). Eğri olarak çizilmiş ama düz
+duran bir segment sıfır ölçer ve düz sayılır — bükme makinesinin
+umursadığı şey budur.
+
+Sıra **ekranda gördüğünüz çizim üzerinden**, `Rotate` ve `Mirror`'dan
+önce hesaplanıyor; "sol" her zaman ekranın solu. Noktalar hiç
+taşınmıyor, yalnız kontur dizini yeniden sıralanıyor; eksik bir
+permütasyon çıkarsa sıralama hiç uygulanmıyor.
+
+### Eklendi: `ac2fPlotOrderPreview` (ana menü 13)
+
+Seçimi sayfada kesim sırasına göre numaralandırır — göndermeden önce
+sırayı görmek için. Tek `Undo` hepsini siler.
+
+### Değişti
+
+- Ana menü numaraları: önizleme `13`, test `14`, dosyaya yaz `15`,
+  `.plt` düzelt `16`, ayarlar `17`, hakkında `18`.
+- Plotter raporuna `ORDER` bölümü eklendi: kural, harf sayısı, dış/göbek
+  dağılımı ve kurulum sayısı.
+- Beş yeni ayar (44-48). Toplam 51.
+
 ## [1.8.1] - 2026-10-01
 
 ### Netleştirme
