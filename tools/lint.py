@@ -144,6 +144,24 @@ def settings_sheet_length():
     return worst, n
 
 
+CONT_LIMIT = 20
+
+
+def main_menu_length():
+    """Rendered length of ac2fPack's InputBox prompt, same limit as the sheet."""
+    try:
+        src = open('src/ac2fMenu.bas', encoding='utf-8').read()
+    except OSError:
+        return None
+    a = src.find('m = "Enter the number')
+    b = src.find('choice = InputBox(m,')
+    if a < 0 or b < 0:
+        return None
+    blk = src[a:b]
+    lit = ''.join(re.findall(r'"((?:[^"]|"")*)"', blk))
+    return len(lit) + blk.count('vbCrLf') * 2
+
+
 def main():
     files = sorted(glob.glob('src/*.bas'))
     errors, defs, calls = [], {}, collections.defaultdict(list)
@@ -155,6 +173,22 @@ def main():
         known_syms.add(mod)
         if not raw[0].startswith('Attribute VB_Name'):
             errors.append(f'{f}:1 ilk satir "Attribute VB_Name" olmali')
+
+        # VBA refuses a logical line built from more than 25 continuations
+        # ("Too many line continuations"), and says so only at import time.
+        # 20 leaves room to add a sentence to a help text later.
+        i = 0
+        while i < len(raw):
+            if raw[i].rstrip().endswith(' _'):
+                start, cont = i, 0
+                while i < len(raw) and raw[i].rstrip().endswith(' _'):
+                    cont += 1
+                    i += 1
+                if cont > CONT_LIMIT:
+                    errors.append(f'{f}:{start + 1} {cont} satir birlestirme '
+                                  f'(" _") - VBA siniri 25, kendi sinirimiz '
+                                  f'{CONT_LIMIT}; ifadeyi bolun')
+            i += 1
 
         stack, prev_proc, in_type = [], None, False
         for i, code in preprocess(raw):
@@ -269,6 +303,11 @@ def main():
     for name, where in sorted(calls.items()):
         if name not in known and not name.startswith('AC2F_'):
             errors.append(f'{where[0]} tanimsiz ac2f sembolu: {name}')
+
+    menu_len = main_menu_length()
+    if menu_len is not None and menu_len > SHEET_LIMIT:
+        errors.append(f'ac2fMenu ana menusu {menu_len} karakter - InputBox '
+                      f'siniri asilir, girdileri kisaltin veya bolun')
 
     sheet_len, n_set = settings_sheet_length()
     if sheet_len is not None:

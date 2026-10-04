@@ -35,14 +35,17 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         "  8  -  ACP panel V-grooves" & vbCrLf & _
         "  9  -  Centerline (reduce to a single line)" & vbCrLf & _
         " 10  -  Nesting (pack parts onto sheets)" & vbCrLf & _
-        " 11  -  Nesting report (nothing moves)" & vbCrLf & _
-        " 12  -  Send to plotter" & vbCrLf & _
-        " 13  -  Number the selection in cutting order" & vbCrLf & _
-        " 14  -  Plotter test shape (40 x 80 L)" & vbCrLf & _
-        " 15  -  Write HPGL to a file" & vbCrLf & _
-        " 16  -  Normalise an existing .plt and send" & vbCrLf & _
-        " 17  -  Settings and profiles" & vbCrLf & _
-        " 18  -  About" & vbCrLf
+        " 11  -  Nesting report (nothing moves)" & vbCrLf
+    m = m & _
+        " 12  -  Bending order: apply it to the objects" & vbCrLf & _
+        " 13  -  Bending order: number them on the page" & vbCrLf & _
+        " 14  -  Bending order report (nothing changes)" & vbCrLf & _
+        " 15  -  Send to plotter" & vbCrLf & _
+        " 16  -  Plotter test shape (40 x 80 L)" & vbCrLf & _
+        " 17  -  Write HPGL to a file" & vbCrLf & _
+        " 18  -  Normalise an existing .plt and send" & vbCrLf & _
+        " 19  -  Settings and profiles" & vbCrLf & _
+        " 20  -  About" & vbCrLf
 
     choice = InputBox(m, ac2fTitle(CAPTION_), "1")
     If StrPtr(choice) = 0 Then Exit Sub          ' Cancel
@@ -61,13 +64,15 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         Case "9": ac2fCenterline
         Case "10": ac2fNest
         Case "11": ac2fNestReport
-        Case "12": ac2fPlotSend
-        Case "13": ac2fPlotOrderPreview
-        Case "14": ac2fPlotTest
-        Case "15": ac2fPlotSave
-        Case "16": ac2fPlotFixSend
-        Case "17": ac2fSettings
-        Case "18": ac2fAbout
+        Case "12": ac2fBendOrder
+        Case "13": ac2fBendPreview
+        Case "14": ac2fBendReport
+        Case "15": ac2fPlotSend
+        Case "16": ac2fPlotTest
+        Case "17": ac2fPlotSave
+        Case "18": ac2fPlotFixSend
+        Case "19": ac2fSettings
+        Case "20": ac2fAbout
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_
     End Select
@@ -106,16 +111,17 @@ Attribute ac2fAbout.VB_Description = "ac2f pack: Version and contents"
     s = s & "     Writes HPGL straight from the selection and" & vbCrLf
     s = s & "     streams it over the network. No export, and" & vbCrLf
     s = s & "     no file to fix afterwards." & vbCrLf & vbCrLf
-    s = s & "   - Cutting order" & vbCrLf
-    s = s & "     Sorts the outlines left to right, keeps each" & vbCrLf
-    s = s & "     letter together, bends identical letters on" & vbCrLf
-    s = s & "     one setup, and can hold the counters back." & vbCrLf & vbCrLf
+    s = s & "   - Bending order" & vbCrLf
+    s = s & "     Groups contours into letters, orders them" & vbCrLf
+    s = s & "     left to right, bends identical letters on" & vbCrLf
+    s = s & "     one setup, straight work before curved, and" & vbCrLf
+    s = s & "     can hold the counters back to the end." & vbCrLf & vbCrLf
     prof = ac2fActiveProfile()
     If Len(prof) = 0 Then prof = "<none>"
 
     s = s & "CURRENT SETTINGS  (profile: " & prof & ")" & vbCrLf
     s = s & ac2fSettingsBrief() & vbCrLf
-    s = s & "Change any of them from the main menu, option 17." & vbCrLf
+    s = s & "Change any of them from the main menu, option 19." & vbCrLf
     s = s & "There, ?N explains what setting N does."
 
     ac2fInfo s, "About"

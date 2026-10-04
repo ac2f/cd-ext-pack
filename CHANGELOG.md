@@ -2,7 +2,75 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.10.0] - 2026-10-04
+
+### Düzeltildi: ayar dosyası içe aktarılamıyordu
+
+`ac2fSettings.bas`, **"Too many line continuations"** ile reddediliyordu.
+VBA bir mantıksal satırı en çok **25 satır birleştirmeden** kurar;
+`Order` ayarının açıklaması 27 tanesini kullanıyordu.
+
+Çare iki parçalı: açıklamanın devamını yazan `ac2fHelpMore` yardımcısı,
+ve `tools/lint.py` içinde kalıcı bir denetim — sınır 20'ye çekildi,
+böylece ileride bir cümle eklemek için pay kalıyor. Aynı taramada ana
+menünün `InputBox` uzunluğu da denetleniyor (şu an 797 / ~1024).
+
+### Değişti: bükme sırası kendi modülünde
+
+Sıralama `ac2fPlot`'tan çıkıp **`ac2fBending`**'e taşındı. Plotter'a
+özel bir davranış değil; aynı sıra hem makineye gönderirken hem de
+çizimin kendisinde kullanılıyor.
+
+Modül aynı zamanda **düzleştirilmiş geometrinin tutulduğu yer** oldu:
+`ac2fPlot` HPGL'i onun tamponundan yazıyor. Bir toplama, bir sıralama,
+iki tüketici.
+
+Ayar grubu `BEND` (47-53). Plotter ayarları **40-46**'ya geri döndü,
+yani `Rotate` yine **42**, `Mirror` **43**.
+
+### Eklendi: `ac2fBendOrder` — sırayı nesnelere uygular
+
+Önizlemeden ayrı olarak sırayı **çizimin kendisine** yazar:
+
+- **İstif sırası.** İlk bükülecek nesne en üste (`Stack order`, 52 ile
+  alta). Çoğu program dışarı yazarken istif sırasını kullanır ama hangi
+  uçtan başladıkları değişir; ayar bunun içindir.
+- **İsim.** Nesne `[007 S03] eski adı` olur: yedinci bükülecek, üçüncü
+  kurulum. Aynı `S` numarası aynı şekil demektir. Tekrar çalıştırınca
+  eski etiket sökülür, üst üste binmez. `Name objects` (53).
+- Sayfada hiçbir nesne oynatılmaz; tek `Undo` geri alır.
+
+Bir sınır açıkça belirtiliyor: `Order 3` göbekleri sona atar, ama bir
+göbek dışıyla **aynı nesnenin** içindeyse istif sırasıyla ayrılamaz —
+istif nesneleri sıralar, konturları değil. O ayrım `ac2fPlotSend`
+yolunda tam olarak uygulanıyor.
+
+### Eklendi: `ac2fBendReport`
+
+Sırayı tablo hâlinde listeler (numara, kurulum, dış/göbek, ölçü,
+uzunluk), hiçbir şeyi değiştirmez.
+
+### Netleştirme: "düz" ve "eğri" ne demek
+
+`Order 2` ayrımı **içinde hiç eğri olmayan** harfler (N, A, K, X, E, M,
+V, W, Z, L, T) ile **içinde eğri olan** harfler (O, B, P, S, C, G, D, R,
+U) arasındadır. Eğik kenar eğri sayılmaz: A'nın ve K'nin yan çizgileri
+düzdür, o yüzden ikisi de ilk gruba girer. Ölçülen şey, segmentin
+kirişinden en çok saptığı miktardır (`Curve limit`, 50).
+
+### Değişti
+
+- Ana menü: bükme `12`-`14`, plotter `15`-`18`, ayarlar `19`,
+  hakkında `20`.
+- `ac2fPlotOrderPreview` -> `ac2fBendPreview`.
+- Sıralama ayarlarının kayıt anahtarları `PL...` yerine `BN...`; o beş
+  ayar bir kereliğine varsayılanına döner.
+- Konturları düz adımlara bölen tolerans tek: `Curve tol` (41). Bükme
+  modülü de onu okur.
+
 ## [1.9.0] - 2026-10-03
+
+> Bu sürüm içe aktarılamıyor (satır birleştirme sınırı). 1.10.0 kullanın.
 
 ### Eklendi: kesim sırası ve gruplama (`ac2fPlot`)
 

@@ -19,13 +19,15 @@
   9  -  Centerline (reduce to a single line)
  10  -  Nesting (pack parts onto sheets)
  11  -  Nesting report (nothing moves)
- 12  -  Send to plotter
- 13  -  Number the selection in cutting order
- 14  -  Plotter test shape (40 x 80 L)
- 15  -  Write HPGL to a file
- 16  -  Normalise an existing .plt and send
- 17  -  Settings and profiles
- 18  -  About
+ 12  -  Bending order: apply it to the objects
+ 13  -  Bending order: number them on the page
+ 14  -  Bending order report (nothing changes)
+ 15  -  Send to plotter
+ 16  -  Plotter test shape (40 x 80 L)
+ 17  -  Write HPGL to a file
+ 18  -  Normalise an existing .plt and send
+ 19  -  Settings and profiles
+ 20  -  About
 ```
 
 Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
@@ -571,72 +573,11 @@ geçer. **Gönderim başarılı olunca o dosya silinir** — raporda
 `File: none kept (streamed)` yazar. Başarısız olursa dosya bilerek
 bırakılır ki elle gönderebilesiniz.
 
-### Kesim sırası: hangi kontur önce gider
+### Kesim sırası
 
-Kutu harf şeridi bükerken sıra, makineyi kaç kez kurduğunuzu belirler.
-Paket konturları önce **harflere** ayırır, sonra harfleri bir iş sırasına
-dizer.
-
-**1. İçine alma.** Her kapalı kontur diğerlerine karşı sınanır: ilk
-noktası içine düşüyor mu, ve öteki daha büyük mü? Hiçbir şeyin içinde
-olmayan kontur bir **dış**, bir dışın içindeki kontur onun **göbeği**
-(A'nın ortası), göbeğin içindeki yine bir dıştır. Bir dış ve kapsadığı
-her şey **bir harftir**.
-
-**2. Çalışma sırası.** Harfler soldan sağa dizilir. X'te üst üste binen
-harfler bir **sütun** sayılır ve sütun içinde yukarıdan aşağı gidilir —
-"soldan sağa, önce üst" bir sayfada satır satır duran parçalar için
-budur.
-
-**3. Önce aynılar.** Bir harfe gelindiğinde, ondan sonraki **aynı
-şekilli** bütün harfler hemen arkasına çekilir. `NOBOBOXB` kelimesindeki
-üç `O`, araya `B` ve `X` girmeden peş peşe bükülür: üç kurulum yerine
-bir kurulum.
-
-| `Order` (ayar 44) | Sıra |
-|---|---|
-| `0` | Belgedeki hâliyle |
-| `1` *(varsayılan)* | Soldan sağa, önce üst |
-| `2` | Aynısı, ama **önce ovalliği olmayan** harfler, sonra eğriler |
-| `3` | 2 ile aynı, ama **göbekler en sona** |
-
-`NOBOBOXB` için sonuç (doğrulandı):
-
-```
-1 ->  N  O O. O O. O O.  B B.1 B.2  B B.1 B.2  B B.1 B.2  X
-2 ->  N  X  O O. O O. O O.  B B.1 B.2  B B.1 B.2  B B.1 B.2
-3 ->  N  X  O O O  B B B  |  O. O. O.  B.1 B.2  B.1 B.2  B.1 B.2
-```
-
-`.` ile bitenler göbek. `2`, rulolu bir bükme makinesi içindir: düz işin
-tamamı, rulolar hiç devreye girmeden biter. `3` daha ileri gider,
-hiçbir dış bir göbeği beklemez; göbekler de harflerle **aynı sırayı**
-korur.
-
-**Aynı sayılma ölçütü.** İki harf; kontur sayısı, uzunluk, kapsadığı
-alan ve kutu ölçüsü `Match tol` (48) içinde uyuşuyorsa aynıdır. En ve
-boy yer değişebilir, yani çeyrek tur döndürülmüş bir kopya da aynı
-sayılır. **Aynalanmış kopya sayılmaz** — ters yöne bükülür, kendi
-kurulumunu ister; alanın işareti bunu yakalar.
-
-**Gruplama sırayı ezer.** `Group same` (45) açıkken soldan sağa sıra
-bozulabilir; zaten amacı budur. Sayfadaki sıra kurulum sayısından daha
-önemliyse `0` yapın.
-
-| Ayar | Varsayılan | Ne işe yarar |
-|---|---|---|
-| `Order` (44) | `1` | Yukarıdaki dört algoritma |
-| `Group same` (45) | `1` | Aynı harfleri peş peşe bük |
-| `Column overlap` (46) | 5 mm | Bir sütun sayılmak için gereken X bindirmesi |
-| `Curve limit` (47) | 0,5 mm | Bir harfin "eğri" sayılması için gereken şişkinlik |
-| `Match tol` (48) | 0,5 mm | İki harfin aynı sayılması için gereken yakınlık |
-
-Sıra **ekranda gördüğünüz çizim üzerinden**, `Rotate` ve `Mirror`'dan
-önce hesaplanır; yani "sol" her zaman ekranınızın solu.
-
-**Göndermeden önce görün.** Ana menü `13` (`ac2fPlotOrderPreview`)
-seçimi sayfada kesim sırasına göre numaralandırır. Tek `Undo` hepsini
-siler.
+Gönderilen konturların sırası `ac2fBending` tarafından belirlenir —
+bkz. **9. Bükme sırası**. Ayrı bir plotter ayarı yoktur: ayar 47 hem
+`ac2fPlotSend` hem bükme makrolarını yönetir.
 
 ### Neden düzeltme adımı yok
 
@@ -706,7 +647,7 @@ Döndürme **aynalanmış** bir ekseni düzeltemez; onun için ayrı bir
 ### Gezinip kesmiyorsa
 
 Bu belirti nettir: `PD` koordinatları hareket olarak çalışıyor ama bıçak
-inmiyor. `ac2fPlotTest` (ana menü 14) bunu bir dakikada teşhis eder — gerçek işin
+inmiyor. `ac2fPlotTest` (ana menü 16) bunu bir dakikada teşhis eder — gerçek işin
 kullandığı **aynı** yazıcı, gönderici ve yönlendirme adımından
 40 × 80 mm'lik bir **L** gönderir:
 
@@ -767,22 +708,19 @@ Ortadaki satır önemli: çizim tamamen pozitifse min 0,0 çıkar,
 normalizasyon sabit bir kaydırmaya döner, iş kenara oturmaz ve malzeme
 boşa gider.
 
-### Ayarlar (40-51)
+### Ayarlar (40-46)
 
 | # | Ayar | Varsayılan | Ne yapar |
 |---|---|---|---|
 | 40 | Margin | 5 mm | İşin plotter orijininden uzaklığı |
-| 41 | Curve tol | 0,05 mm | Eğrilerin kaç düz adıma bölüneceği |
+| 41 | Curve tol | 0,05 mm | Eğrilerin kaç düz adıma bölüneceği (bükme de bunu kullanır) |
 | 42 | Rotate | 0 | Çeyrek tur. **0 = gördüğünüz gibi** |
 | 43 | Mirror | 0 | `1` sol-sağ, `2` alt-üst, `3` ikisi. Ayna görüntüsü gelirse |
-| 44 | Order | 1 | Kesim sırası algoritması (0-3) |
-| 45 | Group same | 1 | Aynı harfleri peş peşe bük |
-| 46 | Column overlap | 5 mm | Bir sütun sayılmak için gereken X bindirmesi |
-| 47 | Curve limit | 0,5 mm | "Eğri" sayılmak için gereken şişkinlik |
-| 48 | Match tol | 0,5 mm | İki harfin aynı sayılması için gereken yakınlık |
-| 49 | PD pairs | 1 | Komut başına koordinat çifti. Kesmiyorsa buradan başlayın |
-| 50 | Preamble | 1 | `2` = `IN;` gönderme (panel ayarları korunur) |
-| 51 | Send delay | 0 | KB başına duraklama. Seri dönüştürücü için |
+| 44 | PD pairs | 1 | Komut başına koordinat çifti. Kesmiyorsa buradan başlayın |
+| 45 | Preamble | 1 | `2` = `IN;` gönderme (panel ayarları korunur) |
+| 46 | Send delay | 0 | KB başına duraklama. Seri dönüştürücü için |
+
+Bükme sırası ayarları **47-53**, `BEND` grubunda — bkz. 9. bölüm.
 
 Plotter adresi **ayar sayfasında değil** — gönderirken sorulur ve
 hatırlanır. Bir makine adresi, geometri parametresi değil.
@@ -792,7 +730,7 @@ hatırlanır. Bir makine adresi, geometri parametresi değil.
 - Tek kalem kullanılır (`SP1`). Renk/katman başına kalem ataması yok.
 - Sayfa sonu (`PG;`) gönderilmez — beklemediğiniz bir malzeme ilerlemesi
   olmaz. Gerekiyorsa plotter panelinden verin.
-- Yol sırası **kesim sırasına göre** dizilir (ayar 44); `0` yaparsanız
+- Yol sırası **bükme sırasına göre** dizilir (ayar 47); `0` yaparsanız
   nesneler belgedeki sırayla gider. Kalem yolu kısaltma amacı güden bir
   optimizasyon değildir — amaç bükme kurulumunu azaltmaktır.
 - Bitmap ve yol taşımayan nesneler atlanır.
@@ -801,9 +739,114 @@ hatırlanır. Bir makine adresi, geometri parametresi değil.
 
 ---
 
-## 9. Ayarlar — tek sayfa, gruplara bölünmüş
+## 9. Bükme sırası
 
-Ana menüden `17` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
+Kutu harf bükerken sıra, makineyi kaç kez kurduğunuzu belirler. Olduğu
+gibi alınırsa `NOBOBOXB` sekiz kurulumdur; sıraya konunca dörttür.
+
+| Ana menü | Makro | Ne yapar |
+|---|---|---|
+| `12` | `ac2fBendOrder` | Sırayı **nesnelere uygular** (istif sırası + isim) |
+| `13` | `ac2fBendPreview` | Sayfada numaralandırır, başka hiçbir şeye dokunmaz |
+| `14` | `ac2fBendReport` | Sırayı listeler, hiçbir şeyi değiştirmez |
+
+Aynı sıra **plotter'a gönderirken de** uygulanır (`ac2fPlotSend`); ayrı
+bir ayar yok, ayar 47 ikisini birden yönetir.
+
+### Nasıl çalışıyor
+
+**1. İçine alma.** Her kapalı kontur ötekilere karşı sınanır: ilk
+noktası içine düşüyor mu, ve öteki daha büyük mü? Hiçbir şeyin içinde
+olmayan kontur bir **dış**, bir dışın içindeki **göbek** (A'nın ortası),
+göbeğin içindeki yine dıştır. Bir dış ve kapsadığı her şey **bir
+harftir**.
+
+**2. Çalışma sırası.** Harfler soldan sağa dizilir. X'te üst üste binen
+harfler bir **sütun** sayılır ve sütun içinde yukarıdan aşağı gidilir —
+"soldan sağa, önce üst" bir sayfada satır satır duran parçalar için
+budur.
+
+**3. Önce aynılar.** Bir harfe gelindiğinde ondan sonraki **aynı
+şekilli** bütün harfler hemen arkasına çekilir.
+
+### Dört algoritma — `Order` (ayar 47)
+
+| | Sıra |
+|---|---|
+| `0` | Çizimdeki hâliyle |
+| `1` *(varsayılan)* | Soldan sağa, önce üst |
+| `2` | Aynısı, ama **önce düz harfler**, sonra eğriler |
+| `3` | 2 ile aynı, ama **göbekler en sona** |
+
+`2`'de düz–eğri ayrımı şudur: **içinde hiç eğri olmayan** harfler önce
+(N, A, K, X, E, M, V, W, Z, L, T, I, H, F), **içinde eğri olan** harfler
+sonra (O, B, P, S, C, G, D, R, U, Q, J). Rulolu bir bükme makinesinde
+düz işin tamamı, rulolar hiç devreye girmeden biter.
+
+`NOBOBOXB` için sonuç (doğrulandı):
+
+```
+1 ->  N  O O. O O. O O.  B B.1 B.2  B B.1 B.2  B B.1 B.2  X
+2 ->  N  X  O O. O O. O O.  B B.1 B.2  B B.1 B.2  B B.1 B.2
+3 ->  N  X  O O O  B B B  |  O. O. O.  B.1 B.2  B.1 B.2  B.1 B.2
+```
+
+`.` ile bitenler göbek. Kurulum sayısı: **S1 = N, S2 = O ×3,
+S3 = B ×3, S4 = X.**
+
+### `ac2fBendOrder` nesnelere ne yapar
+
+- **İstif sırası.** İlk bükülecek nesne en üste alınır (`Stack order`,
+  ayar 52 ile alta da alınabilir). Çoğu program dışarı yazarken istif
+  sırasını kullanır, ama hangi uçtan başladıkları değişir; iş ters
+  çıkarsa bu ayarı çevirin.
+- **İsim.** Nesne `[007 S03] eski adı` olur: **yedinci bükülecek, üçüncü
+  kurulum.** Aynı `S` numarasını taşıyanlar aynı şekildir ve peş peşe
+  bükülür. İsimler Object Manager'da görünür ve istif sırasının
+  dayanmadığı pek çok işlemden sağ çıkar. Tekrar çalıştırınca eski etiket
+  sökülür, üst üste binmez. `Name objects` (53) ile kapatılabilir.
+- **Hiçbir nesne sayfada oynatılmaz.** Tek `Undo` hepsini geri alır.
+
+Bir sınır: `Order 3` göbekleri sona atar, ama bir göbek **dışıyla aynı
+nesnenin içindeyse** istif sırasıyla ayrılamaz (istif nesneleri sıralar,
+konturları değil). O durumda `ac2fPlotSend` kullanın — orada konturlar
+tek tek yazıldığı için ayrım tam olarak uygulanır.
+
+### Aynı sayılma ölçütü
+
+İki harf; kontur sayısı, uzunluk, kapsadığı alan ve kutu ölçüsü
+`Match tol` (51) içinde uyuşuyorsa aynıdır. En ve boy yer değişebilir,
+yani çeyrek tur döndürülmüş kopya da aynı sayılır. **Aynalanmış kopya
+sayılmaz** — ters yöne bükülür, kendi kurulumunu ister; işaretli alanın
+işareti bunu yakalar.
+
+**Gruplama sırayı ezer.** `Group same` (48) açıkken soldan sağa sıra
+bozulabilir; zaten amacı budur. Sayfadaki sıra kurulum sayısından daha
+önemliyse `0` yapın.
+
+### Ayarlar (47-53)
+
+| # | Ayar | Varsayılan | Ne işe yarar |
+|---|---|---|---|
+| 47 | `Order` | `1` | Yukarıdaki dört algoritma |
+| 48 | `Group same` | `1` | Aynı harfleri peş peşe bük |
+| 49 | `Column overlap` | 5 mm | Bir sütun sayılmak için gereken X bindirmesi |
+| 50 | `Curve limit` | 0,5 mm | Bir harfin "eğri" sayılması için gereken şişkinlik |
+| 51 | `Match tol` | 0,5 mm | İki harfin aynı sayılması için gereken yakınlık |
+| 52 | `Stack order` | `0` | İlk harf üstte mi altta mı |
+| 53 | `Name objects` | `1` | Sırayı nesne adlarına da yaz |
+
+Eğri toleransı ayrı değil: konturları düz adımlara bölen tek ayar
+`Curve tol` (41), plotter grubunda.
+
+Sıra **ekranda gördüğünüz çizim üzerinden**, `Rotate` ve `Mirror`'dan
+önce hesaplanır; yani "sol" her zaman ekranınızın solu.
+
+---
+
+## 10. Ayarlar — tek sayfa, gruplara bölünmüş
+
+Ana menüden `19` (`ac2fSettings`). Paketin **bütün** ayarları tek listede:
 
 ```
 SETTINGS  [Aluminium 2mm]
@@ -820,7 +863,7 @@ SETTINGS  [Aluminium 2mm]
 N=val  ?N=help  #n=page  P=profiles  R=reset  Enter=close
 ```
 
-51 ayar tek `InputBox` istemine (≈1024 karakter) hiçbir düzende
+53 ayar tek `InputBox` istemine (≈1024 karakter) hiçbir düzende
 sığmadığı için sayfa **gruba göre bölündü**. Ama **ayar numaraları
 geneldir**: `36=180` yazmak hangi sayfada olursanız olun çalışır. Yani
 hâlâ tek menü — soru zinciri değil.
@@ -879,7 +922,7 @@ Range    : 0.01 and up
 
 ---
 
-## 10. Profiller
+## 11. Profiller
 
 Ayar sayfasında `P`, ya da doğrudan `ac2fProfiles`.
 
@@ -924,7 +967,7 @@ tanınmayan anahtarlar sessizce atlanır.
 
 ---
 
-## 11. Profille çalıştırma ve geçici değişiklik
+## 12. Profille çalıştırma ve geçici değişiklik
 
 Ana menü `6` (`ac2fBoxLetterStripProfile`). Üç adım:
 

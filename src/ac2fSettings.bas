@@ -535,103 +535,6 @@ Private Sub ac2fBuildTable()
         "image, with the foot pointing the wrong way, set 1. If it is " & _
         "upside down with the foot at the top, set 2."
 
-    ac2fAddSetting AC2F_K_PL_ORDER, "PLOT", "Order", "", _
-        AC2F_KIND_INT, CDbl(AC2F_DEF_PL_ORDER), 0, 3, _
-        "The order the outlines are sent in." & vbCrLf & vbCrLf & _
-        "0 = as the document has them." & vbCrLf & _
-        "1 = left to right, top first." & vbCrLf & _
-        "2 = the same, but every straight sided letter before any " & _
-        "curved one." & vbCrLf & _
-        "3 = the same as 2, and every counter held back to the end." & _
-        vbCrLf & vbCrLf & _
-        "Contours are first grouped into letters by containment: an " & _
-        "outline with nothing around it is an outside, and whatever " & _
-        "falls inside it, such as the hole in an A, is its counter. A " & _
-        "letter is an outside with its counters, and a letter is never " & _
-        "split up by 1 or 2." & vbCrLf & vbCrLf & _
-        "Letters that overlap in X form a column and are taken top " & _
-        "down inside it, so rows on a sheet come out in reading order " & _
-        "down each column. Column overlap sets how much overlap counts." & _
-        vbCrLf & vbCrLf & _
-        "2 is for a bender with rollers: the straight work is finished " & _
-        "before the rollers are engaged at all. 3 goes further and " & _
-        "leaves every counter to the end, so no outside is waiting " & _
-        "while a hole is bent. The counters keep the same letter order." & _
-        vbCrLf & vbCrLf & _
-        "The order is worked out on the drawing as you see it, before " & _
-        "Rotate and Mirror, so left is always the left of your screen." & _
-        vbCrLf & vbCrLf & _
-        "Number the selection on the page first, from the main menu, " & _
-        "to see the order without sending anything."
-
-    ac2fAddSetting AC2F_K_PL_GROUP, "PLOT", "Group same", "", _
-        AC2F_KIND_INT, CDbl(AC2F_DEF_PL_GROUP), 0, 1, _
-        "Bend identical letters one after another. 1 on, 0 off." & _
-        vbCrLf & vbCrLf & _
-        "In NOBOBOXB there are three O. With this on, the first O " & _
-        "pulls the other two up behind it, so all three are bent on one " & _
-        "setup and the B follow after. With it off they are bent where " & _
-        "they stand, and the machine is set up for O three separate " & _
-        "times." & vbCrLf & vbCrLf & _
-        "Two letters count as the same when they have the same number " & _
-        "of contours, the same length, the same enclosed area and the " & _
-        "same box, each within Match tol. Width and height may swap " & _
-        "over, so a copy turned a quarter turn still counts as the same." & _
-        vbCrLf & vbCrLf & _
-        "A mirrored copy does not count. It bends the other way round " & _
-        "and needs its own setup, so it is kept separate on purpose." & _
-        vbCrLf & vbCrLf & _
-        "Grouping overrides the left to right order, which is the whole " & _
-        "point of it. Switch it off when the order on the sheet matters " & _
-        "more than the number of setups."
-
-    ac2fAddSetting AC2F_K_PL_COLGAP, "PLOT", "Column overlap", "mm", _
-        AC2F_KIND_NUM, AC2F_DEF_PL_COLGAP, 0, 0, _
-        "How much two letters must overlap in X to be treated as one " & _
-        "column and taken top down." & vbCrLf & vbCrLf & _
-        "A word on one line has letters side by side with no overlap, " & _
-        "so each is its own column and the order is plain left to " & _
-        "right. Two rows of parts on a sheet overlap completely, so " & _
-        "each pair is one column and the upper one is bent first." & _
-        vbCrLf & vbCrLf & _
-        "5 mm allows for the slight overlap of kerned or slanted " & _
-        "letters without pulling the whole line into one column." & _
-        vbCrLf & vbCrLf & _
-        "Raise it if a line of letters is being read top down instead " & _
-        "of left to right. Lower it, towards 0, if parts stacked in " & _
-        "rows are not being seen as columns."
-
-    ac2fAddSetting AC2F_K_PL_CURVE, "PLOT", "Curve limit", "mm", _
-        AC2F_KIND_NUM, AC2F_DEF_PL_CURVE, 0, 0, _
-        "How far a segment must depart from a straight line before the " & _
-        "letter counts as curved." & vbCrLf & vbCrLf & _
-        "Only Order 2 and 3 use this, to tell N and X from O and B." & _
-        vbCrLf & vbCrLf & _
-        "The figure measured is the bulge: the widest gap between the " & _
-        "segment and the straight line joining its ends. A segment " & _
-        "drawn as a curve but lying flat measures nothing and counts " & _
-        "as straight, which is what the bender cares about." & vbCrLf & vbCrLf & _
-        "0.5 mm ignores the tiny bulges left by tracing or by a font " & _
-        "outline and still catches any real corner radius. Raise it to " & _
-        "let letters with small rounded corners be treated as straight " & _
-        "work; lower it to send anything but a true line to the curved " & _
-        "pass."
-
-    ac2fAddSetting AC2F_K_PL_MATCH, "PLOT", "Match tol", "mm", _
-        AC2F_KIND_NUM, AC2F_DEF_PL_MATCH, 0, 0, _
-        "How close two letters must be to count as the same shape." & _
-        vbCrLf & vbCrLf & _
-        "Length, enclosed area and the bounding box are all compared " & _
-        "within this figure, with a small proportional allowance on " & _
-        "top for large letters, so a 2 m letter is not held to the same " & _
-        "absolute figure as a 50 mm one." & vbCrLf & vbCrLf & _
-        "0.5 mm groups true copies and letters redrawn to the same size " & _
-        "while keeping two different shapes apart. Raise it if copies " & _
-        "that should be bent together are coming out separately, for " & _
-        "instance after a trace. Lower it if two letters that are not " & _
-        "the same are being grouped." & vbCrLf & vbCrLf & _
-        "0 demands an exact match, which only true copies will pass."
-
     ac2fAddSetting AC2F_K_PL_PAIRS, "PLOT", "PD pairs", "", _
         AC2F_KIND_INT, CDbl(AC2F_DEF_PL_PAIRS), 1, 200, _
         "How many coordinate pairs are packed into one PD command." & _
@@ -676,6 +579,147 @@ Private Sub ac2fBuildTable()
         vbCrLf & vbCrLf & _
         "If PD pairs = 1 did not help and the machine is on such an " & _
         "adapter, try 20."
+
+    '--- Bending ------------------------------------------------------
+    ac2fAddSetting AC2F_K_BN_ORDER, "BEND", "Order", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_BN_ORDER), 0, 3, _
+        "The order the letters are bent in." & vbCrLf & vbCrLf & _
+        "0 = as the drawing has them." & vbCrLf & _
+        "1 = left to right, top first." & vbCrLf & _
+        "2 = the same, but every letter with no curve in it before any " & _
+        "curved one." & vbCrLf & _
+        "3 = the same as 2, and every counter held back to the end."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "Contours are first grouped into letters by containment: an " & _
+        "outline with nothing around it is an outside, and whatever " & _
+        "falls inside it, such as the hole in an A, is its counter. A " & _
+        "letter is an outside with its counters, and 1 and 2 never " & _
+        "split a letter up."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "2 is for a bender with rollers. Straight sided letters such " & _
+        "as N, A, K, X, E and M are all finished first, with the " & _
+        "rollers never engaged; the curved ones, O, B, P, S, C and G, " & _
+        "follow. 3 goes further and leaves every counter to the end, " & _
+        "so no outside is waiting while a hole is bent. The counters " & _
+        "keep the same letter order among themselves."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "Letters that overlap in X form a column and are taken top " & _
+        "down inside it, so rows of parts on a sheet come out in " & _
+        "reading order down each column. Column overlap sets how much " & _
+        "overlap counts."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "The order is worked out on the drawing as you see it, before " & _
+        "Rotate and Mirror, so left is always the left of your screen." & _
+        vbCrLf & vbCrLf & _
+        "It applies to Send to plotter as well, and the Bending macros " & _
+        "show it on the page or write it into the drawing."
+
+    ac2fAddSetting AC2F_K_BN_GROUP, "BEND", "Group same", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_BN_GROUP), 0, 1, _
+        "Bend identical letters one after another. 1 on, 0 off." & _
+        vbCrLf & vbCrLf & _
+        "In NOBOBOXB there are three O. With this on, the first O " & _
+        "pulls the other two up behind it, so all three are bent on " & _
+        "one setup and the B follow after. With it off they are bent " & _
+        "where they stand and the machine is set up for O three " & _
+        "separate times."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "Two letters count as the same when they have the same number " & _
+        "of contours, the same length, the same enclosed area and the " & _
+        "same box, each within Match tol. Width and height may swap " & _
+        "over, so a copy turned a quarter turn still counts."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "A mirrored copy does not count. It bends the other way round " & _
+        "and needs its own setup, so it is kept separate on purpose." & _
+        vbCrLf & vbCrLf & _
+        "Grouping overrides the left to right order, which is the " & _
+        "whole point of it. Switch it off when the order on the sheet " & _
+        "matters more than the number of setups."
+
+    ac2fAddSetting AC2F_K_BN_COLGAP, "BEND", "Column overlap", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_BN_COLGAP, 0, 0, _
+        "How much two letters must overlap in X to be treated as one " & _
+        "column and taken top down." & vbCrLf & vbCrLf & _
+        "A word on one line has letters side by side with no overlap, " & _
+        "so each is its own column and the order is plain left to " & _
+        "right. Two rows of parts on a sheet overlap completely, so " & _
+        "each pair is one column and the upper one is bent first."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "5 mm allows for the slight overlap of kerned or slanted " & _
+        "letters without pulling the whole line into one column." & _
+        vbCrLf & vbCrLf & _
+        "Raise it if a line of letters is being read top down instead " & _
+        "of left to right. Lower it, towards 0, if parts stacked in " & _
+        "rows are not being seen as columns."
+
+    ac2fAddSetting AC2F_K_BN_CURVE, "BEND", "Curve limit", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_BN_CURVE, 0, 0, _
+        "How far a segment must depart from a straight line before " & _
+        "the letter counts as curved." & vbCrLf & vbCrLf & _
+        "Only Order 2 and 3 use this, to tell N, A and K from O, P " & _
+        "and S." & vbCrLf & vbCrLf & _
+        "The figure measured is the bulge: the widest gap between the " & _
+        "segment and the straight line joining its ends. A segment " & _
+        "drawn as a curve but lying flat measures nothing and counts " & _
+        "as straight, which is what the bender cares about."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "0.5 mm ignores the tiny bulges left by tracing or by a font " & _
+        "outline and still catches any real corner radius. Raise it " & _
+        "to let letters with small rounded corners be treated as " & _
+        "straight work; lower it to send anything but a true line to " & _
+        "the curved pass."
+
+    ac2fAddSetting AC2F_K_BN_MATCH, "BEND", "Match tol", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_BN_MATCH, 0, 0, _
+        "How close two letters must be to count as the same shape." & _
+        vbCrLf & vbCrLf & _
+        "Length, enclosed area and the bounding box are all compared " & _
+        "within this figure, with a small proportional allowance on " & _
+        "top for large letters, so a 2 m letter is not held to the " & _
+        "same absolute figure as a 50 mm one."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "0.5 mm groups true copies and letters redrawn to the same " & _
+        "size while keeping two different shapes apart. Raise it if " & _
+        "copies that should be bent together are coming out " & _
+        "separately, for instance after a trace. Lower it if two " & _
+        "letters that are not the same are being grouped." & vbCrLf & vbCrLf & _
+        "0 demands an exact match, which only true copies will pass."
+
+    ac2fAddSetting AC2F_K_BN_ZORDER, "BEND", "Stack order", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_BN_ZORDER), 0, 1, _
+        "Which end of the stacking order the first letter goes to " & _
+        "when Put in bending order runs." & vbCrLf & vbCrLf & _
+        "0 = first one on top." & vbCrLf & _
+        "1 = first one at the bottom." & vbCrLf & vbCrLf & _
+        "Stacking order is how most programs decide what to write out " & _
+        "first, but they do not agree on which end they start from. " & _
+        "If the machine or the export comes out back to front, change " & _
+        "this."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "It changes nothing about where the objects sit on the page, " & _
+        "and nothing about Send to plotter, which writes the contours " & _
+        "out itself in the right order either way."
+
+    ac2fAddSetting AC2F_K_BN_RENAME, "BEND", "Name objects", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_BN_RENAME), 0, 1, _
+        "Write the order into the object names as well. 1 on, 0 off." & _
+        vbCrLf & vbCrLf & _
+        "An object becomes [007 S03] followed by whatever it was " & _
+        "called: seventh to bend, third setup. Objects sharing a " & _
+        "setup number are the same shape and are bent one after " & _
+        "another."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "Names survive a lot that stacking order does not, and the " & _
+        "Object Manager lists them, so this is the readable record of " & _
+        "the order. An earlier tag is stripped before the new one is " & _
+        "written, so running it twice does not stack them up."
+End Sub
+
+' Adds more help to the setting just declared. VBA refuses a statement
+' built from more than 25 line continuations, and a thorough help text
+' runs past that on its own, so a long one is written in pieces.
+Private Sub ac2fHelpMore(ByVal more As String)
+    If m_setN > 0 Then m_set(m_setN - 1).Help = m_set(m_setN - 1).Help & more
 End Sub
 
 Private Sub ac2fAddSetting(ByVal key As String, ByVal grp As String, _

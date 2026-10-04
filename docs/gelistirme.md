@@ -126,6 +126,7 @@ ac2fMenu ────┬──> ac2fLength ─────┐
              ├──> ac2fBoxLetter ──┤
              ├──> ac2fPanel ──────┤
              ├──> ac2fCenterline ─┤
+             ├──> ac2fBending ────┤
              ├──> ac2fPlot ───────┤
              ├──> ac2fNest ───────┼──> ac2fCore
              └──> ac2fSettings ───┘
@@ -446,7 +447,20 @@ sıkı eğriler kısa adım alır ve hata her yerde tolerans altında kalır.
 Ölçüldü: 0,5 / 0,1 / 0,05 / 0,01 mm toleranslarda gerçek sehim hep
 sınırın altında.
 
-### Kesim sırası
+### Bükme sırası (`ac2fBending`)
+
+Modül, **düzleştirilmiş geometriyi tutan yer**dir: `ac2fPlot` HPGL'i
+onun tamponundan yazar. Nokta başına fonksiyon çağrısı olmasın diye
+tampon (`ac2fGX`, `ac2fGY`, `ac2fGN`, `ac2fGS`, `ac2fGC`, `ac2fGCl`,
+`ac2fGSub`) `Public`. Bir toplama, bir sıralama: `ac2fBNOrderNow`
+ikinci kez çağrılırsa sıralamayı tekrarlamaz, sadece ne çalıştığını
+söyler (`m_ordered`).
+
+Nesne düzeyinde sıralama (`ac2fBendOrder`) için her kontur, geldiği
+**yaprak nesneyi** (`m_sshp`) taşır; grup değil, çünkü istifte yer
+değiştiren yapraktır. Nesnenin anahtarı, ona ait en erken konturun
+sıradaki yeridir. `OrderToFront` yığının tepesine aldığı için listede
+geriye doğru yürümek ilk bükülecek nesneyi en üste koyar.
 
 Konturlar **harflere** ayrılıp sıraya dizilir. Üç karar var.
 
@@ -476,7 +490,7 @@ parçadır.
 
 Hesap **belge koordinatlarında**, `ac2fPLOrient`'ten önce yapılır.
 Noktalar taşınmaz; yalnız kontur dizin dizileri (`m_ss`, `m_sc`, `m_scl`
-ve üstverileri) yeniden sıralanır. `ac2fPLApplyOrder` tam bir
+ve üstverileri) yeniden sıralanır. `ac2fBNApplyOrder` tam bir
 permütasyon üretemezse sıralama **hiç** uygulanmaz; yarı sıralı bir iş
 göndermekten iyidir.
 

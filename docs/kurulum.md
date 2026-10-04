@@ -29,6 +29,7 @@ ac2fLedModule.bas
 ac2fBoxLetter.bas
 ac2fPanel.bas
 ac2fCenterline.bas
+ac2fBending.bas
 ac2fPlot.bas
 ac2fNest.bas
 ac2fSettings.bas
@@ -70,6 +71,7 @@ ac2fPack
     ├── ac2fBoxLetter
     ├── ac2fPanel
     ├── ac2fCenterline
+    ├── ac2fBending
     ├── ac2fPlot
     ├── ac2fNest
     ├── ac2fSettings
@@ -127,12 +129,30 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.9.0'dan 1.10.0'a
+
+1.9.0 ayar dosyası VBA'nın **25 satır birleştirme** sınırını aşıyordu
+ve "Too many line continuations" ile içe aktarılamıyordu; düzeltildi
+(ve `tools/lint.py` artık bunu yakalıyor).
+
+Bükme sırası `ac2fPlot`'tan çıkıp **`ac2fBending`** adlı kendi modülüne
+taşındı. `ac2fBending.bas` **yeni** — doğrudan aktarın. `ac2fPlot`,
+`ac2fSettings`, `ac2fMenu`, `ac2fCore` değişti — dördünü **silip**
+yeniden aktarın.
+
+Sıralama ayarlarının kayıt anahtarları `PL...`'den `BN...`'e döndüğü
+için o beş ayar varsayılanına döner; diğer ayarlarınız ve profilleriniz
+korunur. Ayar numaraları: plotter yine **40-46** (`Rotate` 42,
+`Mirror` 43), bükme **47-53**.
+
+Ana menü: bükme `12`-`14`, plotter `15`-`18`, ayarlar `19`,
+hakkında `20`.
+
 ### Sürüm 1.8.1'den 1.9.0'a
 
 `ac2fPlot`, `ac2fSettings`, `ac2fMenu`, `ac2fCore` değişti — dördünü
-silip yeniden aktarın. Kesim sırası ve gruplama geldi; ayarlarınız
-korunur. Ana menü numaraları kaydı: önizleme `13`, test `14`, dosyaya
-yaz `15`, `.plt` düzelt `16`, ayarlar `17`, hakkında `18`.
+silip yeniden aktarın. Kesim sırası ve gruplama geldi. Bu sürüm içe
+aktarılamıyor; 1.10.0'a geçin.
 
 ### Sürüm 1.8.0'dan 1.8.1'e
 
