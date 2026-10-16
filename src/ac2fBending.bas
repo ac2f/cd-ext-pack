@@ -84,6 +84,11 @@ Public ac2fGC() As Long            ' how many points contour i has
 Public ac2fGCl() As Boolean        ' is contour i closed
 Public ac2fGSub As Long            ' how many contours
 
+' Members of a group are normally taken top first, the way the Object
+' Manager lists them. A caller sending bottom first sets this after
+' ac2fBNReset so groups follow the same direction.
+Public ac2fBNBackToFront As Boolean
+
 ' Per contour, filled as it is flattened and used by the ordering.
 Private m_sx0() As Double, m_sy0() As Double
 Private m_sx1() As Double, m_sy1() As Double
@@ -187,8 +192,9 @@ Attribute ac2fBendOrder.VB_Description = "ac2f pack: Put the selected objects in
         s = s & vbCrLf & vbCrLf & _
             "Order 3 holds counters back to the end. A counter that " & _
             "sits in the SAME object as its outside cannot be pulled " & _
-            "out by stacking order; send the job with Send to plotter " & _
-            "for that, where the contours are written out one by one."
+            "out by stacking order. Break such letters apart first, " & _
+            "or send with Send order 2, which writes the contours out " & _
+            "one by one."
     End If
     ac2fInfo s, CAPTION_
     Exit Sub
@@ -330,6 +336,8 @@ Private Function ac2fBNPrepare() As Long
         Exit Function
     End If
 
+    If Not ac2fBNAskAlgorithm() Then Exit Function
+
     ' One flattening tolerance serves the whole package; it lives with
     ' the plotter settings because that is where it decides the output.
     tol = ac2fGetNum(AC2F_K_PL_TOL, AC2F_DEF_PL_TOL)
@@ -371,6 +379,43 @@ Fail:
     On Error Resume Next
     If unitChanged Then ActiveDocument.Unit = oldUnit
     ac2fWarn "Reading the selection failed: " & Err.Description, CAPTION_
+End Function
+
+' Asks which algorithm to run, offering the one used last. The answer
+' is kept, so the next run offers it again. False on Cancel.
+Private Function ac2fBNAskAlgorithm() As Boolean
+    Dim cur As Long
+    Dim answer As String
+    Dim v As Long
+    Dim m As String
+
+    cur = ac2fGetLng(AC2F_K_BN_ORDER, AC2F_DEF_BN_ORDER)
+    If cur < 1 Or cur > 3 Then cur = 1
+
+    m = "Bending order - pick the algorithm:" & vbCrLf & vbCrLf & _
+        "  1  -  Left to right, top first" & vbCrLf & vbCrLf & _
+        "  2  -  Straight letters first (N, A, K, X ...)," & vbCrLf & _
+        "         then curved ones (O, P, B, S ...)" & vbCrLf & vbCrLf & _
+        "  3  -  As 2, but every counter (the hole in A," & vbCrLf & _
+        "         O, B ...) is left to the very end" & vbCrLf & vbCrLf
+    If ac2fGetLng(AC2F_K_BN_GROUP, AC2F_DEF_BN_GROUP) <> 0 Then
+        m = m & "In all three, identical letters are bent one " & _
+                "after another on the same setup." & vbCrLf & vbCrLf
+    End If
+    m = m & "The choice is remembered for next time."
+
+    Do
+        answer = InputBox(m, ac2fTitle(CAPTION_), CStr(cur))
+        If StrPtr(answer) = 0 Then Exit Function
+        answer = Trim$(answer)
+        If Len(answer) = 0 Then Exit Function
+        v = CLng(Val(answer))
+        If v >= 1 And v <= 3 Then Exit Do
+        ac2fWarn "Enter 1, 2 or 3.", CAPTION_
+    Loop
+
+    ac2fSetLng AC2F_K_BN_ORDER, v
+    ac2fBNAskAlgorithm = True
 End Function
 
 ' Objects in bending order: each one sits where its earliest contour
@@ -498,9 +543,15 @@ Private Sub ac2fBNShape(ByVal s As Shape, ByVal tol As Double)
     End Select
 
     If s.Type = cdrGroupShape Then
-        For i = 1 To s.Shapes.Count
-            ac2fBNShape s.Shapes(i), tol
-        Next i
+        If ac2fBNBackToFront Then
+            For i = s.Shapes.Count To 1 Step -1
+                ac2fBNShape s.Shapes(i), tol
+            Next i
+        Else
+            For i = 1 To s.Shapes.Count
+                ac2fBNShape s.Shapes(i), tol
+            Next i
+        End If
         Exit Sub
     End If
 
@@ -733,6 +784,7 @@ End Sub
 Public Sub ac2fBNReset()
     ac2fGN = 0: ac2fGSub = 0: m_gn = 0: m_gseqN = 0: m_groups = 0
     m_shpN = 0: m_curShape = -1: m_ordered = 0
+    ac2fBNBackToFront = False
     ReDim m_shp(0 To 255)
     ReDim m_sshp(0 To 255)
     ReDim ac2fGX(0 To 8191): ReDim ac2fGY(0 To 8191)
@@ -805,6 +857,12 @@ Public Sub ac2fBNCollect(ByVal sr As ShapeRange, ByVal tol As Double)
     For i = 1 To sr.Count
         ac2fBNShape sr(i), tol
     Next i
+End Sub
+
+' Flattens one more object onto the end of the buffer, for callers that
+' decide the order of the objects themselves. Call ac2fBNReset first.
+Public Sub ac2fBNAddObject(ByVal s As Shape, ByVal tol As Double)
+    ac2fBNShape s, tol
 End Sub
 
 ' Containment, letters, and the contour list sorted left to right.

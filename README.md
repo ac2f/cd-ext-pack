@@ -248,8 +248,14 @@ gibi alınırsa `NOBOBOXB` sekiz kurulumdur; sıraya konunca dörttür.
 | `13` | `ac2fBendPreview` | Sayfada numaralandırır, başka hiçbir şeye dokunmaz |
 | `14` | `ac2fBendReport` | Sırayı listeler, hiçbir şeyi değiştirmez |
 
-Aynı sıra **plotter'a gönderirken de** uygulanır (`ac2fPlotSend`); ayrı
-bir ayar yok, ayar 47 ikisini birden yönetir.
+**Plotter'a göndermek:** `ac2fPlotSend` nesneleri **Object Manager'daki
+sırayla**, en üstteki önce gönderir ve yolda hiçbir şeyi yeniden
+sıralamaz. Bükme sırasıyla kesmek için önce `12` ile sırayı uygulayın —
+Object Manager yeniden dizilir — sonra gönderin. Ya da `Send order`
+(ayar 47) = `2` ile plotter sırayı kendisi hesaplasın.
+
+**Algoritma her çalıştırmada sorulur.** `12`, `13` ve `14` önce 1/2/3
+seçimini ister; son seçtiğiniz varsayılan gelir ve hatırlanır.
 
 ### Nasıl çalışıyor
 
@@ -267,7 +273,7 @@ budur.
 **3. Önce aynılar.** Bir harfe gelindiğinde ondan sonraki **aynı
 şekilli** bütün harfler hemen arkasına çekilir.
 
-### Dört algoritma — `Order` (ayar 47)
+### Dört algoritma — `Order` (ayar 49)
 
 | | Sıra |
 |---|---|
@@ -295,14 +301,14 @@ S3 = B ×3, S4 = X.**
 ### `ac2fBendOrder` nesnelere ne yapar
 
 - **İstif sırası.** İlk bükülecek nesne en üste alınır (`Stack order`,
-  ayar 52 ile alta da alınabilir). Çoğu program dışarı yazarken istif
+  ayar 54 ile alta da alınabilir). Çoğu program dışarı yazarken istif
   sırasını kullanır, ama hangi uçtan başladıkları değişir; iş ters
   çıkarsa bu ayarı çevirin.
 - **İsim.** Nesne `[007 S03] eski adı` olur: **yedinci bükülecek, üçüncü
   kurulum.** Aynı `S` numarasını taşıyanlar aynı şekildir ve peş peşe
   bükülür. İsimler Object Manager'da görünür ve istif sırasının
   dayanmadığı pek çok işlemden sağ çıkar. Tekrar çalıştırınca eski etiket
-  sökülür, üst üste binmez. `Name objects` (53) ile kapatılabilir.
+  sökülür, üst üste binmez. `Name objects` (55) ile kapatılabilir.
 - **Hiçbir nesne sayfada oynatılmaz.** Tek `Undo` hepsini geri alır.
 
 Bir sınır: `Order 3` göbekleri sona atar, ama bir göbek **dışıyla aynı
@@ -313,26 +319,26 @@ tek tek yazıldığı için ayrım tam olarak uygulanır.
 ### Aynı sayılma ölçütü
 
 İki harf; kontur sayısı, uzunluk, kapsadığı alan ve kutu ölçüsü
-`Match tol` (51) içinde uyuşuyorsa aynıdır. En ve boy yer değişebilir,
+`Match tol` (53) içinde uyuşuyorsa aynıdır. En ve boy yer değişebilir,
 yani çeyrek tur döndürülmüş kopya da aynı sayılır. **Aynalanmış kopya
 sayılmaz** — ters yöne bükülür, kendi kurulumunu ister; işaretli alanın
 işareti bunu yakalar.
 
-**Gruplama sırayı ezer.** `Group same` (48) açıkken soldan sağa sıra
+**Gruplama sırayı ezer.** `Group same` (50) açıkken soldan sağa sıra
 bozulabilir; zaten amacı budur. Sayfadaki sıra kurulum sayısından daha
 önemliyse `0` yapın.
 
-### Ayarlar (47-53)
+### Ayarlar (49-55)
 
 | # | Ayar | Varsayılan | Ne işe yarar |
 |---|---|---|---|
-| 47 | `Order` | `1` | Yukarıdaki dört algoritma |
-| 48 | `Group same` | `1` | Aynı harfleri peş peşe bük |
-| 49 | `Column overlap` | 5 mm | Bir sütun sayılmak için gereken X bindirmesi |
-| 50 | `Curve limit` | 0,5 mm | Bir harfin "eğri" sayılması için gereken şişkinlik |
-| 51 | `Match tol` | 0,5 mm | İki harfin aynı sayılması için gereken yakınlık |
-| 52 | `Stack order` | `0` | İlk harf üstte mi altta mı |
-| 53 | `Name objects` | `1` | Sırayı nesne adlarına da yaz |
+| 49 | `Order` | `1` | Yukarıdaki dört algoritma |
+| 50 | `Group same` | `1` | Aynı harfleri peş peşe bük |
+| 51 | `Column overlap` | 5 mm | Bir sütun sayılmak için gereken X bindirmesi |
+| 52 | `Curve limit` | 0,5 mm | Bir harfin "eğri" sayılması için gereken şişkinlik |
+| 53 | `Match tol` | 0,5 mm | İki harfin aynı sayılması için gereken yakınlık |
+| 54 | `Stack order` | `0` | İlk harf üstte mi altta mı |
+| 55 | `Name objects` | `1` | Sırayı nesne adlarına da yaz |
 
 Eğri toleransı ayrı değil: konturları düz adımlara bölen tek ayar
 `Curve tol` (41), plotter grubunda.
@@ -361,12 +367,26 @@ ayarı (42) bunu telafi eder, **varsayılanı 0** — yani döndürme yok.
 90 saat yönünün tersine, 270 saat yönüne çevirir; en–boy takas olur ve
 kenar payı sonradan uygulandığı için iş yine köşeye oturur.
 
-### Kesim sırası
+### Kesim sırası ve bitiş
 
-Gönderilen konturların sırası `ac2fBending` tarafından belirlenir:
-harfler soldan sağa dizilir, aynı harfler peş peşe bükülür, istenirse
-düz harfler eğrilerden önce gider. Ayrıntısı [Bükme sırası](#bükme-sırası-ac2fbending)
-bölümünde.
+Nesneler **Object Manager'daki sırayla**, en üstteki önce gider; yolda
+hiçbir şey yeniden sıralanmaz (`Send order`, ayar 47). Bükme sırasıyla
+kesmek için önce [Bükme sırası](#bükme-sırası-ac2fbending) ile Object
+Manager'ı dizin, sonra gönderin.
+
+İş bitince bıçak kalkar ve kafa **işin en üst noktasında** bekler
+(`Park`, ayar 48; `0` orijin, `2` olduğu yer).
+
+### Hâlâ 90 derece dönük geliyorsa
+
+Paket döndürmüyor; makinenin X ekseni besleme yönünde. Adresi yazarken
+sonuna yön ekleyin, kalıcı olarak hatırlanır:
+
+```
+192.168.1.200:8080 r270
+```
+
+Ters yöne döndüyse `r90`. Aynalı geldiyse `m1`. Geri almak için `r0 m0`.
 
 ### Neden düzeltme adımı yok
 
@@ -448,7 +468,7 @@ döner — iş kenarda kalmaz, malzeme boşa gider.
 
 ## Ayarlar ve profiller
 
-**Tüm ayarlar tek sayfada.** Ana menüden `19` ile açılır; 53 ayar
+**Tüm ayarlar tek sayfada.** Ana menüden `19` ile açılır; 55 ayar
 numaralı olarak listelenir:
 
 ```
@@ -549,4 +569,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.10.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.11.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

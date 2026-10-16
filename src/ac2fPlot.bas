@@ -20,11 +20,15 @@ Attribute VB_Name = "ac2fPlot"
 '  HPGL units are 40 per millimetre (1016 per inch).
 '
 '  CUTTING ORDER
-'  The order the outlines leave in is not the order they happen to sit
-'  in the document: ac2fBending flattens the selection, groups the
-'  contours into letters and puts them in bending order first. This
-'  module writes whatever order that left behind. The Bending macros
-'  show the same order on the page, or apply it to the drawing.
+'  Objects go out in the order the Object Manager lists them, top
+'  first, and nothing reorders them on the way. To cut in bending
+'  order, run Bending order first: it rearranges the Object Manager,
+'  and this module then sends exactly that. Send order 2 asks for the
+'  bending order directly instead.
+'
+'  END OF JOB
+'  When the last outline is done the head is lifted and parked at the
+'  top of the job, so the work can be taken off. Park sets where.
 '
 '  ORIENTATION
 '  Nothing is rotated: document X becomes HPGL X and document Y
@@ -65,6 +69,8 @@ Public Const AC2F_K_PL_MIR    As String = "PLAynalama"
 Public Const AC2F_K_PL_PAIRS  As String = "PLPDCiftSayisi"
 Public Const AC2F_K_PL_PRE    As String = "PLOnsoz"
 Public Const AC2F_K_PL_DELAY  As String = "PLGonderimGecikmesiMS"
+Public Const AC2F_K_PL_SEQ    As String = "PLGonderimSirasi"
+Public Const AC2F_K_PL_PARK   As String = "PLBitisKonumu"
 Public Const AC2F_K_PL_TARGET As String = "PLPlotterAdresi"   ' string, not on the sheet
 
 Public Const AC2F_DEF_PL_MARGIN As Double = 5#     ' margin from the origin (mm)
@@ -73,8 +79,12 @@ Public Const AC2F_DEF_PL_ROT    As Long = 0        ' 0 = exactly as you see it
 Public Const AC2F_DEF_PL_MIR    As Long = 0        ' 0 none, 1 flip X, 2 flip Y, 3 both
 Public Const AC2F_DEF_PL_PAIRS  As Long = 1        ' coordinate pairs per PD
 Public Const AC2F_DEF_PL_PRE    As Long = 1        ' 0 none, 1 IN;SP1;PA;, 2 SP1;PA;
+Public Const AC2F_DEF_PL_SEQ    As Long = 0        ' 0 Object Manager top first, 1 bottom first, 2 bending order
+Public Const AC2F_DEF_PL_PARK   As Long = 1        ' 0 origin, 1 top of the job, 2 stay put
 Public Const AC2F_DEF_PL_DELAY  As Long = 0        ' ms per 1 KB, 0 = send in one go
 Public Const AC2F_DEF_PL_TARGET As String = "192.168.1.100:9100"
+
+Private m_seqMissing As Long        ' objects not found in the page stack
 
 '---------------------------------------------------------------------
 ' The flattened geometry lives in ac2fBending, which also puts it in
@@ -111,6 +121,7 @@ Attribute ac2fPlotTest.VB_Description = "ac2f pack: Send a test L to the plotter
     Dim margin As Double
     Dim minX As Double, minY As Double
     Dim i As Long
+    Dim parkIdx As Long
 
     If Not ac2fPLAskTarget(host, port) Then Exit Sub
 
@@ -127,6 +138,7 @@ Attribute ac2fPlotTest.VB_Description = "ac2f pack: Send a test L to the plotter
     ac2fBNAddPt 0, 80
     ac2fGS(0) = 0: ac2fGC(0) = 6: ac2fGCl(0) = True
     ac2fGSub = 1
+    parkIdx = ac2fPLAddPark()
 
     ac2fPLOrient
 
@@ -138,7 +150,7 @@ Attribute ac2fPlotTest.VB_Description = "ac2f pack: Send a test L to the plotter
 
     path = ac2fPLTempPath("ac2f_test.plt")
     bytesOut = ac2fPLWrite(path, margin * AC2F_UNITS_PER_MM - minX * AC2F_UNITS_PER_MM, _
-                                 margin * AC2F_UNITS_PER_MM - minY * AC2F_UNITS_PER_MM)
+                                 margin * AC2F_UNITS_PER_MM - minY * AC2F_UNITS_PER_MM, parkIdx)
     If bytesOut = 0 Then
         ac2fWarn "Could not write " & path, CAPTION_
         Exit Sub
@@ -188,6 +200,8 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
     Dim errText As String
     Dim bytesOut As Long
     Dim orderAlg As Long
+    Dim seqMode As Long
+    Dim parkIdx As Long
 
     If ActiveDocument Is Nothing Then
         ac2fWarn "Open a document first.", CAPTION_
@@ -228,7 +242,8 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
         unitChanged = True
     End If
 
-    ac2fBNCollect sr, tol
+    seqMode = ac2fGetLng(AC2F_K_PL_SEQ, AC2F_DEF_PL_SEQ)
+    ac2fPLCollectInOrder sr, tol, seqMode
 
     On Error Resume Next
     If unitChanged Then ActiveDocument.Unit = oldUnit
@@ -241,9 +256,13 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
     End If
 
     ' --- cutting order ------------------------------------------------
-    ' Worked out in document coordinates, before anything is turned, so
-    ' "left to right" means left to right on screen.
-    orderAlg = ac2fBNOrderNow()
+    ' Normally the Object Manager order, already set by the collection.
+    ' Only Send order 2 reorders here, in document coordinates, before
+    ' anything is turned.
+    If seqMode = 2 Then orderAlg = ac2fBNOrderNow()
+
+    ' --- where the head waits afterwards --------------------------------
+    parkIdx = ac2fPLAddPark()
 
     ' --- orientation --------------------------------------------------
     ac2fPLOrient
@@ -259,7 +278,7 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
     dx = margin * AC2F_UNITS_PER_MM - minX * AC2F_UNITS_PER_MM
     dy = margin * AC2F_UNITS_PER_MM - minY * AC2F_UNITS_PER_MM
 
-    bytesOut = ac2fPLWrite(path, dx, dy)
+    bytesOut = ac2fPLWrite(path, dx, dy, parkIdx)
     If bytesOut = 0 Then
         ac2fWarn "Could not write " & path, CAPTION_
         Exit Sub
@@ -272,14 +291,14 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
             Kill path
             On Error GoTo Fail
             ac2fInfo ac2fPLReport(True, host, port, "", bytesOut, margin, tol, _
-                                  minX, minY, maxX, maxY, "", orderAlg), CAPTION_
+                                  minX, minY, maxX, maxY, "", orderAlg, seqMode), CAPTION_
         Else
             ac2fWarn ac2fPLReport(False, host, port, path, bytesOut, margin, tol, _
-                                  minX, minY, maxX, maxY, errText, orderAlg), CAPTION_
+                                  minX, minY, maxX, maxY, errText, orderAlg, seqMode), CAPTION_
         End If
     Else
         ac2fInfo ac2fPLReport(True, "", 0, path, bytesOut, margin, tol, _
-                              minX, minY, maxX, maxY, "", orderAlg), CAPTION_
+                              minX, minY, maxX, maxY, "", orderAlg, seqMode), CAPTION_
     End If
     Exit Sub
 
@@ -288,6 +307,113 @@ Fail:
     If unitChanged Then ActiveDocument.Unit = oldUnit
     ac2fWarn "The operation failed: " & Err.Description, CAPTION_
 End Sub
+
+' Flattens the selection in the order it should be cut.
+'   0  the Object Manager order, top first
+'   1  the Object Manager order, bottom first
+'   2  selection as given; the caller then applies the bending order
+' The Object Manager lists the page front to back, which is the order
+' of ActivePage.Shapes. ActiveSelectionRange does not promise that
+' order, so each selected object is looked up in the page stack by its
+' StaticID. One that is not at the top of the page stack, an object
+' picked inside a group for instance, keeps its selection order after
+' the rest and is counted in m_seqMissing for the report.
+Private Sub ac2fPLCollectInOrder(ByVal sr As ShapeRange, ByVal tol As Double, _
+                                 ByVal mode As Long)
+    Dim keyed As Collection
+    Dim taken() As Boolean, ordList() As Long
+    Dim n As Long, i As Long, j As Long, k As Long, cnt As Long, t As Long
+    Dim ps As Shapes
+
+    ac2fBNReset
+    m_seqMissing = 0
+    n = sr.Count
+
+    If mode = 2 Then
+        For i = 1 To n
+            ac2fBNAddObject sr(i), tol
+        Next i
+        Exit Sub
+    End If
+
+    ReDim taken(1 To n)
+    ReDim ordList(1 To n)
+    Set keyed = New Collection
+
+    On Error Resume Next
+    For i = 1 To n
+        keyed.Add i, "k" & CStr(sr(i).StaticID)
+    Next i
+    Set ps = ActivePage.Shapes
+    For j = 1 To ps.Count
+        k = 0
+        k = keyed("k" & CStr(ps(j).StaticID))
+        If k > 0 Then
+            If Not taken(k) Then
+                taken(k) = True
+                cnt = cnt + 1
+                ordList(cnt) = k
+            End If
+        End If
+    Next j
+    On Error GoTo 0
+
+    For i = 1 To n
+        If Not taken(i) Then
+            cnt = cnt + 1
+            ordList(cnt) = i
+            m_seqMissing = m_seqMissing + 1
+        End If
+    Next i
+
+    If mode = 1 Then
+        For i = 1 To n \ 2
+            t = ordList(i): ordList(i) = ordList(n + 1 - i): ordList(n + 1 - i) = t
+        Next i
+        ac2fBNBackToFront = True
+    End If
+
+    For i = 1 To n
+        ac2fBNAddObject sr(ordList(i)), tol
+    Next i
+End Sub
+
+' Adds the point the head parks on after the job: the top left corner
+' of the job as drawn. It belongs to no contour, so nothing is cut to
+' it, and it lies on the job's own box, so the margin is unaffected.
+' Returns its index, or -1 when Park is not 1.
+Private Function ac2fPLAddPark() As Long
+    Dim i As Long
+    Dim minX As Double, maxY As Double
+
+    ac2fPLAddPark = -1
+    If ac2fGetLng(AC2F_K_PL_PARK, AC2F_DEF_PL_PARK) <> 1 Then Exit Function
+    If ac2fGN = 0 Then Exit Function
+
+    minX = ac2fGX(0): maxY = ac2fGY(0)
+    For i = 1 To ac2fGN - 1
+        If ac2fGX(i) < minX Then minX = ac2fGX(i)
+        If ac2fGY(i) > maxY Then maxY = ac2fGY(i)
+    Next i
+    ac2fBNAddPt minX, maxY
+    ac2fPLAddPark = ac2fGN - 1
+End Function
+
+Public Function ac2fPLSeqName(ByVal m As Long) As String
+    Select Case m
+        Case 1:    ac2fPLSeqName = "Object Manager, bottom first"
+        Case 2:    ac2fPLSeqName = "bending order"
+        Case Else: ac2fPLSeqName = "Object Manager, top first"
+    End Select
+End Function
+
+Public Function ac2fPLParkName(ByVal m As Long) As String
+    Select Case m
+        Case 0:    ac2fPLParkName = "origin (0,0)"
+        Case 2:    ac2fPLParkName = "where the last cut ended"
+        Case Else: ac2fPLParkName = "top of the job"
+    End Select
+End Function
 
 ' Turns the flattened points a whole number of quarter turns. Applied
 ' before the extent is taken, so the margin still lands correctly
@@ -336,7 +462,7 @@ End Sub
 
 ' Writes the file and returns its size in bytes, 0 on failure.
 Private Function ac2fPLWrite(ByVal path As String, ByVal dx As Double, _
-                             ByVal dy As Double) As Long
+                             ByVal dy As Double, ByVal parkIdx As Long) As Long
     Dim f As Integer
     Dim i As Long, k As Long, s As Long, n As Long
     Dim line_ As String
@@ -387,10 +513,23 @@ Private Function ac2fPLWrite(ByVal path As String, ByVal dx As Double, _
         If cnt > 0 Then Print #f, "PD" & line_ & ";"
     Next i
 
-    If pre >= 1 Then
-        Print #f, "PU0,0;"
-        Print #f, "SP0;"
-    End If
+    ' Lift the knife and park. The park point went through the same
+    ' rotation, mirror and shift as the job, so "top" is the top of the
+    ' job as it sits on screen.
+    Select Case ac2fGetLng(AC2F_K_PL_PARK, AC2F_DEF_PL_PARK)
+        Case 0
+            Print #f, "PU0,0;"
+        Case 1
+            If parkIdx >= 0 Then
+                Print #f, "PU" & ac2fPLU(ac2fGX(parkIdx), dx) & "," & _
+                          ac2fPLU(ac2fGY(parkIdx), dy) & ";"
+            Else
+                Print #f, "PU;"
+            End If
+        Case Else
+            Print #f, "PU;"
+    End Select
+    If pre >= 1 Then Print #f, "SP0;"
     Close #f
 
     total = ac2fPLFileSize(path)
@@ -423,12 +562,19 @@ Private Function ac2fPLAskTarget(ByRef host As String, ByRef port As Long) As Bo
         "Plotter address as host:port" & vbCrLf & vbCrLf & _
         "   192.168.1.100:9100    raw socket, the usual case" & vbCrLf & _
         "   192.168.1.100:23      a telnet port" & vbCrLf & vbCrLf & _
-        "The bytes go out as a raw TCP stream. Port 9100 if you are " & _
-        "not sure.", ac2fTitle(CAPTION_), stored)
+        "ORIENTATION NOW:  Rotate " & ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) & _
+        ", Mirror " & ac2fGetLng(AC2F_K_PL_MIR, AC2F_DEF_PL_MIR) & vbCrLf & _
+        "If the cut comes out turned, add r270 (or r90) after the " & _
+        "address, e.g.  192.168.1.200:8080 r270" & vbCrLf & _
+        "m1 / m2 flips it, r0 m0 puts it back. Remembered.", _
+        ac2fTitle(CAPTION_), stored)
 
     If StrPtr(answer) = 0 Then Exit Function
     answer = Trim$(answer)
     If Len(answer) = 0 Then Exit Function
+    answer = ac2fPLTakeOrient(answer)
+    ' only an orientation was typed: keep the address it already had
+    If Len(answer) = 0 Then answer = stored
 
     p = InStrRev(answer, ":")
     If p <= 1 Then
@@ -446,6 +592,35 @@ Private Function ac2fPLAskTarget(ByRef host As String, ByRef port As Long) As Bo
 
     ac2fSetStr AC2F_K_PL_TARGET, host & ":" & port
     ac2fPLAskTarget = True
+End Function
+
+' Pulls "r270" / "m1" style words off the address line, stores them as
+' the Rotate and Mirror settings, and returns what is left.
+Private Function ac2fPLTakeOrient(ByVal answer As String) As String
+    Dim parts() As String
+    Dim i As Long
+    Dim w As String, rest As String
+    Dim v As Long
+
+    parts = Split(answer, " ")
+    For i = LBound(parts) To UBound(parts)
+        w = Trim$(parts(i))
+        If Len(w) >= 2 And (LCase$(Left$(w, 1)) = "r" Or LCase$(Left$(w, 1)) = "m") _
+           And IsNumeric(Mid$(w, 2)) Then
+            v = CLng(Val(Mid$(w, 2)))
+            If LCase$(Left$(w, 1)) = "r" Then
+                v = (((v Mod 360) + 360) Mod 360)
+                v = (((v + 45) \ 90) Mod 4) * 90
+                ac2fSetLng AC2F_K_PL_ROT, v
+            ElseIf v >= 0 And v <= 3 Then
+                ac2fSetLng AC2F_K_PL_MIR, v
+            End If
+        ElseIf Len(w) > 0 Then
+            If Len(rest) > 0 Then rest = rest & " "
+            rest = rest & w
+        End If
+    Next i
+    ac2fPLTakeOrient = rest
 End Function
 
 ' Streams the file to host:port through a small PowerShell script.
@@ -843,7 +1018,7 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
                               ByVal tol As Double, ByVal minX As Double, _
                               ByVal minY As Double, ByVal maxX As Double, _
                               ByVal maxY As Double, ByVal errText As String, _
-                              ByVal orderAlg As Long) As String
+                              ByVal orderAlg As Long, ByVal seqMode As Long) As String
     Dim s As String
     Dim u As Double
     u = AC2F_UNITS_PER_MM
@@ -869,19 +1044,17 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
     s = s & "   Points              : " & Format$(ac2fGN, "#,##0") & vbCrLf & vbCrLf
 
     s = s & "ORDER" & vbCrLf
-    s = s & "   Rule                : " & ac2fBNOrderName(orderAlg) & vbCrLf
-    If orderAlg > 0 Then
-        s = s & "   Letters             : " & ac2fBNLetters() & "  (" & _
-                (ac2fGSub - ac2fBNInnerCount()) & " outside, " & _
-                ac2fBNInnerCount() & " counters)" & vbCrLf
-        If ac2fGetLng(AC2F_K_BN_GROUP, AC2F_DEF_BN_GROUP) <> 0 Then
-            s = s & "   Setups              : " & ac2fBNSetups() & _
-                    IIf(ac2fBNSetups() < ac2fBNLetters(), "  (identical letters bent together)", _
-                                         "  (no two letters alike)") & vbCrLf
-        Else
-            s = s & "   Setups              : grouping off" & vbCrLf
-        End If
+    s = s & "   Sent in             : " & ac2fPLSeqName(seqMode) & vbCrLf
+    If seqMode = 2 And orderAlg > 0 Then
+        s = s & "   Rule                : " & ac2fBNOrderName(orderAlg) & vbCrLf
+        s = s & "   Letters             : " & ac2fBNLetters() & ", " & _
+                ac2fBNSetups() & " setups" & vbCrLf
+    ElseIf m_seqMissing > 0 Then
+        s = s & "   Not in page stack   : " & m_seqMissing & _
+                " (picked inside a group; sent last, as selected)" & vbCrLf
     End If
+    s = s & "   Head afterwards     : " & _
+            ac2fPLParkName(ac2fGetLng(AC2F_K_PL_PARK, AC2F_DEF_PL_PARK)) & vbCrLf
     s = s & vbCrLf
 
     s = s & "PLACEMENT" & vbCrLf

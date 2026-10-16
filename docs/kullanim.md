@@ -575,9 +575,36 @@ bırakılır ki elle gönderebilesiniz.
 
 ### Kesim sırası
 
-Gönderilen konturların sırası `ac2fBending` tarafından belirlenir —
-bkz. **9. Bükme sırası**. Ayrı bir plotter ayarı yoktur: ayar 47 hem
-`ac2fPlotSend` hem bükme makrolarını yönetir.
+Nesneler **Object Manager'daki sırayla**, en üstteki önce gider; yolda
+hiçbir şey yeniden sıralanmaz. Seçim (`ActiveSelectionRange`) bu sırayı
+garanti etmediği için her seçili nesne sayfa yığınında kimliğiyle
+(`StaticID`) bulunur. Bir grubun içinden tek tek seçilmiş nesneler
+sayfa yığınında yoktur; geri kalanların ardından, seçim sırasıyla
+gider ve rapor kaç tane olduğunu söyler.
+
+| `Send order` (ayar 47) | Sıra |
+|---|---|
+| `0` *(varsayılan)* | Object Manager, üstten başlayarak |
+| `1` | Object Manager, alttan başlayarak |
+| `2` | Bükme sırası, o anda hesaplanır (bkz. **9. Bükme sırası**) |
+
+Bükme sırasıyla kesmenin olağan yolu: önce ana menü `12` (sırayı
+nesnelere uygular, Object Manager'ı yeniden dizer), sonra gönder.
+
+### İş bitince kafa nerede bekler
+
+| `Park` (ayar 48) | Sonuç |
+|---|---|
+| `1` *(varsayılan)* | Bıçak kalkar, kafa **işin en üst noktasına** gider |
+| `0` | Orijine döner (`PU0,0;`) |
+| `2` | Son kesimin bittiği yerde kalır |
+
+"En üst", işin **ekranda göründüğü hâliyle** sol üst köşesidir. Nokta
+işle aynı `Rotate` ve `Mirror`'dan geçer, yani makine işi hangi yöne
+çevirirse çevirsin işin tepesinde kalır (sekiz dönüş/aynalama
+birleşiminin hepsinde doğrulandı; kenar payını da hiç etkilemez). Bazı
+makineler `SP0`'dan sonra kendi orijinine döner; `Preamble = 0` `SP0`'ı
+göndermez.
 
 ### Neden düzeltme adımı yok
 
@@ -708,7 +735,7 @@ Ortadaki satır önemli: çizim tamamen pozitifse min 0,0 çıkar,
 normalizasyon sabit bir kaydırmaya döner, iş kenara oturmaz ve malzeme
 boşa gider.
 
-### Ayarlar (40-46)
+### Ayarlar (40-48)
 
 | # | Ayar | Varsayılan | Ne yapar |
 |---|---|---|---|
@@ -719,8 +746,10 @@ boşa gider.
 | 44 | PD pairs | 1 | Komut başına koordinat çifti. Kesmiyorsa buradan başlayın |
 | 45 | Preamble | 1 | `2` = `IN;` gönderme (panel ayarları korunur) |
 | 46 | Send delay | 0 | KB başına duraklama. Seri dönüştürücü için |
+| 47 | Send order | 0 | `0` Object Manager üstten, `1` alttan, `2` bükme sırası |
+| 48 | Park | 1 | İş bitince kafa: `1` işin tepesi, `0` orijin, `2` olduğu yer |
 
-Bükme sırası ayarları **47-53**, `BEND` grubunda — bkz. 9. bölüm.
+Bükme sırası ayarları **49-55**, `BEND` grubunda — bkz. 9. bölüm.
 
 Plotter adresi **ayar sayfasında değil** — gönderirken sorulur ve
 hatırlanır. Bir makine adresi, geometri parametresi değil.
@@ -730,9 +759,8 @@ hatırlanır. Bir makine adresi, geometri parametresi değil.
 - Tek kalem kullanılır (`SP1`). Renk/katman başına kalem ataması yok.
 - Sayfa sonu (`PG;`) gönderilmez — beklemediğiniz bir malzeme ilerlemesi
   olmaz. Gerekiyorsa plotter panelinden verin.
-- Yol sırası **bükme sırasına göre** dizilir (ayar 47); `0` yaparsanız
-  nesneler belgedeki sırayla gider. Kalem yolu kısaltma amacı güden bir
-  optimizasyon değildir — amaç bükme kurulumunu azaltmaktır.
+- Yol sırası **Object Manager sırasıdır** (ayar 47). Kalem yolunu
+  kısaltan bir optimizasyon yapılmaz.
 - Bitmap ve yol taşımayan nesneler atlanır.
 - Gönderim başarısız olsa bile **dosya yazılmıştır**; raporda yolu
   vardır, elle gönderebilirsiniz.
@@ -750,8 +778,14 @@ gibi alınırsa `NOBOBOXB` sekiz kurulumdur; sıraya konunca dörttür.
 | `13` | `ac2fBendPreview` | Sayfada numaralandırır, başka hiçbir şeye dokunmaz |
 | `14` | `ac2fBendReport` | Sırayı listeler, hiçbir şeyi değiştirmez |
 
-Aynı sıra **plotter'a gönderirken de** uygulanır (`ac2fPlotSend`); ayrı
-bir ayar yok, ayar 47 ikisini birden yönetir.
+**Plotter'a göndermek:** `ac2fPlotSend` nesneleri **Object Manager'daki
+sırayla**, en üstteki önce gönderir ve yolda hiçbir şeyi yeniden
+sıralamaz. Bükme sırasıyla kesmek için önce `12` ile sırayı uygulayın —
+Object Manager yeniden dizilir — sonra gönderin. Ya da `Send order`
+(ayar 47) = `2` ile plotter sırayı kendisi hesaplasın.
+
+**Algoritma her çalıştırmada sorulur.** `12`, `13` ve `14` önce 1/2/3
+seçimini ister; son seçtiğiniz varsayılan gelir ve hatırlanır.
 
 ### Nasıl çalışıyor
 
@@ -769,7 +803,7 @@ budur.
 **3. Önce aynılar.** Bir harfe gelindiğinde ondan sonraki **aynı
 şekilli** bütün harfler hemen arkasına çekilir.
 
-### Dört algoritma — `Order` (ayar 47)
+### Dört algoritma — `Order` (ayar 49)
 
 | | Sıra |
 |---|---|
@@ -797,14 +831,14 @@ S3 = B ×3, S4 = X.**
 ### `ac2fBendOrder` nesnelere ne yapar
 
 - **İstif sırası.** İlk bükülecek nesne en üste alınır (`Stack order`,
-  ayar 52 ile alta da alınabilir). Çoğu program dışarı yazarken istif
+  ayar 54 ile alta da alınabilir). Çoğu program dışarı yazarken istif
   sırasını kullanır, ama hangi uçtan başladıkları değişir; iş ters
   çıkarsa bu ayarı çevirin.
 - **İsim.** Nesne `[007 S03] eski adı` olur: **yedinci bükülecek, üçüncü
   kurulum.** Aynı `S` numarasını taşıyanlar aynı şekildir ve peş peşe
   bükülür. İsimler Object Manager'da görünür ve istif sırasının
   dayanmadığı pek çok işlemden sağ çıkar. Tekrar çalıştırınca eski etiket
-  sökülür, üst üste binmez. `Name objects` (53) ile kapatılabilir.
+  sökülür, üst üste binmez. `Name objects` (55) ile kapatılabilir.
 - **Hiçbir nesne sayfada oynatılmaz.** Tek `Undo` hepsini geri alır.
 
 Bir sınır: `Order 3` göbekleri sona atar, ama bir göbek **dışıyla aynı
@@ -815,26 +849,26 @@ tek tek yazıldığı için ayrım tam olarak uygulanır.
 ### Aynı sayılma ölçütü
 
 İki harf; kontur sayısı, uzunluk, kapsadığı alan ve kutu ölçüsü
-`Match tol` (51) içinde uyuşuyorsa aynıdır. En ve boy yer değişebilir,
+`Match tol` (53) içinde uyuşuyorsa aynıdır. En ve boy yer değişebilir,
 yani çeyrek tur döndürülmüş kopya da aynı sayılır. **Aynalanmış kopya
 sayılmaz** — ters yöne bükülür, kendi kurulumunu ister; işaretli alanın
 işareti bunu yakalar.
 
-**Gruplama sırayı ezer.** `Group same` (48) açıkken soldan sağa sıra
+**Gruplama sırayı ezer.** `Group same` (50) açıkken soldan sağa sıra
 bozulabilir; zaten amacı budur. Sayfadaki sıra kurulum sayısından daha
 önemliyse `0` yapın.
 
-### Ayarlar (47-53)
+### Ayarlar (49-55)
 
 | # | Ayar | Varsayılan | Ne işe yarar |
 |---|---|---|---|
-| 47 | `Order` | `1` | Yukarıdaki dört algoritma |
-| 48 | `Group same` | `1` | Aynı harfleri peş peşe bük |
-| 49 | `Column overlap` | 5 mm | Bir sütun sayılmak için gereken X bindirmesi |
-| 50 | `Curve limit` | 0,5 mm | Bir harfin "eğri" sayılması için gereken şişkinlik |
-| 51 | `Match tol` | 0,5 mm | İki harfin aynı sayılması için gereken yakınlık |
-| 52 | `Stack order` | `0` | İlk harf üstte mi altta mı |
-| 53 | `Name objects` | `1` | Sırayı nesne adlarına da yaz |
+| 49 | `Order` | `1` | Yukarıdaki dört algoritma |
+| 50 | `Group same` | `1` | Aynı harfleri peş peşe bük |
+| 51 | `Column overlap` | 5 mm | Bir sütun sayılmak için gereken X bindirmesi |
+| 52 | `Curve limit` | 0,5 mm | Bir harfin "eğri" sayılması için gereken şişkinlik |
+| 53 | `Match tol` | 0,5 mm | İki harfin aynı sayılması için gereken yakınlık |
+| 54 | `Stack order` | `0` | İlk harf üstte mi altta mı |
+| 55 | `Name objects` | `1` | Sırayı nesne adlarına da yaz |
 
 Eğri toleransı ayrı değil: konturları düz adımlara bölen tek ayar
 `Curve tol` (41), plotter grubunda.
@@ -863,7 +897,7 @@ SETTINGS  [Aluminium 2mm]
 N=val  ?N=help  #n=page  P=profiles  R=reset  Enter=close
 ```
 
-53 ayar tek `InputBox` istemine (≈1024 karakter) hiçbir düzende
+55 ayar tek `InputBox` istemine (≈1024 karakter) hiçbir düzende
 sığmadığı için sayfa **gruba göre bölündü**. Ama **ayar numaraları
 geneldir**: `36=180` yazmak hangi sayfada olursanız olun çalışır. Yani
 hâlâ tek menü — soru zinciri değil.

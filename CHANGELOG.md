@@ -2,6 +2,57 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.11.0] - 2026-10-16
+
+### Değişti: plotter Object Manager sırasıyla gönderir
+
+`ac2fPlotSend` artık nesneleri **Object Manager'da göründükleri
+sırayla**, en üstteki önce gönderiyor ve yolda hiçbir şeyi yeniden
+sıralamıyor. Önceki sürüm bükme sırasını kendiliğinden uyguluyordu.
+
+`ActiveSelectionRange` bu sırayı garanti etmediği için her seçili nesne
+sayfa yığınında (`ActivePage.Shapes`, önden arkaya) `StaticID` ile
+bulunuyor. Grup içinden tek tek seçilmiş nesneler sayfa yığınında
+olmadığından geri kalanların ardından, seçim sırasıyla gidiyor; rapor
+kaç tane olduğunu söylüyor. Grup içindeki nesneler de Object Manager
+yönünde alınıyor.
+
+Yeni `Send order` ayarı (47): `0` üstten (varsayılan), `1` alttan,
+`2` bükme sırası o anda hesaplanır. Bükme sırasıyla kesmenin olağan
+yolu: önce `ac2fBendOrder` (Object Manager'ı yeniden dizer), sonra
+gönder.
+
+### Eklendi: iş bitince kafa işin tepesinde bekler
+
+Son konturdan sonra bıçak kalkıyor ve kafa **işin en üst noktasına**
+gidiyor — ekranda göründüğü hâliyle sol üst köşe. Nokta işle aynı
+`Rotate` ve `Mirror`'dan geçtiği için makine işi hangi yöne çevirirse
+çevirsin tepede kalıyor; dört dönüşün ve aynalamanın sekiz birleşiminde
+doğrulandı, kenar payını hiç etkilemiyor. `Park` ayarı (48): `1` tepe
+(varsayılan), `0` orijin (eski davranış, `PU0,0;`), `2` olduğu yer.
+Test L'si de aynı park adımından geçiyor.
+
+### Eklendi: yön, adres satırından
+
+Adres kutusu şu anki `Rotate`/`Mirror` değerini gösteriyor ve adresin
+sonuna yazılan `r270`, `r90`, `m1`, `r0 m0` gibi ekleri kalıcı ayar
+olarak kaydediyor. Yalnız ek yazılırsa kayıtlı adres kullanılıyor.
+
+Paket hâlâ hiçbir şey döndürmüyor — 90 derece makinenin ekseninden
+geliyor. Bu ek, düzeltmeyi ayar sayfasına girmeden tek gönderimde
+yapmak için.
+
+### Eklendi: bükme algoritması her çalıştırmada sorulur
+
+`ac2fBendOrder`, `ac2fBendPreview` ve `ac2fBendReport` önce 1/2/3
+seçimini istiyor; son seçim varsayılan olarak geliyor ve hatırlanıyor.
+
+### Değişti
+
+- Bükme ayarları **49-55** (iki plotter ayarı eklendiği için).
+- `Order 3` uyarısı: aynı nesnedeki göbek için öneri artık harfi
+  ayırmak ya da `Send order = 2`.
+
 ## [1.10.0] - 2026-10-04
 
 ### Düzeltildi: ayar dosyası içe aktarılamıyordu

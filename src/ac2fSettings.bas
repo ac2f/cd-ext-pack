@@ -563,8 +563,9 @@ Private Sub ac2fBuildTable()
         "cutters that also throws away the knife force and the tool you " & _
         "set on the front panel, and the machine then walks the job " & _
         "with the knife up." & vbCrLf & vbCrLf & _
-        "So if the test square traces instead of cutting, try 2. The " & _
-        "closing PU0,0;SP0; is sent with 1 and 2, and left out with 0."
+        "So if the test L traces instead of cutting, try 2. The " & _
+        "closing SP0; is sent with 1 and 2, and left out with 0; where " & _
+        "the head waits is set by Park."
 
     ac2fAddSetting AC2F_K_PL_DELAY, "PLOT", "Send delay", "ms", _
         AC2F_KIND_INT, CDbl(AC2F_DEF_PL_DELAY), 0, 5000, _
@@ -579,6 +580,37 @@ Private Sub ac2fBuildTable()
         vbCrLf & vbCrLf & _
         "If PD pairs = 1 did not help and the machine is on such an " & _
         "adapter, try 20."
+
+    ac2fAddSetting AC2F_K_PL_SEQ, "PLOT", "Send order", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_PL_SEQ), 0, 2, _
+        "The order the objects are sent to the plotter." & vbCrLf & vbCrLf & _
+        "0 = as the Object Manager lists them, top first." & vbCrLf & _
+        "1 = as the Object Manager lists them, bottom first." & vbCrLf & _
+        "2 = bending order, worked out on the spot (settings 49-55)." & _
+        vbCrLf & vbCrLf & _
+        "With 0 nothing is reordered on the way: what you see in the " & _
+        "Object Manager is what the machine gets. To cut in bending " & _
+        "order, run Bending order first, which rearranges the Object " & _
+        "Manager, and then send."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "Each selected object is found in the page stack by its ID, " & _
+        "because the selection itself does not keep the Object Manager " & _
+        "order. An object picked from inside a group is not in the " & _
+        "page stack; it is sent after the rest, in the order it was " & _
+        "selected, and the report says how many."
+
+    ac2fAddSetting AC2F_K_PL_PARK, "PLOT", "Park", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_PL_PARK), 0, 2, _
+        "Where the head waits once the job is finished." & vbCrLf & vbCrLf & _
+        "1 = at the top of the job, knife up." & vbCrLf & _
+        "0 = back at the origin, PU0,0." & vbCrLf & _
+        "2 = where the last cut ended, knife up." & vbCrLf & vbCrLf & _
+        "Top means the top left corner of the job as it sits on " & _
+        "screen. The point goes through the same Rotate and Mirror as " & _
+        "the job, so it stays the top of the work whichever way the " & _
+        "machine needs it turned." & vbCrLf & vbCrLf & _
+        "Some machines return to their own origin after SP0 whatever " & _
+        "the file says; Preamble 0 leaves SP0 out."
 
     '--- Bending ------------------------------------------------------
     ac2fAddSetting AC2F_K_BN_ORDER, "BEND", "Order", "", _
@@ -611,8 +643,10 @@ Private Sub ac2fBuildTable()
         "The order is worked out on the drawing as you see it, before " & _
         "Rotate and Mirror, so left is always the left of your screen." & _
         vbCrLf & vbCrLf & _
-        "It applies to Send to plotter as well, and the Bending macros " & _
-        "show it on the page or write it into the drawing."
+        "Send to plotter follows the Object Manager, so run Bending " & _
+        "order first and then send; or set Send order to 2 to have the " & _
+        "plotter work it out itself. The algorithm is also asked for " & _
+        "each time a Bending macro runs, offering this value."
 
     ac2fAddSetting AC2F_K_BN_GROUP, "BEND", "Group same", "", _
         AC2F_KIND_INT, CDbl(AC2F_DEF_BN_GROUP), 0, 1, _
@@ -696,9 +730,11 @@ Private Sub ac2fBuildTable()
         "If the machine or the export comes out back to front, change " & _
         "this."
     ac2fHelpMore vbCrLf & vbCrLf & _
-        "It changes nothing about where the objects sit on the page, " & _
-        "and nothing about Send to plotter, which writes the contours " & _
-        "out itself in the right order either way."
+        "It changes nothing about where the objects sit on the page." & _
+        vbCrLf & vbCrLf & _
+        "Send to plotter sends the Object Manager top first, so leave " & _
+        "this at 0 to have the plotter cut in bending order after " & _
+        "Bending order has run."
 
     ac2fAddSetting AC2F_K_BN_RENAME, "BEND", "Name objects", "", _
         AC2F_KIND_INT, CDbl(AC2F_DEF_BN_RENAME), 0, 1, _

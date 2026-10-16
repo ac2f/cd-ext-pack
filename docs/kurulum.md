@@ -129,6 +129,13 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.10.0'dan 1.11.0'a
+
+`ac2fPlot`, `ac2fBending`, `ac2fSettings`, `ac2fCore` değişti — dördünü
+silip yeniden aktarın. Plotter'a iki ayar eklendi (`Send order` 47,
+`Park` 48), bu yüzden bükme ayarları **49-55**'e kaydı. `Rotate` yine
+42, `Mirror` 43.
+
 ### Sürüm 1.9.0'dan 1.10.0'a
 
 1.9.0 ayar dosyası VBA'nın **25 satır birleştirme** sınırını aşıyordu
