@@ -1502,7 +1502,7 @@ Bad:
     ac2fJBIsoDate = Date
 End Function
 
-' The last two parts of a path: "001-pleksi-...ፐx1000".
+' The last two parts of a path: "001-pleksi-...\u1350x1000".
 Private Function ac2fJBTail2(ByVal p As String) As String
     Dim a As Long, b As Long
     a = InStrRev(p, "\")

@@ -52,7 +52,7 @@ sistem ANSI kod sayfasıyla okuduğu için, ASCII dışı her karakter makineden
 makineye bozulma riski taşır. Bunu tamamen ortadan kaldırmak için arayüz
 metinleri ve yorumlar İngilizce ve ASCII tutulur.
 
-Bu kuralı koruyun — yeni metin eklediğinizde doğrulayın:
+Bu kuralı `tools/lint.py` denetler (yorumlar dahil); elle bakmak için:
 
 ```bash
 LC_ALL=C grep -n '[^ -~\t]' src/*.bas    # hiçbir şey dönmemeli

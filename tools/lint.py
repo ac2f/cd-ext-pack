@@ -174,6 +174,14 @@ def main():
         if not raw[0].startswith('Attribute VB_Name'):
             errors.append(f'{f}:1 ilk satir "Attribute VB_Name" olmali')
 
+        # VBE imports with the ANSI code page, so the source stays pure
+        # ASCII; a stray character even in a comment breaks that rule.
+        for i, ln in enumerate(raw, 1):
+            bad = [c for c in ln if not (' ' <= c <= '~' or c == '\t')]
+            if bad:
+                errors.append(f'{f}:{i} ASCII disi karakter {bad[0]!r} '
+                              f'(U+{ord(bad[0]):04X}); kaynak saf ASCII kalmali')
+
         # VBA refuses a logical line built from more than 25 continuations
         # ("Too many line continuations"), and says so only at import time.
         # 20 leaves room to add a sentence to a help text later.
