@@ -20,6 +20,9 @@ alüminyum kompozit paneller için V derz çizgilerini üretir ve neon LED
 | `ac2fBending` | **Bükme sırası** — konturları harflere ayırır, sıraya dizer |
 | `ac2fPlot` | **Plotter** — HPGL üretip ağdan doğrudan gönderir |
 | `ac2fJob` | **Müşteri işi** — StockTrack müşterisi ve stoğuyla export ve takım yolu klasörlerini adlandırır |
+| `ac2fCheck` | **Export öncesi kontrol** — yazı, bitmap, çift çizgi, plakadan taşan parça |
+| `ac2fCutTime` | **Süre ile fiyat** — kesim + boşta gezme + dalma süresi, saatlik ücretle fiyat |
+| `ac2fCutArea` | **m² ile fiyat** — seçim / parça / nest plakası alanı, m² ücretiyle fiyat |
 | `ac2fSettings` | **Ayar sayfası ve profiller** — tüm ayarlar tek yerde |
 | `ac2fMenu` | Ana menü, hakkında |
 
@@ -59,6 +62,10 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fJobUsage` | Teklif kesilince tabakadan kullanılan parçayı `u1350x1000` dosyasıyla işaretler |
 | `ac2fJobOpen` | Müşteri klasörünü Gezgin'de açar |
 | `ac2fJobSetup` | StockTrack adresi, anahtar, gün klasörü, ayraç |
+| `ac2fJobHistory` | Müşterinin eski işleri: klasörü ya da CorelDRAW dosyasını açar |
+| `ac2fCheck` | Seçimi (ya da sayfayı) export öncesi kontrol eder |
+| `ac2fCutTime` | Seçimin kesim süresi ve saatlik ücretle fiyatı |
+| `ac2fCutArea` | Seçimin m² alanı ve m² ücretiyle fiyatı |
 | `ac2fSettings` | **Tüm ayarlar ve profiller — tek sayfa** |
 | `ac2fProfiles` | Doğrudan profil yönetimi |
 | `ac2fResetAllSettings` | Ayarları varsayılana döndürür |
@@ -505,6 +512,21 @@ Kurulum: StockTrack › Ayarlar › Corel entegrasyonu'ndan anahtar alın,
 iş menüsü `7` ile yapıştırın. Ayrıntı:
 **[docs/kullanim.md](docs/kullanim.md#13-müşteri-işi--stocktrack-ile-otomatik-adlandırma)**
 
+## Kontrol ve fiyat
+
+- **Export öncesi kontrol** (`ac2fCheck`, iş menüsü `9`): eğriye
+  çevrilmemiş yazı, bitmap, üst üste iki çizgi (iki kez kesilir), nest
+  plakasının kenarından taşan parça, export'a karışan plaka çerçevesi.
+  Export DXF bunu her seferinde kendisi yapar ve yalnız kesimi bozan
+  hatada sorar.
+- **Süre ile fiyat** (`ac2fCutTime`, `10`): kesim boyu × paso ÷ kesim
+  hızı + konturlar arası boşta gezme ÷ boşta hızı + kontur × dalma
+  süresi; saatlik ücret ve "iş en az X dakikadan başlar".
+- **m² ile fiyat** (`ac2fCutArea`, `11`): seçim kutusu, parçaların
+  kutuları ya da nest plakaları; m² ücreti ve asgari m².
+- Ücretler, asgariler ve makine hızları StockTrack'te (*Ayarlar › Kesim
+  fiyatlandırması*); teklifte süreyle fiyat da aynı değerleri kullanır.
+
 ## Ayarlar ve profiller
 
 **Tüm ayarlar tek sayfada.** Ana menüden `19` ile açılır; 55 ayar
@@ -608,4 +630,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.14.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.15.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

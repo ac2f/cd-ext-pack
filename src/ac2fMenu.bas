@@ -46,7 +46,7 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         " 18  -  Normalise an existing .plt and send" & vbCrLf & _
         " 19  -  Settings and profiles" & vbCrLf & _
         " 20  -  About" & vbCrLf & _
-        " 21  -  Customer job: link, export, folders  (J)" & vbCrLf
+        " 21  -  Customer job: export, folders, price  (J)" & vbCrLf
 
     choice = InputBox(m, ac2fTitle(CAPTION_), "1")
     If StrPtr(choice) = 0 Then Exit Sub          ' Cancel
@@ -122,6 +122,9 @@ Attribute ac2fAbout.VB_Description = "ac2f pack: Version and contents"
     s = s & "     Links the file to a StockTrack customer, takes" & vbCrLf
     s = s & "     the sheet from stock, names the DXF export and" & vbCrLf
     s = s & "     builds the stacked toolpath folders." & vbCrLf & vbCrLf
+    s = s & "   - Check, cut time, area price" & vbCrLf
+    s = s & "     Looks the drawing over before export; prices" & vbCrLf
+    s = s & "     the job by cutting time or by m2." & vbCrLf & vbCrLf
     prof = ac2fActiveProfile()
     If Len(prof) = 0 Then prof = "<none>"
 

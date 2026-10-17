@@ -15,6 +15,11 @@ Attribute VB_Name = "ac2fJob"
 '    ac2fJobUsage    - after the quote: mark the part of a sheet it used
 '    ac2fJobOpen     - open the customer folder in Explorer
 '    ac2fJobSetup    - server, key, day folder, separator
+'    ac2fJobHistory  - this customer's earlier jobs
+'
+'  The job menu also reaches Check before export (ac2fCheck) and the two
+'  price modules, Cut time (ac2fCutTime) and Area price (ac2fCutArea),
+'  which read their rates from StockTrack through this module.
 '
 '  WHERE THINGS GO
 '
@@ -80,12 +85,15 @@ Public Const AC2F_K_JB_DIALOG As String = "JBExportPenceresi"
 Public Const AC2F_K_JB_OPEN   As String = "JBKlasoruAc"
 Public Const AC2F_K_JB_NEST   As String = "JBNestPlakasi"
 Public Const AC2F_K_JB_BACK   As String = "JBGeriBakmaGun"
+Public Const AC2F_K_JB_CHECK  As String = "JBExportOncesiKontrol"
+Public Const AC2F_K_JB_PRICE  As String = "JBKesimFiyatlari"   ' string, last pricing row
 
 Public Const AC2F_DEF_JB_LONG   As Double = 4000#   ' longer sheets get p001 / p002
 Public Const AC2F_DEF_JB_DIALOG As Long = 1         ' show the DXF export dialog
 Public Const AC2F_DEF_JB_OPEN   As Long = 0         ' open Explorer afterwards
 Public Const AC2F_DEF_JB_NEST   As Long = 1         ' picking a sheet sets the nest sheet
 Public Const AC2F_DEF_JB_BACK   As Long = 30        ' days to look back for the job's folder
+Public Const AC2F_DEF_JB_CHECK  As Long = 1         ' check the drawing before every export
 Public Const AC2F_DEF_JB_SEP    As String = "--"
 
 Private Const JOB_SEC     As String = "Jobs"        ' per document links
@@ -93,6 +101,7 @@ Private Const PROP_NAME   As String = "ac2fJob"
 Private Const PROP_ID     As Long = 1
 Private Const REC_VER     As String = "j1"
 Private Const MAX_RECENT  As Long = 9
+Private Const HISTORY_DAYS As Long = 365
 Private Const HTTP_HEAD   As String = "#ac2f-corel "
 Private Const PROMPT_MAX  As Long = 880             ' InputBox stops near 1024
 
@@ -134,7 +143,11 @@ Attribute ac2fJob.VB_Description = "ac2f pack: Customer job menu - link, sheet, 
             "  4  -  Toolpath folders" & vbCrLf & _
             "  5  -  Used parts from the quote (u1350x1000 files)" & vbCrLf & _
             "  6  -  Open the customer folder" & vbCrLf & _
-            "  7  -  Job setup (server, key, day folder)"
+            "  7  -  Job setup (server, key, day folder)" & vbCrLf & _
+            "  8  -  Old jobs of this customer" & vbCrLf & _
+            "  9  -  Check the drawing before export" & vbCrLf & _
+            " 10  -  Cut time and price" & vbCrLf & _
+            " 11  -  Area (m2) price"
 
     If Len(jr.CustFolder) = 0 Then
         dflt = "1"
@@ -155,6 +168,10 @@ Attribute ac2fJob.VB_Description = "ac2f pack: Customer job menu - link, sheet, 
         Case "5": ac2fJobUsage
         Case "6": ac2fJobOpen
         Case "7": ac2fJobSetup
+        Case "8": ac2fJobHistory
+        Case "9": ac2fCheck
+        Case "10": ac2fCutTime
+        Case "11": ac2fCutArea
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_
     End Select
@@ -222,6 +239,11 @@ Attribute ac2fJobExport.VB_Description = "ac2f pack: Export DXF into the custome
 
     ac2fJBLoad jr
     If Not ac2fJBEnsure(jr) Then Exit Sub
+
+    ' text left as text, bitmaps, double lines, parts off the sheet
+    If ac2fGetLng(AC2F_K_JB_CHECK, AC2F_DEF_JB_CHECK) <> 0 Then
+        If Not ac2fCheckBeforeExport(sr) Then Exit Sub
+    End If
 
     custDir = ac2fJBCustomerDir(jr, True, errText, True)
     If Len(custDir) = 0 Then
@@ -471,6 +493,179 @@ Attribute ac2fJobSetup.VB_Description = "ac2f pack: StockTrack server, key, day 
         End If
     Loop
 End Sub
+
+' Earlier work for this customer: every day folder in the last year that
+' holds a folder for them, newest first. Pick one to open it, open its
+' CorelDRAW file, or carry this job on in it.
+Public Sub ac2fJobHistory()
+Attribute ac2fJobHistory.VB_Description = "ac2f pack: Find this customer's earlier jobs and open one"
+    Dim jr As ac2fJobRec
+    Dim root As String, fmt As String, dsep As String
+    Dim days() As String, names() As String
+    Dim hitDay() As String, hitInfo() As String, hitCdr() As String
+    Dim nHit As Long, nd As Long, nf As Long, back As Long, i As Long, k As Long
+    Dim cdir As String, m As String, ln As String, answer As String
+    Dim nExp As Long, nGrp As Long, grpNo As Long, c As Long
+    Dim h As String, t As String
+
+    If Not ac2fJBNeedDoc() Then Exit Sub
+    ac2fJBLoad jr
+    If Len(jr.CustFolder) = 0 Then
+        If Not ac2fJBPickCustomer(jr) Then Exit Sub
+        ac2fJBSave jr
+    End If
+    If Not ac2fJBDayRule(root, fmt, dsep) Then
+        ac2fWarn "The daily folder is not known (Job setup, 3).", CAPTION_
+        Exit Sub
+    End If
+
+    ReDim hitDay(1 To 32): ReDim hitInfo(1 To 32): ReDim hitCdr(1 To 32)
+    For back = 0 To HISTORY_DAYS
+        nd = ac2fJBListNames(root, ac2fJBStrftime(fmt, Date - back) & "*", True, days)
+        For i = 1 To nd
+            cdir = root & "\" & days(i) & "\" & jr.CustFolder
+            If ac2fJBDirExists(cdir) Then
+                nExp = ac2fJBListNames(cdir, "exp*", False, names)
+                nf = ac2fJBListNames(cdir, "*", True, names)
+                nGrp = 0
+                For k = 1 To nf
+                    If ac2fJBSplitGroup(names(k), grpNo, h, c, t) Then nGrp = nGrp + 1
+                Next k
+                nf = ac2fJBListNames(cdir, "*.cdr", False, names)
+                nHit = nHit + 1
+                If nHit > UBound(hitDay) Then
+                    ReDim Preserve hitDay(1 To nHit * 2)
+                    ReDim Preserve hitInfo(1 To nHit * 2)
+                    ReDim Preserve hitCdr(1 To nHit * 2)
+                End If
+                hitDay(nHit) = days(i)
+                hitInfo(nHit) = nExp & " export, " & nGrp & " folder"
+                If nf > 0 Then
+                    hitInfo(nHit) = hitInfo(nHit) & ", " & nf & " cdr"
+                    hitCdr(nHit) = cdir & "\" & names(nf)
+                End If
+            End If
+        Next i
+    Next back
+
+    If nHit = 0 Then
+        ac2fInfo "No folder for " & jr.CustFolder & " in the last " & HISTORY_DAYS & _
+                 " days.", CAPTION_
+        Exit Sub
+    End If
+
+    m = "OLD JOBS  -  " & jr.CustFolder & vbCrLf & "Newest first." & vbCrLf & vbCrLf
+    For i = 1 To nHit
+        ln = ac2fRPad(CStr(i), 3) & "  " & ac2fPad(hitDay(i), 24) & hitInfo(i) & vbCrLf
+        If Len(m) + Len(ln) > PROMPT_MAX - 160 Then
+            m = m & "     ... " & (nHit - i + 1) & " older" & vbCrLf
+            Exit For
+        End If
+        m = m & ln
+    Next i
+    m = m & vbCrLf & "A number opens that folder. Add O to open its CorelDRAW" & vbCrLf & _
+        "file too (3 O), or C to carry this job on in it (3 C)."
+
+    Do
+        answer = InputBox(m, ac2fTitle(CAPTION_), "1")
+        If StrPtr(answer) = 0 Then Exit Sub
+        answer = UCase$(Trim$(answer))
+        If Len(answer) = 0 Then Exit Sub
+        k = CLng(Val(answer))
+        If k >= 1 And k <= nHit Then Exit Do
+        ac2fWarn "Type a number from the list.", CAPTION_
+    Loop
+
+    cdir = root & "\" & hitDay(k) & "\" & jr.CustFolder
+    If Right$(answer, 1) = "C" Then
+        jr.JobDay = hitDay(k)
+        jr.JobAsked = CStr(CLng(Date))
+        ac2fJBSave jr
+        ac2fInfo "This job now carries on in" & vbCrLf & "   " & cdir & vbCrLf & vbCrLf & _
+                 "Exports and toolpath folders go there today.", CAPTION_
+    ElseIf Right$(answer, 1) = "O" Then
+        If Len(hitCdr(k)) = 0 Then
+            ac2fWarn "There is no .cdr file in that folder; opening the folder.", CAPTION_
+            ac2fJBExplore cdir
+        Else
+            On Error Resume Next
+            Application.OpenDocument hitCdr(k)
+            If Err.Number <> 0 Then ac2fWarn "Could not open " & hitCdr(k) & vbCrLf & _
+                                             Err.Description, CAPTION_
+            On Error GoTo 0
+        End If
+    Else
+        ac2fJBExplore cdir
+    End If
+End Sub
+
+'=====================================================================
+' FOR THE PRICE AND CHECK MODULES
+'=====================================================================
+
+' The linked job's sheet: size and thickness (mm) and kind. False when
+' the document has no sheet picked.
+Public Function ac2fJobSheetInfo(ByRef w As Double, ByRef h As Double, _
+                                 ByRef thickMm As Double, ByRef kind As String) As Boolean
+    Dim jr As ac2fJobRec
+    If ActiveDocument Is Nothing Then Exit Function
+    ac2fJBLoad jr
+    If Len(jr.MatKind) = 0 Then Exit Function
+    w = jr.MatW
+    h = jr.MatH
+    thickMm = Val(jr.MatThick) / 1000#
+    kind = jr.MatKind
+    ac2fJobSheetInfo = True
+End Function
+
+' The linked customer's name, for headings ("" when none).
+Public Function ac2fJobCustomerName() As String
+    Dim jr As ac2fJobRec
+    If ActiveDocument Is Nothing Then Exit Function
+    ac2fJBLoad jr
+    ac2fJobCustomerName = jr.CustLabel
+End Function
+
+' Cut pricing from StockTrack into v(1 To 8): hourly rate, minimum
+' minutes, area rate, minimum area, feed mm/s, rapid mm/s, plunge s,
+' pass depth mm; cur is the currency. The last answer is kept, so the
+' price modules still work offline; src says where the values came
+' from. False only when there is nothing at all.
+Public Function ac2fJobPricing(ByRef v() As Double, ByRef cur As String, _
+                               ByRef src As String) As Boolean
+    Dim rows() As String, f() As String
+    Dim n As Long, i As Long
+    Dim row As String, errText As String
+
+    ReDim v(1 To 8)
+    If Len(ac2fJBServer()) > 0 Then
+        n = ac2fJBGetRows("/corel/pricing", rows, errText)
+        If n > 0 Then
+            row = rows(1)
+            ac2fSetStr AC2F_K_JB_PRICE, row
+            src = "StockTrack"
+        Else
+            src = "saved copy (StockTrack did not answer)"
+        End If
+    Else
+        src = "saved copy (StockTrack is not set up)"
+    End If
+    If Len(row) = 0 Then row = ac2fGetStr(AC2F_K_JB_PRICE, "")
+    If Len(row) = 0 Then
+        ' Nothing ever read: speeds that make sense, no prices.
+        v(5) = 20#: v(6) = 100#: v(7) = 1#
+        cur = ""
+        src = "defaults: set the prices in StockTrack, Settings"
+        Exit Function
+    End If
+
+    f = Split(row & String$(9, vbTab), vbTab)
+    For i = 1 To 8
+        v(i) = Val(f(i - 1))
+    Next i
+    cur = f(8)
+    ac2fJobPricing = True
+End Function
 
 '=====================================================================
 ' PICKING

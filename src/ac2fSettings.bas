@@ -800,6 +800,16 @@ Private Sub ac2fBuildTable()
         "A job that has already been placed on an earlier day always " & _
         "asks, whatever this says. 0 looks no further than that: a " & _
         "new job then always starts under today."
+
+    ac2fAddSetting AC2F_K_JB_CHECK, "JOB", "Check first", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_JB_CHECK), 0, 1, _
+        "Look the drawing over before every Export DXF. 1 on, 0 off." & _
+        vbCrLf & vbCrLf & _
+        "The export stops, and asks, only for what spoils a cut: text " & _
+        "still text, bitmaps, a line drawn twice, a part over a sheet " & _
+        "edge, Nesting's sheet outline in the export. Open outlines, " & _
+        "specks and PowerClips are reported by Check (job menu 9) but " & _
+        "never hold an export up."
 End Sub
 
 ' Adds more help to the setting just declared. VBA refuses a statement

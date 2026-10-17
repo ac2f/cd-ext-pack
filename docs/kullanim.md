@@ -28,7 +28,7 @@
  18  -  Normalise an existing .plt and send
  19  -  Settings and profiles
  20  -  About
- 21  -  Customer job: link, export, folders  (J)
+ 21  -  Customer job: export, folders, price  (J)
 ```
 
 Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
@@ -1051,6 +1051,10 @@ koyun (bkz. [kurulum](kurulum.md#araç-çubuğuna-kısayol-koymak)).
 | `5` | `ac2fJobUsage` | Teklif kesildikten sonra tabakadan kullanılan parçayı işaretler (`u1350x1000`) |
 | `6` | `ac2fJobOpen` | Müşteri klasörünü Gezgin'de açar |
 | `7` | `ac2fJobSetup` | Sunucu, anahtar, gün klasörü, ayraç |
+| `8` | `ac2fJobHistory` | Müşterinin eski işleri |
+| `9` | `ac2fCheck` | Export öncesi kontrol ([14](#14-export-öncesi-kontrol)) |
+| `10` | `ac2fCutTime` | Süre ile fiyat ([15](#15-süre-ile-fiyat)) |
+| `11` | `ac2fCutArea` | m² ile fiyat ([16](#16-m-ile-fiyat)) |
 
 ### Klasör düzeni
 
@@ -1149,6 +1153,23 @@ yeter. Sonra takım yolları için `4`:
 
 Teklif kesildikten sonra `5` (aşağıda).
 
+### Eski işler
+
+İş menüsü `8` (`ac2fJobHistory`): bağlı müşterinin son bir yılda klasörü
+olan günleri, yeniden eskiye listeler.
+
+```
+OLD JOBS  -  Ozturk Reklam Ltd. Sti
+  1  25-10-2026--pazar       2 export, 1 folder
+  2  22-10-2026--persembe    3 export, 2 folder, 1 cdr
+```
+
+- `2` → o klasörü Gezgin'de açar.
+- `2 O` → klasördeki CorelDRAW dosyasını açar ("geçen ayki işin
+  aynısı").
+- `2 C` → bu işi o klasörden devam ettirir: export ve takım yolu
+  klasörleri bugün oraya gider.
+
 ### Kullanılan parça: `u` dosyası
 
 Teklifi StockTrack'te kestikten sonra iş menüsü `5` (`ac2fJobUsage`):
@@ -1223,7 +1244,7 @@ T          bağlantıyı dener
 StockTrack'e ulaşılamazsa eklenti çalışmayı sürdürür: müşteri adını ve
 plakayı yazarak devam edersiniz.
 
-### Ayarlar (56-60)
+### Ayarlar (56-61)
 
 | # | Ayar | Varsayılan | Ne işe yarar |
 |---|---|---|---|
@@ -1232,6 +1253,7 @@ plakayı yazarak devam edersiniz.
 | 58 | `Open folder` | `0` | İşten sonra müşteri klasörünü aç |
 | 59 | `Nest sheet` | `1` | Plaka seçilince Nesting plaka ölçüsünü de ayarla |
 | 60 | `Look back` | 30 gün | Yeni işte müşterinin eski klasörü bu kadar geriye aranır; `0` = hep bugün |
+| 61 | `Check first` | `1` | Her export'tan önce kontrol ([14](#14-export-öncesi-kontrol)) |
 
 `Export dialog = 0` yapınca DXF, Corel'in son kullandığı ayarlarla
 pencere açmadan yazılır.
@@ -1246,6 +1268,104 @@ pencere açmadan yazılır.
 - Klasör Gezgin'de ya da CAM programında açıksa yeniden adlandırma
   (`2pcs` → `3pcs`) başarısız olabilir; eklenti bunu raporlar ve o
   klasöre dokunmaz.
+
+## 14. Export öncesi kontrol
+
+`ac2fCheck` (iş menüsü `9`) seçimi, seçim yoksa sayfayı kontrol eder ve
+sorunlu nesneleri istersen seçer.
+
+| Kesimi bozar | Neden |
+|---|---|
+| Eğriye çevrilmemiş yazı | DXF'e yazı olarak gider, CAM kesemez (`Ctrl+Q`) |
+| Bitmap / OLE | Kesilecek bir şey yok |
+| Çift çizgi | Üst üste iki nesne: aynı çizgi iki kez kesilir |
+| Plakadan taşan | Nest plakasının kenarını aşan parça; nest yoksa işin plakasından büyük iş |
+| Plaka çerçevesi | Nesting'in plaka dikdörtgeni export'a karışmış: plakanın etrafı da kesilir |
+
+| Bakmaya değer | |
+|---|---|
+| Açık kontur | Kazıma için doğru, parça kesimi için hata |
+| Kırıntı | 0,5 mm'den küçük nesne, kaçak nokta |
+| PowerClip | İçerik göründüğü gibi export edilmeyebilir |
+
+**Export DXF her seferinde kontrol eder** (`Check first`, ayar 61).
+Yalnız *kesimi bozan* bir şey varsa durur:
+
+```
+Yes       export anyway
+No        stop and select them
+Cancel    stop
+```
+
+Açık kontur, kırıntı ve PowerClip export'u hiç durdurmaz.
+
+Çift çizgi, kutusu ve uzunluğu 0,05 mm içinde aynı olan iki nesnedir;
+gruplar ve PowerClip içerikleri de taranır.
+
+## 15. Süre ile fiyat
+
+Seçimi yapın, `ac2fCutTime` (iş menüsü `10`):
+
+```
+CUT TIME  -  Ozturk Reklam Ltd. Sti
+48 outline(s), 2 pass(es)  (pleksi 5 mm at 3 mm a pass)
+
+Cutting   12.450 mm x2 at 25 mm/s       16 min 36 s
+Travel    6.320 mm at 120 mm/s          53 s
+Plunges   48 x2 x 1.5 s                 2 min 24 s
+Total                                   19 min 53 s
+
+Billed    30 min  (minimum 30)
+Price     30 min x 1.500,00 TRY/h = 750,00 TRY
+```
+
+- **Kesim** = kontur boyu × paso ÷ kesim hızı.
+- **Boşta gezme**, kabaca: işin sol alt köşesinden en yakın kontura,
+  onu kesip bir sonraki en yakına, en sonda köşeye dönüş. Açık kontura
+  yakın ucundan girilir. CAM programının yolu genelde biraz daha kısadır;
+  tahmin güvenli taraftadır. 2000 konturdan sonra alandan tahmin edilir.
+- **Dalma** = kontur × paso × dalma süresi.
+- **Paso** = işin plakasının kalınlığı ÷ paso derinliği (yukarı yuvarlanır;
+  derinlik 0 ise tek paso).
+- **Fiyat** = faturalanan dakika ÷ 60 × saatlik ücret; faturalanan dakika
+  asgari süreden az olmaz.
+
+Değerler StockTrack'ten gelir (*Ayarlar › Kesim fiyatlandırması*), son
+okunan saklanır, StockTrack'e ulaşılamasa da çalışır. O iş için
+değiştirmek:
+
+```
+f=30        kesim hızı (mm/sn)       r=150   boşta gezme hızı
+p=1         dalma süresi (sn)        n=2     paso sayısı
+h=1800      saatlik ücret            m=20    asgari dakika
+```
+
+Birden fazlası tek satırda: `f=30 n=1`.
+
+## 16. m² ile fiyat
+
+Seçimi yapın, `ac2fCutArea` (iş menüsü `11`):
+
+```
+AREA PRICE  -  Ozturk Reklam Ltd. Sti
+
+1  Selection box     1180 x 870 mm         1,027 m2  <- used
+2  Each object's box 6 object(s)           0,640 m2
+3  Nest sheets       2 x 1220x2440         5,954 m2
+
+Billed    1,027 m2
+Price     1,027 m2 x 450,00 TRY = 462,15 TRY
+```
+
+| Alan | Ne zaman |
+|---|---|
+| `1` Seçim kutusu | Tek pano, tabela |
+| `2` Nesnelerin kutuları | Ayrı parçalar, harfler: her biri kendi kutusuyla |
+| `3` Nest plakaları | İşin gerçekten kaç plaka aldığı (sayfada nest çerçevesi varsa) |
+
+Sayfada nest çerçevesi varsa `3`, yoksa `1` seçili gelir; rakam yazınca
+değişir. **Fiyat** = max(alan × adet, asgari m²) × m² ücreti. O iş için:
+`a=450` (m² ücreti), `m=0.5` (asgari m²), `x=4` (adet).
 
 ## Bilinmesi gerekenler
 

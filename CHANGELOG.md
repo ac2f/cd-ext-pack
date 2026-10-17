@@ -2,6 +2,50 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.15.0] - 2026-10-17
+
+### Eklendi: export öncesi kontrol (`ac2fCheck`)
+
+Seçimi (ya da sayfayı) DXF'e gitmeden önce kontrol ediyor.
+
+- **Kesimi bozar:** eğriye çevrilmemiş yazı, bitmap/OLE, üst üste iki
+  çizgi (kutu ve uzunluk 0,05 mm içinde), nest plakasının kenarından
+  taşan parça ya da işin plakasından büyük iş, export'a karışan Nesting
+  plaka çerçevesi.
+- **Bakmaya değer:** açık kontur, 0,5 mm'den küçük kırıntı, PowerClip.
+- Export DXF her seferinde kontrol ediyor (`Check first`, ayar 61);
+  yalnız kesimi bozan hatada "yine de export / dur ve seç / vazgeç"
+  diye soruyor. Sorunlu nesneler tek adımda seçilebiliyor.
+
+### Eklendi: süre ile fiyat (`ac2fCutTime`)
+
+Kesim boyu ve konturların başlangıç/bitiş noktaları plotter'ın
+kullandığı düzleştirmeden (`ac2fBending`). Süre = kesim boyu × paso ÷
+kesim hızı + boşta gezme ÷ boşta hızı + kontur × paso × dalma süresi.
+Boşta gezme, işin sol alt köşesinden en yakın komşu turuyla
+hesaplanıyor (2000 konturdan sonra alan formülüyle). Paso = plaka
+kalınlığı ÷ paso derinliği. Fiyat = faturalanan dk (asgari dk'dan az
+değil) ÷ 60 × saatlik ücret.
+
+### Eklendi: m² ile fiyat (`ac2fCutArea`)
+
+Üç alan: seçim kutusu, nesnelerin kutuları toplamı, nest plakaları.
+Fiyat = max(alan × adet, asgari m²) × m² ücreti.
+
+Her iki modül ücretleri, asgarileri ve makine hızlarını StockTrack'ten
+(`/corel/pricing`) okuyor, son okunanı saklıyor (çevrimdışı çalışır);
+her değer o çalıştırma için değiştirilebiliyor (`f=30 n=2`, `x=4`).
+
+### Eklendi: eski işler (`ac2fJobHistory`)
+
+Müşterinin son bir yılda klasörü olan günleri, yeniden eskiye, export /
+klasör / cdr sayısıyla listeliyor. Numara klasörü açıyor; `3 O`
+klasördeki CorelDRAW dosyasını açıyor, `3 C` bu işi o klasörden devam
+ettiriyor.
+
+İş menüsü: `8` eski işler, `9` kontrol, `10` süre ile fiyat, `11` m²
+ile fiyat. Gereksinim: StockTrack'in kesim fiyatlandırmalı sürümü.
+
 ## [1.14.0] - 2026-10-17
 
 ### Eklendi: iş başka bir günde başladıysa sorar

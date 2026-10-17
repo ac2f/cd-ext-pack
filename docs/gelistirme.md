@@ -130,7 +130,10 @@ ac2fMenu ────┬──> ac2fLength ─────┐
              ├──> ac2fPlot ───────┤
              ├──> ac2fNest ───────┼──> ac2fCore
              ├──> ac2fJob ────────┤   (ac2fJob, ac2fNest'in plaka
-             └──> ac2fSettings ───┘    ayarlarını da okur/yazar)
+             ├──> ac2fCheck ──────┤    ayarlarını da okur/yazar)
+             ├──> ac2fCutTime ────┤   (ac2fBending'in düzleştirmesini
+             ├──> ac2fCutArea ────┤    kullanır; üçü de fiyatı ve
+             └──> ac2fSettings ───┘    işin plakasını ac2fJob'tan alır)
 ```
 
 `ac2fCore` hiçbir üst modüle bağlı değildir; kullanıcı arayüzü içermez

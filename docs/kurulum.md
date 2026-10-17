@@ -20,7 +20,7 @@ Yine de satır sonlarını CRLF yapmak için betiği çalıştırabilirsiniz:
 powershell -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
-`build\` klasöründe on iki dosya oluşur:
+`build\` klasöründe on beş dosya oluşur:
 
 ```
 ac2fCore.bas
@@ -33,6 +33,9 @@ ac2fBending.bas
 ac2fPlot.bas
 ac2fNest.bas
 ac2fJob.bas
+ac2fCheck.bas
+ac2fCutTime.bas
+ac2fCutArea.bas
 ac2fSettings.bas
 ac2fMenu.bas
 ```
@@ -57,7 +60,7 @@ ac2fMenu.bas
 
 ## 3. Modülleri içe aktar
 
-`ac2fPack` projesi seçiliyken, on iki dosyanın **her biri** için:
+`ac2fPack` projesi seçiliyken, on beş dosyanın **her biri** için:
 
 `File > Import File...` → `build\ac2*.bas` → **Open**
 
@@ -76,6 +79,9 @@ ac2fPack
     ├── ac2fPlot
     ├── ac2fNest
     ├── ac2fJob
+    ├── ac2fCheck
+    ├── ac2fCutTime
+    ├── ac2fCutArea
     ├── ac2fSettings
     └── ac2fMenu
 ```
@@ -130,6 +136,13 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
+
+### Sürüm 1.14.0'dan 1.15.0'a
+
+`ac2fCheck.bas`, `ac2fCutTime.bas`, `ac2fCutArea.bas` **yeni** —
+doğrudan aktarın. `ac2fJob`, `ac2fSettings`, `ac2fMenu`, `ac2fCore`
+değişti — dördünü silip yeniden aktarın. Yeni ayar `Check first` (61).
+StockTrack'i güncelleyip *Ayarlar › Kesim fiyatlandırması*'nı doldurun.
 
 ### Sürüm 1.13.0'dan 1.14.0'a
 
