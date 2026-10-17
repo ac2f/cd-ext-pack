@@ -2,6 +2,24 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.14.0] - 2026-10-17
+
+### Eklendi: iş başka bir günde başladıysa sorar
+
+Teklif 22'sinde verilip 25'inde onaylanan iş için export, takım yolu
+klasörleri ve klasörü aç artık soruyor: 22'sinin klasöründen devam mı
+(Evet), bugünün altında yeni klasör mü (Hayır), vazgeç mi (İptal). Soru
+eski klasörde kaç export ve takım yolu klasörü olduğunu da gösteriyor.
+
+- İşin günü dosyadaki bağlantıyla saklanıyor; aynı gün bir daha
+  sorulmuyor, ertesi gün yeniden soruluyor.
+- Henüz güne bağlanmamış dosyada müşterinin son `Look back` (30) günde
+  açılmış klasörüne bakılıyor.
+- Başka müşteri bağlanınca gün sıfırlanıyor.
+- Kullanılan parça (`ac2fJobUsage`) önce işin kendi gününe bakıyor.
+
+Yeni ayar: `Look back` (60). Eski bağlantı kayıtları olduğu gibi okunuyor.
+
 ## [1.13.0] - 2026-10-17
 
 ### Değişti: ebatta `X` yok, kullanılan parça tekliften

@@ -131,6 +131,11 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.13.0'dan 1.14.0'a
+
+`ac2fJob`, `ac2fSettings` ve `ac2fCore` değişti — üçünü silip yeniden
+aktarın. Yeni ayar `Look back` (60); diğer numaralar değişmedi.
+
 ### Sürüm 1.12.0'dan 1.13.0'a
 
 `ac2fJob` ve `ac2fSettings` değişti — ikisini silip yeniden aktarın.

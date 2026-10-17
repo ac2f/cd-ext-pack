@@ -29,7 +29,10 @@ Attribute VB_Name = "ac2fJob"
 '  day folder is created the same way.
 '
 '  The customer folder is the company name when there is one, else the
-'  person's name. Every name is plain ASCII: Turkish letters are folded
+'  person's name. A job that already has a folder on an earlier day (a
+'  quote given on the 22nd, approved on the 25th) asks whether to carry
+'  on there or to start again under today; the answer stays with the
+'  job for the rest of the day. Every name is plain ASCII: Turkish letters are folded
 '  (s for s-cedilla, i for dotless i), since CAM programs and the ANSI
 '  file calls VBA uses both trip over them.
 '
@@ -76,11 +79,13 @@ Public Const AC2F_K_JB_LONG   As String = "JBUzunPlakaMM"
 Public Const AC2F_K_JB_DIALOG As String = "JBExportPenceresi"
 Public Const AC2F_K_JB_OPEN   As String = "JBKlasoruAc"
 Public Const AC2F_K_JB_NEST   As String = "JBNestPlakasi"
+Public Const AC2F_K_JB_BACK   As String = "JBGeriBakmaGun"
 
 Public Const AC2F_DEF_JB_LONG   As Double = 4000#   ' longer sheets get p001 / p002
 Public Const AC2F_DEF_JB_DIALOG As Long = 1         ' show the DXF export dialog
 Public Const AC2F_DEF_JB_OPEN   As Long = 0         ' open Explorer afterwards
 Public Const AC2F_DEF_JB_NEST   As Long = 1         ' picking a sheet sets the nest sheet
+Public Const AC2F_DEF_JB_BACK   As Long = 30        ' days to look back for the job's folder
 Public Const AC2F_DEF_JB_SEP    As String = "--"
 
 Private Const JOB_SEC     As String = "Jobs"        ' per document links
@@ -107,6 +112,8 @@ Private Type ac2fJobRec
     MatW       As Double
     MatH       As Double
     MatLabel   As String
+    JobDay     As String     ' day folder the job's customer folder is in
+    JobAsked   As String     ' date (serial) the day was last chosen
 End Type
 
 '=====================================================================
@@ -216,11 +223,12 @@ Attribute ac2fJobExport.VB_Description = "ac2f pack: Export DXF into the custome
     ac2fJBLoad jr
     If Not ac2fJBEnsure(jr) Then Exit Sub
 
-    custDir = ac2fJBCustomerDir(jr, True, errText)
+    custDir = ac2fJBCustomerDir(jr, True, errText, True)
     If Len(custDir) = 0 Then
-        ac2fWarn errText, CAPTION_
+        If Len(errText) > 0 Then ac2fWarn errText, CAPTION_
         Exit Sub
     End If
+    ac2fJBSave jr
     fname = "exp" & ac2fJBNextExport(custDir) & ac2fJBSep() & jr.MatKind & ".dxf"
 
     On Error GoTo Fail
@@ -268,11 +276,12 @@ Attribute ac2fJobFolders.VB_Description = "ac2f pack: Create or stack the toolpa
     ac2fJBLoad jr
     If Not ac2fJBEnsure(jr) Then Exit Sub
 
-    custDir = ac2fJBCustomerDir(jr, False, errText)
+    custDir = ac2fJBCustomerDir(jr, False, errText, True)
     If Len(custDir) = 0 Then
-        ac2fWarn errText, CAPTION_
+        If Len(errText) > 0 Then ac2fWarn errText, CAPTION_
         Exit Sub
     End If
+    ac2fJBSave jr
 
     proposal = ac2fJBPropose(jr, why)
     Do
@@ -388,11 +397,12 @@ Attribute ac2fJobOpen.VB_Description = "ac2f pack: Open the customer folder of t
         If Not ac2fJBPickCustomer(jr) Then Exit Sub
         ac2fJBSave jr
     End If
-    custDir = ac2fJBCustomerDir(jr, True, errText)
+    custDir = ac2fJBCustomerDir(jr, True, errText, True)
     If Len(custDir) = 0 Then
-        ac2fWarn errText, CAPTION_
+        If Len(errText) > 0 Then ac2fWarn errText, CAPTION_
         Exit Sub
     End If
+    ac2fJBSave jr
     ac2fJBExplore custDir
 End Sub
 
@@ -798,8 +808,12 @@ Private Sub ac2fJBSetCust(ByRef jr As ac2fJobRec, ByVal row As String)
     jr.CustId = ac2fJBTab(row, 0)
     jr.CustFolder = ac2fJBTab(row, 1)
     jr.CustLabel = ac2fJBOr(ac2fJBTab(row, 2), jr.CustFolder)
-    ' the previous customer's own material is not this one's
+    ' the previous customer's own material and day are not this one's
     If changed And jr.MatOwner = "C" Then ac2fJBSetMat jr, ""
+    If changed Then
+        jr.JobDay = ""
+        jr.JobAsked = ""
+    End If
     ac2fJBRecentPush AC2F_K_JB_RCUST, row
 End Sub
 
@@ -1356,7 +1370,8 @@ Private Sub ac2fJBMarkUsage(ByRef jr As ac2fJobRec, ByVal qrow As String, _
         uh = it.MatH
         lbl = ac2fJBClip(ac2fJBTab(irows(i), 10), 60)
         gw = 0: gh = 0
-        grp = ac2fJBFindSheetGroup(jr.CustFolder, d0, it.MatKind, ac2fJBSpec(it), uw, uh, gw, gh)
+        grp = ac2fJBFindSheetGroup(jr.CustFolder, jr.JobDay, d0, it.MatKind, ac2fJBSpec(it), _
+                                   uw, uh, gw, gh)
         If Len(grp) = 0 Then
             missing = missing & "   " & lbl & vbCrLf
         ElseIf uw <= 0 Or uh <= 0 Or ac2fJBSameSize(uw, uh, gw, gh) Then
@@ -1416,55 +1431,77 @@ End Sub
 
 ' The toolpath folder a quote line's sheet went into: same kind and the
 ' same thickness, brand, variant and colour, in this customer's folder.
-' A quote is made after the cutting, so the day folders are searched
-' from the day after the quote back two weeks, then today. Among several
-' sizes, the smallest sheet the used part fits on. gw, gh return its size.
-Private Function ac2fJBFindSheetGroup(ByVal custFolder As String, ByVal d0 As Date, _
-                                      ByVal kind As String, ByVal tail As String, _
-                                      ByVal uw As Double, ByVal uh As Double, _
-                                      ByRef gw As Double, ByRef gh As Double) As String
-    Dim root As String, fmt As String, dsep As String
-    Dim cdir As String, best As String, h As String, t As String
-    Dim days() As String, grps() As String
-    Dim nd As Long, ng As Long, i As Long, j As Long, back As Long
-    Dim grpNo As Long, c As Long
-    Dim w As Double, ht As Double, bestArea As Double
+' The job's own day folder is tried first. Otherwise, a quote being made
+' after the cutting, the day folders are searched from the day after the
+' quote back two weeks, then today. Among several sizes, the smallest
+' sheet the used part fits on. gw, gh return its size.
+Private Function ac2fJBFindSheetGroup(ByVal custFolder As String, ByVal jobDay As String, _
+                                      ByVal d0 As Date, ByVal kind As String, _
+                                      ByVal tail As String, ByVal uw As Double, _
+                                      ByVal uh As Double, ByRef gw As Double, _
+                                      ByRef gh As Double) As String
+    Dim root As String, fmt As String, dsep As String, best As String
+    Dim days() As String
+    Dim nd As Long, i As Long, back As Long
+    Dim bestArea As Double
     Dim d As Date
 
     If Len(kind) = 0 Then Exit Function
     If Not ac2fJBDayRule(root, fmt, dsep) Then Exit Function
 
+    If Len(jobDay) > 0 Then
+        ac2fJBBestGroup root & "\" & jobDay & "\" & custFolder, kind, tail, uw, uh, _
+                        best, bestArea, gw, gh
+    End If
+    If Len(best) > 0 Then
+        ac2fJBFindSheetGroup = best
+        Exit Function
+    End If
+
     For back = -1 To 15
         If back = 15 Then d = Date Else d = d0 - back
         nd = ac2fJBListNames(root, ac2fJBStrftime(fmt, d) & "*", True, days)
         For i = 1 To nd
-            cdir = root & "\" & days(i) & "\" & custFolder
-            If ac2fJBDirExists(cdir) Then
-                ng = ac2fJBListNames(cdir, "*", True, grps)
-                For j = 1 To ng
-                    If ac2fJBSplitGroup(grps(j), grpNo, h, c, t) Then
-                        If StrComp(t, tail, vbTextCompare) = 0 And _
-                           StrComp(Left$(h, Len(kind) + 1), kind & "-", vbTextCompare) = 0 Then
-                            If ac2fJBParseSize(Mid$(h, Len(kind) + 2), w, ht) Then
-                                If (uw <= w + 1# And uh <= ht + 1#) Or _
-                                   (uh <= w + 1# And uw <= ht + 1#) Then
-                                    If Len(best) = 0 Or w * ht < bestArea Then
-                                        best = cdir & "\" & grps(j)
-                                        bestArea = w * ht
-                                        gw = w
-                                        gh = ht
-                                    End If
-                                End If
-                            End If
-                        End If
-                    End If
-                Next j
-            End If
+            ac2fJBBestGroup root & "\" & days(i) & "\" & custFolder, kind, tail, uw, uh, _
+                            best, bestArea, gw, gh
         Next i
         If Len(best) > 0 Then Exit For
     Next back
     ac2fJBFindSheetGroup = best
 End Function
+
+' Looks in one customer folder for a group of this kind and tail that the
+' used part fits on, keeping the smallest sheet found so far in best.
+Private Sub ac2fJBBestGroup(ByVal cdir As String, ByVal kind As String, _
+                            ByVal tail As String, ByVal uw As Double, ByVal uh As Double, _
+                            ByRef best As String, ByRef bestArea As Double, _
+                            ByRef gw As Double, ByRef gh As Double)
+    Dim grps() As String
+    Dim ng As Long, j As Long, grpNo As Long, c As Long
+    Dim h As String, t As String
+    Dim w As Double, ht As Double
+
+    If Not ac2fJBDirExists(cdir) Then Exit Sub
+    ng = ac2fJBListNames(cdir, "*", True, grps)
+    For j = 1 To ng
+        If ac2fJBSplitGroup(grps(j), grpNo, h, c, t) Then
+            If StrComp(t, tail, vbTextCompare) = 0 And _
+               StrComp(Left$(h, Len(kind) + 1), kind & "-", vbTextCompare) = 0 Then
+                If ac2fJBParseSize(Mid$(h, Len(kind) + 2), w, ht) Then
+                    If (uw <= w + 1# And uh <= ht + 1#) Or _
+                       (uh <= w + 1# And uw <= ht + 1#) Then
+                        If Len(best) = 0 Or w * ht < bestArea Then
+                            best = cdir & "\" & grps(j)
+                            bestArea = w * ht
+                            gw = w
+                            gh = ht
+                        End If
+                    End If
+                End If
+            End If
+        End If
+    Next j
+End Sub
 
 ' True when the part used is the whole sheet, either way round.
 Private Function ac2fJBSameSize(ByVal uw As Double, ByVal uh As Double, _
@@ -1740,7 +1777,7 @@ Private Function ac2fJBLoad(ByRef jr As ac2fJobRec) As Boolean
     End If
     If Left$(s, Len(REC_VER)) <> REC_VER Then Exit Function
 
-    f = Split(s & String$(14, Chr$(31)), Chr$(31))
+    f = Split(s & String$(16, Chr$(31)), Chr$(31))
     jr.CustId = f(1)
     jr.CustFolder = f(2)
     jr.CustLabel = f(3)
@@ -1754,6 +1791,8 @@ Private Function ac2fJBLoad(ByRef jr As ac2fJobRec) As Boolean
     jr.MatW = Val(f(11))
     jr.MatH = Val(f(12))
     jr.MatLabel = f(13)
+    jr.JobDay = f(14)
+    jr.JobAsked = f(15)
     ac2fJBLoad = True
 End Function
 
@@ -1766,7 +1805,8 @@ Private Sub ac2fJBSave(ByRef jr As ac2fJobRec)
     s = REC_VER & us & jr.CustId & us & jr.CustFolder & us & jr.CustLabel & us & _
         jr.MatId & us & jr.MatOwner & us & jr.MatKind & us & jr.MatThick & us & _
         jr.MatBrand & us & jr.MatGrade & us & jr.MatColor & us & _
-        ac2fNumStr(jr.MatW) & us & ac2fNumStr(jr.MatH) & us & jr.MatLabel
+        ac2fNumStr(jr.MatW) & us & ac2fNumStr(jr.MatH) & us & jr.MatLabel & us & _
+        jr.JobDay & us & jr.JobAsked
 
     ' Late bound: a CorelDRAW without document properties must still
     ' compile, and then only the registry copy is kept.
@@ -2068,23 +2108,121 @@ Private Function ac2fJBDayDir(ByVal create As Boolean, ByRef errText As String) 
     End If
 End Function
 
+' The job's customer folder. It goes under today's day folder, unless
+' this job (or, for a job not placed yet, this customer) already has a
+' folder on an earlier day: a quote made on the 22nd and approved on the
+' 25th. Then, when ask is True, the user chooses between carrying on in
+' the earlier folder and starting again under today. The answer is kept
+' with the job (save it afterwards), so it is asked once a day.
+' An empty result with an empty errText means the user cancelled.
 Private Function ac2fJBCustomerDir(ByRef jr As ac2fJobRec, ByVal create As Boolean, _
-                                   ByRef errText As String) As String
-    Dim dayDir As String
+                                   ByRef errText As String, _
+                                   Optional ByVal ask As Boolean = False) As String
+    Dim todayDir As String, root As String, todayName As String
+    Dim earlier As String, dayName As String, stamp As String
+    Dim p As Long
 
     If Len(jr.CustFolder) = 0 Then
         errText = "No customer is linked."
         Exit Function
     End If
-    dayDir = ac2fJBDayDir(create, errText)
-    If Len(dayDir) = 0 Then Exit Function
+    todayDir = ac2fJBDayDir(False, errText)
+    If Len(todayDir) = 0 Then Exit Function
+    p = InStrRev(todayDir, "\")
+    root = Left$(todayDir, p - 1)
+    todayName = Mid$(todayDir, p + 1)
+    stamp = CStr(CLng(Date))
+
+    ' --- an earlier day this job could carry on in ---
+    If StrComp(jr.JobDay, todayName, vbTextCompare) = 0 Then
+        earlier = ""
+    ElseIf Len(jr.JobDay) > 0 And ac2fJBDirExists(root & "\" & jr.JobDay & "\" & jr.CustFolder) Then
+        earlier = jr.JobDay
+    Else
+        earlier = ac2fJBEarlierDay(root, jr.CustFolder, todayName)
+    End If
+
+    dayName = todayName
+    If Len(earlier) > 0 Then
+        If jr.JobAsked = stamp And StrComp(jr.JobDay, earlier, vbTextCompare) = 0 Then
+            dayName = earlier                       ' answered already today
+        ElseIf ask Then
+            Select Case ac2fJBAskDay(root, earlier, todayName, jr.CustFolder)
+                Case vbYes: dayName = earlier
+                Case vbNo: dayName = todayName
+                Case Else
+                    errText = ""
+                    Exit Function
+            End Select
+            jr.JobAsked = stamp
+        ElseIf StrComp(jr.JobDay, earlier, vbTextCompare) = 0 Then
+            dayName = earlier                       ' only looking: where it was left
+        End If
+    End If
+    If ask Then jr.JobDay = dayName
+
     If create Then
-        If Not ac2fJBMakeDirs(dayDir & "\" & jr.CustFolder) Then
-            errText = "Could not create" & vbCrLf & "   " & dayDir & "\" & jr.CustFolder
+        If Not ac2fJBMakeDirs(root & "\" & dayName & "\" & jr.CustFolder) Then
+            errText = "Could not create" & vbCrLf & "   " & root & "\" & dayName & "\" & jr.CustFolder
             Exit Function
         End If
     End If
-    ac2fJBCustomerDir = dayDir & "\" & jr.CustFolder
+    ac2fJBCustomerDir = root & "\" & dayName & "\" & jr.CustFolder
+End Function
+
+' Most recent earlier day folder, within Look back days, holding a folder
+' for this customer. Empty when there is none or Look back is 0.
+Private Function ac2fJBEarlierDay(ByVal root As String, ByVal custFolder As String, _
+                                  ByVal todayName As String) As String
+    Dim r As String, fmt As String, dsep As String
+    Dim names() As String
+    Dim lim As Long, back As Long, n As Long, i As Long
+
+    lim = ac2fGetLng(AC2F_K_JB_BACK, AC2F_DEF_JB_BACK)
+    If lim <= 0 Then Exit Function
+    If Not ac2fJBDayRule(r, fmt, dsep) Then Exit Function
+    For back = 1 To lim
+        n = ac2fJBListNames(root, ac2fJBStrftime(fmt, Date - back) & "*", True, names)
+        For i = 1 To n
+            If StrComp(names(i), todayName, vbTextCompare) <> 0 Then
+                If ac2fJBDirExists(root & "\" & names(i) & "\" & custFolder) Then
+                    ac2fJBEarlierDay = names(i)
+                    Exit Function
+                End If
+            End If
+        Next i
+    Next back
+End Function
+
+' Carry on in the earlier day's folder (Yes), start under today (No),
+' or stop (Cancel). Says what is already in the earlier folder.
+Private Function ac2fJBAskDay(ByVal root As String, ByVal earlier As String, _
+                              ByVal todayName As String, ByVal custFolder As String) As VbMsgBoxResult
+    Dim names() As String
+    Dim cdir As String, m As String, lastExp As String
+    Dim nExp As Long, nDir As Long, nGrp As Long
+    Dim i As Long, grpNo As Long, c As Long
+    Dim h As String, t As String
+
+    cdir = root & "\" & earlier & "\" & custFolder
+    nExp = ac2fJBListNames(cdir, "exp*", False, names)
+    If nExp > 0 Then lastExp = names(nExp)
+    nDir = ac2fJBListNames(cdir, "*", True, names)
+    For i = 1 To nDir
+        If ac2fJBSplitGroup(names(i), grpNo, h, c, t) Then nGrp = nGrp + 1
+    Next i
+
+    m = "CUSTOMER FOLDER  -  " & custFolder & vbCrLf & vbCrLf
+    m = m & "This job already has a folder from an earlier day:" & vbCrLf
+    m = m & "   " & earlier & "\" & custFolder & vbCrLf
+    m = m & "   " & nExp & " export(s), " & nGrp & " toolpath folder(s)"
+    If Len(lastExp) > 0 Then m = m & ", last " & lastExp
+    m = m & vbCrLf & vbCrLf
+    m = m & "Today is " & todayName & "." & vbCrLf & vbCrLf
+    m = m & "Yes       carry on in " & earlier & vbCrLf
+    m = m & "No        start a new folder under today" & vbCrLf
+    m = m & "Cancel    stop"
+    ac2fJBAskDay = MsgBox(m, vbQuestion + vbYesNoCancel, ac2fTitle(CAPTION_))
 End Function
 
 ' Base folder, date format and separator: Job setup's base when one is

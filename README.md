@@ -490,7 +490,9 @@ Müşterinin dosyasını açın, `ac2fJobExport` çalıştırın: müşteriyi
 ```
 
 - Gün klasörü **CDR Auto Renamer**'ın ayarından okunur; aynı klasöre
-  yazılır.
+  yazılır. İş önceki bir günde başladıysa (teklif 22'sinde, onay
+  25'inde) o günün klasöründen mi devam edileceği, bugün yeni klasör mü
+  açılacağı sorulur.
 - Aynı tür/ebat/kalınlık/marka/varyant/renk **istiflenir**: `--2pcs--` →
   `--3pcs--`, `003` eklenir. Farklı olan yeni numaralı klasöre gider.
 - Klasör adında plakanın tam ölçüsü yazar. Teklif kesildikten sonra
@@ -606,4 +608,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.13.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.14.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

@@ -786,6 +786,20 @@ Private Sub ac2fBuildTable()
         "Then Nesting packs onto the sheet that will really be cut, " & _
         "including a cut-down one left from an earlier job, and " & _
         "Toolpath folders reads the number of sheets off the nest."
+
+    ac2fAddSetting AC2F_K_JB_BACK, "JOB", "Look back", "days", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_JB_BACK), 0, 3650, _
+        "How many days back to look for a folder this customer already " & _
+        "has, when a job is exported or given folders for the first " & _
+        "time." & vbCrLf & vbCrLf & _
+        "A quote given on the 22nd and approved on the 25th has its " & _
+        "folder under the 22nd. Found, the job asks whether to carry " & _
+        "on there or to start a new folder under today, and remembers " & _
+        "the answer for the day."
+    ac2fHelpMore vbCrLf & vbCrLf & _
+        "A job that has already been placed on an earlier day always " & _
+        "asks, whatever this says. 0 looks no further than that: a " & _
+        "new job then always starts under today."
 End Sub
 
 ' Adds more help to the setting just declared. VBA refuses a statement

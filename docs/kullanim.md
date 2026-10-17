@@ -1071,7 +1071,8 @@ koyun (bkz. [kurulum](kurulum.md#araç-çubuğuna-kısayol-koymak)).
   (`%LOCALAPPDATA%\CdrAutoRenamer\config.json`): ana dizin, tarih biçimi
   ve ayraç oradan gelir, ikinci bir ayar gerekmez. Bugünün klasörü yoksa
   aynı adla açılır.
-- **Müşteri klasörü**: firma adı varsa o, yoksa kişi adı.
+- **Müşteri klasörü**: firma adı varsa o, yoksa kişi adı. İş daha önceki
+  bir günde başladıysa nereye yazılacağı sorulur (aşağıda).
 - **Export**: `exp` + sıra numarası + ayraç + malzeme türü. Numara o
   klasördeki son `exp`'nin bir fazlasıdır.
 - **Takım yolu klasörü**: `NNN-tür-ebat--Nadet--kalınlıkµm-marka-varyant-renk`.
@@ -1081,6 +1082,35 @@ koyun (bkz. [kurulum](kurulum.md#araç-çubuğuna-kısayol-koymak)).
   o zaman `5` klasörün içine `u1350x1000` gibi bir dosya koyar (aşağıda).
 - Bütün adlar **ASCII**'dir: Türkçe harfler katlanır (`Öztürk` →
   `Ozturk`). CAM programlarının çoğu Türkçe karakterli yolda sorun çıkarır.
+
+### İş başka bir günde başladıysa
+
+Teklif 22'sinde verildi, iş onaylandı ve bugün 25'i. Export, takım yolu
+klasörleri ya da klasörü aç çalışınca şu sorulur:
+
+```
+This job already has a folder from an earlier day:
+   22-10-2026--persembe\Ozturk Reklam Ltd. Sti
+   2 export(s), 1 toolpath folder(s), last exp02--pleksi.dxf
+
+Today is 25-10-2026--pazar.
+
+Yes       carry on in 22-10-2026--persembe
+No        start a new folder under today
+Cancel    stop
+```
+
+- **Evet** → export numarası (`exp03`) ve istifler 22'sindeki klasörden
+  devam eder.
+- **Hayır** → 25'inin altında yeni müşteri klasörü açılır, numaralar
+  baştan başlar.
+- Cevap işle birlikte saklanır; **aynı gün** bir daha sorulmaz. Ertesi
+  gün yeniden sorulur.
+- Dosya henüz bir güne bağlı değilse müşterinin son **30 günde**
+  (`Look back`) açılmış klasörüne bakılır. Bulunursa yine sorulur;
+  bulunmazsa bugünün altına yazılır.
+- Başka bir müşteri bağlanınca günü de sıfırlanır.
+- Kullanılan parça (`5`) da önce işin kendi gününe bakar.
 
 ### İstifleme
 
@@ -1193,7 +1223,7 @@ T          bağlantıyı dener
 StockTrack'e ulaşılamazsa eklenti çalışmayı sürdürür: müşteri adını ve
 plakayı yazarak devam edersiniz.
 
-### Ayarlar (56-59)
+### Ayarlar (56-60)
 
 | # | Ayar | Varsayılan | Ne işe yarar |
 |---|---|---|---|
@@ -1201,6 +1231,7 @@ plakayı yazarak devam edersiniz.
 | 57 | `Export dialog` | `1` | DXF export penceresi gösterilsin mi |
 | 58 | `Open folder` | `0` | İşten sonra müşteri klasörünü aç |
 | 59 | `Nest sheet` | `1` | Plaka seçilince Nesting plaka ölçüsünü de ayarla |
+| 60 | `Look back` | 30 gün | Yeni işte müşterinin eski klasörü bu kadar geriye aranır; `0` = hep bugün |
 
 `Export dialog = 0` yapınca DXF, Corel'in son kullandığı ayarlarla
 pencere açmadan yazılır.
