@@ -129,7 +129,8 @@ ac2fMenu ────┬──> ac2fLength ─────┐
              ├──> ac2fBending ────┤
              ├──> ac2fPlot ───────┤
              ├──> ac2fNest ───────┼──> ac2fCore
-             └──> ac2fSettings ───┘
+             ├──> ac2fJob ────────┤   (ac2fJob, ac2fNest'in plaka
+             └──> ac2fSettings ───┘    ayarlarını da okur/yazar)
 ```
 
 `ac2fCore` hiçbir üst modüle bağlı değildir; kullanıcı arayüzü içermez
@@ -599,6 +600,35 @@ Sayfadaki değerler `ac2fSheetVal` ile kompakt biçimlenir (binlik ayırıcı
 yok, tam sayıda ondalık yok); `ac2fSettingText` tam biçimi `?N` ve
 raporlar için korur. Bu ayrım olmadan `1220.00` sütuna sığmayıp
 `1220.0` diye kırpılıyordu.
+
+## Müşteri işi (`ac2fJob`)
+
+StockTrack'le konuşan tek modül. Üç tasarım kararı:
+
+**Düz metin protokol.** VBA'da JSON ayrıştırıcı yok. StockTrack'in
+`/corel/*` uçları sekmeyle ayrılmış, tamamen ASCII satırlar döner; ilk
+satır `#ac2f-corel 1`. Modül bu başlığı görmezse yanlış adrese
+bağlandığını söyler. İstek `MSXML2.ServerXMLHTTP.6.0` ile gider (zaman
+aşımı alır, IE önbelleğinden cevap vermez); yoksa WinHttp.
+
+**Adlandırma kuralı iki yerde, aynı.** Müşteri klasörü ve ad jetonları
+StockTrack'te üretilir (`corel-naming.util.ts`, Jest testli); modül
+bunları olduğu gibi kullanır. Elle yazılan müşteri/plaka için aynı
+kuralın VBA kopyası var (`ac2fJBSafeName`, `ac2fJBToken`, `ac2fJBFold`).
+Biri değişirse öteki de değişmeli — yoksa aynı plaka iki klasöre düşer.
+Türkçe harfler `ChrW` kodlarıyla katlanır; kaynak ASCII kalır.
+
+**İstif durumu diskte.** Hangi klasörün kaç sayfa olduğu hiçbir yerde
+saklanmaz; klasör adından okunur (`ac2fJBSplitGroup`). `--` ile ayrılmış
+her yerde `rakam + pcs` aranır, bu yüzden ayraç `-` bile olsa çözülür.
+Jeton hiçbir zaman `--` içermez (harf/rakam dışı her dizi tek `-`).
+`Dir` iç içe çağrılamadığı için klasörler önce tek seferde listelenir;
+varlık denetimi `GetAttr` ile yapılır.
+
+Belge bağlantısı `Document.Properties` ile dosyaya yazılır. Bu üye
+**geç bağlanır** (`As Object`): olmadığı bir sürümde erken bağlı çağrı
+bütün projeyi derletmezdi. Kayıt defterindeki kopya dosya yolunun
+özetiyle anahtarlanır.
 
 ## Yeni bir araç eklemek
 

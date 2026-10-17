@@ -2,6 +2,43 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.12.0] - 2026-10-17
+
+### Eklendi: müşteri işi (`ac2fJob`)
+
+Müşterinin dosyası StockTrack'teki müşteriye bağlanıyor, plaka stoktan
+seçiliyor; DXF export'u ve takım yolu klasörleri bu ikisinden
+adlandırılıyor.
+
+- **Bağlama** (`ac2fJobLink`): son 9 müşteri ya da StockTrack'te arama
+  (Türkçe harfe duyarsız). Bağlantı belge özelliği olarak dosyanın
+  içinde, kaydedilmemiş dosyalar için kayıt defterinde de tutuluyor.
+  `<gün>\<müşteri>\` klasöründen açılan dosya o müşteriyi öneriyor.
+- **Plaka** (`ac2fJobMaterial`): müşterinin kendi (konsinye) malzemesi
+  önce, sonra son seçilenler ve işletme stoğu. Seçilen plaka Nesting'in
+  plaka ölçüsünü de ayarlıyor (`Nest sheet`).
+- **Export** (`ac2fJobExport`): `<gün>\<müşteri>\exp01--pleksi.dxf`,
+  numara klasördeki son export'un bir fazlası. Eksik müşteri ya da
+  plaka varsa önce onu soruyor.
+- **Takım yolu klasörleri** (`ac2fJobFolders`):
+  `001-pleksi-1220x2440--2pcs--2800um-akpolimer-dokme-beyaz\001 ...`.
+  Aynı plakalar istifleniyor (`2pcs` → `3pcs`, `003` ekleniyor); kesik
+  plaka `X1220x900` olarak ayrı klasöre gidiyor; `Long sheet`'ten
+  (4000 mm) uzun plakalarda her sayfa klasörüne `p001`, `p002`. Plan
+  Nesting'in plaka çerçevelerinden ya da seçimin ölçüsünden öneriliyor.
+- **Gün klasörü** CDR Auto Renamer'ın `config.json`'ından okunuyor
+  (ana dizin, tarih biçimi, ayraç); yoksa aynı adla açılıyor.
+- StockTrack'e ulaşılamazsa müşteri ve plaka yazılarak devam ediliyor.
+
+Yeni ayar grubu `JOB` (56-60): `Long sheet`, `Export dialog`,
+`Open folder`, `Nest sheet`, `Round up`. Sunucu adresi, anahtar, gün
+klasörü ve ayraç metin olduğu için iş menüsü `6`'da (`ac2fJobSetup`).
+
+Ana menüye `21` (ya da `J`) eklendi.
+
+Gereksinim: StockTrack'in Corel uçlarını içeren sürümü
+(`/api/v1/corel/...`, Ayarlar › Corel entegrasyonu).
+
 ## [1.11.0] - 2026-10-16
 
 ### Değişti: plotter Object Manager sırasıyla gönderir

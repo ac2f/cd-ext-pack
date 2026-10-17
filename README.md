@@ -19,6 +19,7 @@ alüminyum kompozit paneller için V derz çizgilerini üretir ve neon LED
 | `ac2fNest` | **Nesting** — parçaları plakalara yerleştirir |
 | `ac2fBending` | **Bükme sırası** — konturları harflere ayırır, sıraya dizer |
 | `ac2fPlot` | **Plotter** — HPGL üretip ağdan doğrudan gönderir |
+| `ac2fJob` | **Müşteri işi** — StockTrack müşterisi ve stoğuyla export ve takım yolu klasörlerini adlandırır |
 | `ac2fSettings` | **Ayar sayfası ve profiller** — tüm ayarlar tek yerde |
 | `ac2fMenu` | Ana menü, hakkında |
 
@@ -50,6 +51,13 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fPlotTest` | 40 × 80 mm test L'si gönderir — makine mi dosya mı, ayırır |
 | `ac2fPlotSave` | HPGL'i dosyaya yazar (incelemek için) |
 | `ac2fPlotFixSend` | Var olan bir `.plt`'yi normalize edip gönderir |
+| `ac2fJob` | **Müşteri işi menüsü** (ana menü `21` / `J`) |
+| `ac2fJobLink` | Dosyayı StockTrack'teki müşteriye bağlar |
+| `ac2fJobMaterial` | İşin plakasını stoktan seçer (müşterinin kendi malı önce) |
+| `ac2fJobExport` | DXF'i `<gün>\<müşteri>\exp01--pleksi.dxf` olarak yazar |
+| `ac2fJobFolders` | Takım yolu klasörlerini açar, aynı plakaları istifler |
+| `ac2fJobOpen` | Müşteri klasörünü Gezgin'de açar |
+| `ac2fJobSetup` | StockTrack adresi, anahtar, gün klasörü, ayraç |
 | `ac2fSettings` | **Tüm ayarlar ve profiller — tek sayfa** |
 | `ac2fProfiles` | Doğrudan profil yönetimi |
 | `ac2fResetAllSettings` | Ayarları varsayılana döndürür |
@@ -466,6 +474,31 @@ ardından `PD` gelen `PU`'lar). Sondaki `PU0,0;` kalem park komutudur,
 olan bir dosyada min 0,0 çıkar ve normalizasyon sabit bir kaydırmaya
 döner — iş kenarda kalmaz, malzeme boşa gider.
 
+## Müşteri işi (StockTrack)
+
+Müşterinin dosyasını açın, `ac2fJobExport` çalıştırın: müşteriyi
+(StockTrack'te arayarak) ve plakayı (stoktan, müşterinin kendi malı
+önce) sorar, DXF'i günün klasörüne otomatik adla yazar.
+
+```
+17-10-2026--cumartesi\Ozturk Reklam Ltd. Sti\exp01--pleksi.dxf
+                                             001-pleksi-1220x2440--2pcs--2800um-akpolimer-dokme-beyaz\001
+                                                                                                     \002
+                                             002-pleksi-X1220x900--1pcs--2800um-akpolimer-dokme-siyah\001
+```
+
+- Gün klasörü **CDR Auto Renamer**'ın ayarından okunur; aynı klasöre
+  yazılır.
+- Aynı tür/ebat/kalınlık/marka/varyant/renk **istiflenir**: `--2pcs--` →
+  `--3pcs--`, `003` eklenir. Farklı olan yeni numaralı klasöre gider.
+- Başında `X` olan ebat, plakanın bir kısmıdır (`X1220x900`).
+- 4000 mm'den uzun plakalarda her sayfa klasörüne `p001`, `p002`.
+- `ac2fJobFolders` sayfa sayısını Nesting'in plaka çerçevelerinden okur.
+
+Kurulum: StockTrack › Ayarlar › Corel entegrasyonu'ndan anahtar alın,
+iş menüsü `6` ile yapıştırın. Ayrıntı:
+**[docs/kullanim.md](docs/kullanim.md#13-müşteri-işi--stocktrack-ile-otomatik-adlandırma)**
+
 ## Ayarlar ve profiller
 
 **Tüm ayarlar tek sayfada.** Ana menüden `19` ile açılır; 55 ayar
@@ -569,4 +602,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.11.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.12.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

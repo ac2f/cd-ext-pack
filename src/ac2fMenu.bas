@@ -5,7 +5,7 @@ Attribute VB_Name = "ac2fMenu"
 '  Entry point, settings and about box.
 '
 '  Macros:
-'    ac2fPack             - main menu
+'    ac2fPack             - main menu (J or 21 opens the customer job menu)
 '    ac2fResetAllSettings - restore every setting to its default
 '    ac2fAbout            - version and contents
 '
@@ -45,7 +45,8 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         " 17  -  Write HPGL to a file" & vbCrLf & _
         " 18  -  Normalise an existing .plt and send" & vbCrLf & _
         " 19  -  Settings and profiles" & vbCrLf & _
-        " 20  -  About" & vbCrLf
+        " 20  -  About" & vbCrLf & _
+        " 21  -  Customer job: link, export, folders  (J)" & vbCrLf
 
     choice = InputBox(m, ac2fTitle(CAPTION_), "1")
     If StrPtr(choice) = 0 Then Exit Sub          ' Cancel
@@ -73,6 +74,7 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         Case "18": ac2fPlotFixSend
         Case "19": ac2fSettings
         Case "20": ac2fAbout
+        Case "21", "J", "j": ac2fJob
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_
     End Select
@@ -116,6 +118,10 @@ Attribute ac2fAbout.VB_Description = "ac2f pack: Version and contents"
     s = s & "     left to right, bends identical letters on" & vbCrLf
     s = s & "     one setup, straight work before curved, and" & vbCrLf
     s = s & "     can hold the counters back to the end." & vbCrLf & vbCrLf
+    s = s & "   - Customer job" & vbCrLf
+    s = s & "     Links the file to a StockTrack customer, takes" & vbCrLf
+    s = s & "     the sheet from stock, names the DXF export and" & vbCrLf
+    s = s & "     builds the stacked toolpath folders." & vbCrLf & vbCrLf
     prof = ac2fActiveProfile()
     If Len(prof) = 0 Then prof = "<none>"
 

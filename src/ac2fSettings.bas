@@ -749,6 +749,52 @@ Private Sub ac2fBuildTable()
         "Object Manager lists them, so this is the readable record of " & _
         "the order. An earlier tag is stripped before the new one is " & _
         "written, so running it twice does not stack them up."
+
+    '--- Customer job -------------------------------------------------
+    ' Server, key and day folder are text, so they live in Job setup.
+    ac2fAddSetting AC2F_K_JB_LONG, "JOB", "Long sheet", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_JB_LONG, 0, 0, _
+        "Sheets longer than this get p001, p002 inside every sheet " & _
+        "folder of Toolpath folders, one per pass of the bed." & _
+        vbCrLf & vbCrLf & _
+        "4000 mm: a 1500 x 5000 composite sheet is cut in two goes, " & _
+        "so each of its 001, 002 ... folders holds p001 and p002. A " & _
+        "sheet more than twice as long gets p003 as well." & _
+        vbCrLf & vbCrLf & _
+        "The length that counts is the length used: a 900 mm strip " & _
+        "off that sheet needs no split. 0 never splits."
+
+    ac2fAddSetting AC2F_K_JB_DIALOG, "JOB", "Export dialog", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_JB_DIALOG), 0, 1, _
+        "Show CorelDRAW's DXF export dialog on Export DXF. 1 on, 0 off." & _
+        vbCrLf & vbCrLf & _
+        "The dialog is where the DXF version, units and curve " & _
+        "handling are chosen. CorelDRAW remembers what was chosen " & _
+        "last, so once those are right this can be 0 and the export " & _
+        "goes straight through with them."
+
+    ac2fAddSetting AC2F_K_JB_OPEN, "JOB", "Open folder", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_JB_OPEN), 0, 1, _
+        "Open the customer folder in Explorer after Export DXF and " & _
+        "Toolpath folders. 1 on, 0 off." & vbCrLf & vbCrLf & _
+        "Open the customer folder (job menu 5) does it on demand."
+
+    ac2fAddSetting AC2F_K_JB_NEST, "JOB", "Nest sheet", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_JB_NEST), 0, 1, _
+        "Picking the job's sheet from stock also sets Nesting's " & _
+        "Sheet W and Sheet H to it. 1 on, 0 off." & vbCrLf & vbCrLf & _
+        "Then Nesting packs onto the sheet that will really be cut, " & _
+        "including a cut-down one left from an earlier job, and " & _
+        "Toolpath folders reads the number of sheets off the nest."
+
+    ac2fAddSetting AC2F_K_JB_ROUND, "JOB", "Round up", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_JB_ROUND, 1, 0, _
+        "When only part of a sheet is used, its length is rounded up " & _
+        "to a multiple of this for the folder name." & vbCrLf & vbCrLf & _
+        "Parts reaching 873 mm up a 1220 x 2440 sheet, plus the top " & _
+        "margin of Nesting, give X1220x890 at 10 mm. A strip that " & _
+        "would leave less than 100 mm behind counts as the whole " & _
+        "sheet, since that offcut is not worth keeping."
 End Sub
 
 ' Adds more help to the setting just declared. VBA refuses a statement

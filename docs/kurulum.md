@@ -20,7 +20,7 @@ Yine de satır sonlarını CRLF yapmak için betiği çalıştırabilirsiniz:
 powershell -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
-`build\` klasöründe on dosya oluşur:
+`build\` klasöründe on iki dosya oluşur:
 
 ```
 ac2fCore.bas
@@ -32,6 +32,7 @@ ac2fCenterline.bas
 ac2fBending.bas
 ac2fPlot.bas
 ac2fNest.bas
+ac2fJob.bas
 ac2fSettings.bas
 ac2fMenu.bas
 ```
@@ -56,7 +57,7 @@ ac2fMenu.bas
 
 ## 3. Modülleri içe aktar
 
-`ac2fPack` projesi seçiliyken, on dosyanın **her biri** için:
+`ac2fPack` projesi seçiliyken, on iki dosyanın **her biri** için:
 
 `File > Import File...` → `build\ac2*.bas` → **Open**
 
@@ -74,6 +75,7 @@ ac2fPack
     ├── ac2fBending
     ├── ac2fPlot
     ├── ac2fNest
+    ├── ac2fJob
     ├── ac2fSettings
     └── ac2fMenu
 ```
@@ -128,6 +130,17 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
+
+### Sürüm 1.11.0'dan 1.12.0'a
+
+`ac2fJob.bas` **yeni** — doğrudan aktarın. `ac2fSettings`, `ac2fMenu`,
+`ac2fCore` değişti — üçünü silip yeniden aktarın. Ayar sayfasına `JOB`
+grubu eklendi (56-60); diğer ayar numaraları değişmedi.
+
+StockTrack bağlantısı için StockTrack'i de güncelleyin, *Ayarlar ›
+Corel entegrasyonu*'ndan anahtar oluşturun ve Corel'de ana menü `21` →
+`6` (Job setup) ile adresi ve anahtarı girin. Ayrıntı:
+[kullanım](kullanim.md#13-müşteri-işi--stocktrack-ile-otomatik-adlandırma).
 
 ### Sürüm 1.10.0'dan 1.11.0'a
 
