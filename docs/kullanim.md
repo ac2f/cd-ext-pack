@@ -1048,18 +1048,20 @@ koyun (bkz. [kurulum](kurulum.md#araç-çubuğuna-kısayol-koymak)).
 | `2` | `ac2fJobMaterial` | İşin plakasını stoktan seçer |
 | `3` | `ac2fJobExport` | DXF'i müşteri klasörüne otomatik adla yazar |
 | `4` | `ac2fJobFolders` | Takım yolu klasörlerini açar ya da istifler |
-| `5` | `ac2fJobOpen` | Müşteri klasörünü Gezgin'de açar |
-| `6` | `ac2fJobSetup` | Sunucu, anahtar, gün klasörü, ayraç |
+| `5` | `ac2fJobUsage` | Teklif kesildikten sonra tabakadan kullanılan parçayı işaretler (`u1350x1000`) |
+| `6` | `ac2fJobOpen` | Müşteri klasörünü Gezgin'de açar |
+| `7` | `ac2fJobSetup` | Sunucu, anahtar, gün klasörü, ayraç |
 
 ### Klasör düzeni
 
 ```
 <gün klasörü>\<müşteri>\exp01--pleksi.dxf
                         exp02--dekota.dxf
-                        001-pleksi-1220x2440--3pcs--2800um-akpolimer-dokme-beyaz\001
+                        001-pleksi-1350x2000--3pcs--2800um-akpolimer-dokme-beyaz\001
                                                                                 \002
                                                                                 \003
-                        002-pleksi-X1220x900--1pcs--2800um-akpolimer-dokme-siyah\001
+                                                                                \u1350x1000
+                        002-pleksi-1350x2000--1pcs--2800um-akpolimer-dokme-siyah\001
                         003-aluminyum-kompozit-1500x5000--1pcs--4000um-alucobond-gumus\001\p001
                                                                                           \p002
 ```
@@ -1074,9 +1076,9 @@ koyun (bkz. [kurulum](kurulum.md#araç-çubuğuna-kısayol-koymak)).
   klasördeki son `exp`'nin bir fazlasıdır.
 - **Takım yolu klasörü**: `NNN-tür-ebat--Nadet--kalınlıkµm-marka-varyant-renk`.
   Kalınlık mikron yazılır (2,8 mm → `2800um`).
-- **Ebat**: `1220x2440` tam plaka. Başında büyük **`X`** varsa plakanın
-  bir kısmı kullanılıyor demektir: `X1220x900`, 1220'lik plakadan 900 mm
-  şerit. Geriye 100 mm'den az kalacaksa plaka tam sayılır.
+- **Ebat**: klasör adında her zaman plakanın stoktaki **tam** ölçüsü
+  yazar. Plakanın ne kadarının kullanıldığı teklif kesilince belli olur;
+  o zaman `5` klasörün içine `u1350x1000` gibi bir dosya koyar (aşağıda).
 - Bütün adlar **ASCII**'dir: Türkçe harfler katlanır (`Öztürk` →
   `Ozturk`). CAM programlarının çoğu Türkçe karakterli yolda sorun çıkarır.
 
@@ -1084,13 +1086,13 @@ koyun (bkz. [kurulum](kurulum.md#araç-çubuğuna-kısayol-koymak)).
 
 Tür, ebat, kalınlık, marka, varyant ve renk **aynıysa** sayfa aynı
 klasöre eklenir: `--2pcs--` → `--3pcs--` olur ve `003` açılır. Bunlardan
-biri farklıysa (başka renk, başka marka, kesik plaka) sıradaki numarayla
-yeni klasör açılır. Her seferinde ne yapılacağı önce gösterilir ve onay
-istenir.
+biri farklıysa (başka renk, başka marka, başka ölçüde plaka) sıradaki
+numarayla yeni klasör açılır. Bir kısmı kullanılacak plaka da tam
+plakalarla aynı klasöre istiflenir. Her seferinde ne yapılacağı önce
+gösterilir ve onay istenir.
 
 Dikey ebatı **`Long sheet`** (4000 mm) ayarından uzun plakalarda her
-`001`, `002` klasörünün içine `p001` ve `p002` açılır. Bakılan, kullanılan
-boydur: 5000'lik plakadan 900 mm'lik şerit bölünmez. İki katından uzun
+`001`, `002` klasörünün içine `p001` ve `p002` açılır. İki katından uzun
 plakada `p003` de gelir.
 
 ### Tipik akış
@@ -1104,17 +1106,44 @@ yeter. Sonra takım yolları için `4`:
 
 1. Parçaları **Nesting** ile plakaya dizdiyseniz (plaka seçilince
    Nesting'in plaka ölçüsü de ona ayarlanır), eklenti sayfadaki plaka
-   çerçevelerini sayar; dolu olanı tam, yarım kalanı `X` ile önerir.
-2. Nesting yoksa seçimin ölçüsünü plakayla karşılaştırır.
+   çerçevelerinden üzerinde parça olanları sayar.
+2. Nesting yoksa seçim için bir plaka önerir.
 3. Öneri kutuda hazır yazılıdır: Enter kabul eder, ya da düzeltirsiniz.
 
 | Yazın | Anlamı |
 |---|---|
-| `3` | 3 tam plaka |
-| `1 X1220x900` | 1 kesik plaka (900 mm şerit) |
-| `2, 1 X1220x900` | ikisi birden |
-| `1220x900` | `X` yazmasanız da plakadan küçükse `X` eklenir |
+| `3` | işin plakasından 3 adet |
+| `1 2050x3050` | başka ölçüde 1 plaka |
+| `2, 1 2050x3050` | ikisi birden |
 | `M` | önce başka plaka seç |
+
+Teklif kesildikten sonra `5` (aşağıda).
+
+### Kullanılan parça: `u` dosyası
+
+Teklifi StockTrack'te kestikten sonra iş menüsü `5` (`ac2fJobUsage`):
+
+1. Müşterinin son teklifleri listelenir (yeniden eskiye); Enter en
+   yenisini alır.
+2. Teklifin tabaka kalemleri okunur: hangi plakadan ne ölçü
+   kullanıldığı.
+3. Her kalem için takım yolu klasörü bulunur (tür, kalınlık, marka,
+   varyant, renk aynı; müşterinin klasöründe, teklif gününden iki hafta
+   geriye kadar). Plakanın **yalnız bir kısmı** kullanıldıysa o klasörün
+   içine o parçanın adını taşıyan bir dosya yazılır:
+
+```
+001-pleksi-1350x2000--1pcs--2800um-akpolimer-dokme-beyaz\u1350x1000
+```
+
+1350 × 2000 pleksinin 1000 × 1350'si kullanıldı demektir. Önce
+plakanın enine denk gelen kenar yazılır (`u1350x1000`). Tam kullanılan
+plakaya dosya konmaz. Dosyanın içinde teklif no, tarih ve adet yazar.
+
+Ne yazılacağı önce gösterilir. Aynı dosya zaten varsa dokunulmaz, yani
+iki kez çalıştırmak bir şey bozmaz. Teklif kaleminde ölçü girilmemişse
+StockTrack plakanın tamamını yazar ve dosya konmaz; parça satıyor ya da
+işliyorsanız kalemde en × boyu girin.
 
 ### Müşteri bağlama
 
@@ -1149,7 +1178,7 @@ sorar).
 
 1. StockTrack'te **Ayarlar › Corel entegrasyonu** → *Anahtar oluştur*.
    Sunucu adresi ve anahtar orada yazar.
-2. Corel'de iş menüsü `6` (`ac2fJobSetup`):
+2. Corel'de iş menüsü `7` (`ac2fJobSetup`):
 
 ```
 1=http://192.168.1.50/api/v1
@@ -1164,7 +1193,7 @@ T          bağlantıyı dener
 StockTrack'e ulaşılamazsa eklenti çalışmayı sürdürür: müşteri adını ve
 plakayı yazarak devam edersiniz.
 
-### Ayarlar (56-60)
+### Ayarlar (56-59)
 
 | # | Ayar | Varsayılan | Ne işe yarar |
 |---|---|---|---|
@@ -1172,7 +1201,6 @@ plakayı yazarak devam edersiniz.
 | 57 | `Export dialog` | `1` | DXF export penceresi gösterilsin mi |
 | 58 | `Open folder` | `0` | İşten sonra müşteri klasörünü aç |
 | 59 | `Nest sheet` | `1` | Plaka seçilince Nesting plaka ölçüsünü de ayarla |
-| 60 | `Round up` | 10 mm | Kesik plaka boyu bu katlara yuvarlanır |
 
 `Export dialog = 0` yapınca DXF, Corel'in son kullandığı ayarlarla
 pencere açmadan yazılır.
@@ -1180,6 +1208,8 @@ pencere açmadan yazılır.
 ### Bilinmesi gerekenler
 
 - StockTrack'ten **yalnız okunur**; stok düşülmez, iş kaydı açılmaz.
+- `u` dosyası teklifin kendi müşterisinin klasörüne gider; dosyayı
+  başka bir müşteriye bağladıysanız önce doğru müşteriyi bağlayın.
 - Bir istif klasörünü elle yeniden adlandırırsanız eklenti onu
   tanımayabilir; adı bozulmamış klasörler istiflenir.
 - Klasör Gezgin'de ya da CAM programında açıksa yeniden adlandırma

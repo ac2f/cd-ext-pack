@@ -56,6 +56,7 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fJobMaterial` | İşin plakasını stoktan seçer (müşterinin kendi malı önce) |
 | `ac2fJobExport` | DXF'i `<gün>\<müşteri>\exp01--pleksi.dxf` olarak yazar |
 | `ac2fJobFolders` | Takım yolu klasörlerini açar, aynı plakaları istifler |
+| `ac2fJobUsage` | Teklif kesilince tabakadan kullanılan parçayı `u1350x1000` dosyasıyla işaretler |
 | `ac2fJobOpen` | Müşteri klasörünü Gezgin'de açar |
 | `ac2fJobSetup` | StockTrack adresi, anahtar, gün klasörü, ayraç |
 | `ac2fSettings` | **Tüm ayarlar ve profiller — tek sayfa** |
@@ -482,21 +483,24 @@ Müşterinin dosyasını açın, `ac2fJobExport` çalıştırın: müşteriyi
 
 ```
 17-10-2026--cumartesi\Ozturk Reklam Ltd. Sti\exp01--pleksi.dxf
-                                             001-pleksi-1220x2440--2pcs--2800um-akpolimer-dokme-beyaz\001
+                                             001-pleksi-1350x2000--2pcs--2800um-akpolimer-dokme-beyaz\001
                                                                                                      \002
-                                             002-pleksi-X1220x900--1pcs--2800um-akpolimer-dokme-siyah\001
+                                                                                                     \u1350x1000
+                                             002-pleksi-1350x2000--1pcs--2800um-akpolimer-dokme-siyah\001
 ```
 
 - Gün klasörü **CDR Auto Renamer**'ın ayarından okunur; aynı klasöre
   yazılır.
 - Aynı tür/ebat/kalınlık/marka/varyant/renk **istiflenir**: `--2pcs--` →
   `--3pcs--`, `003` eklenir. Farklı olan yeni numaralı klasöre gider.
-- Başında `X` olan ebat, plakanın bir kısmıdır (`X1220x900`).
+- Klasör adında plakanın tam ölçüsü yazar. Teklif kesildikten sonra
+  `ac2fJobUsage`, plakanın yalnız bir kısmı kullanıldıysa klasöre
+  `u1350x1000` adlı bir dosya koyar.
 - 4000 mm'den uzun plakalarda her sayfa klasörüne `p001`, `p002`.
 - `ac2fJobFolders` sayfa sayısını Nesting'in plaka çerçevelerinden okur.
 
 Kurulum: StockTrack › Ayarlar › Corel entegrasyonu'ndan anahtar alın,
-iş menüsü `6` ile yapıştırın. Ayrıntı:
+iş menüsü `7` ile yapıştırın. Ayrıntı:
 **[docs/kullanim.md](docs/kullanim.md#13-müşteri-işi--stocktrack-ile-otomatik-adlandırma)**
 
 ## Ayarlar ve profiller
@@ -602,4 +606,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.12.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.13.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

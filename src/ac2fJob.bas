@@ -12,6 +12,7 @@ Attribute VB_Name = "ac2fJob"
 '    ac2fJobMaterial - pick the sheet from stock
 '    ac2fJobExport   - export DXF with an automatic name
 '    ac2fJobFolders  - create, or stack onto, the toolpath folders
+'    ac2fJobUsage    - after the quote: mark the part of a sheet it used
 '    ac2fJobOpen     - open the customer folder in Explorer
 '    ac2fJobSetup    - server, key, day folder, separator
 '
@@ -20,6 +21,7 @@ Attribute VB_Name = "ac2fJob"
 '    <day>\<customer>\exp01--pleksi.dxf
 '    <day>\<customer>\001-pleksi-1220x2440--2pcs--2800um-akpolimer-dokme-beyaz\001
 '                                                                           \002
+'                                                                           \u1220x900
 '
 '  The day folder is the one CDR Auto Renamer makes every morning. Its
 '  config.json is read for the base folder, the date format and the
@@ -32,9 +34,12 @@ Attribute VB_Name = "ac2fJob"
 '  file calls VBA uses both trip over them.
 '
 '  SIZES
-'  1220x2440 is a whole sheet. A leading X means only part of it is
-'  used: X1220x900 is a 900 mm strip across a 1220 wide sheet. A strip
-'  that would leave less than MIN_REMNANT behind counts as whole.
+'  A folder always carries the size of the sheet as stocked, whole. How
+'  much of it a job really used is known only once the quote is made, so
+'  Used parts reads the quote afterwards and drops a file named after
+'  the part into the sheet's folder: u1350x1000 is 1350 x 1000 mm used
+'  of a 1350 x 2000 sheet, the sheet's width first. A whole sheet gets
+'  no file.
 '
 '  STACKING
 '  Sheets that agree on kind, size, thickness, brand, grade and colour
@@ -71,13 +76,11 @@ Public Const AC2F_K_JB_LONG   As String = "JBUzunPlakaMM"
 Public Const AC2F_K_JB_DIALOG As String = "JBExportPenceresi"
 Public Const AC2F_K_JB_OPEN   As String = "JBKlasoruAc"
 Public Const AC2F_K_JB_NEST   As String = "JBNestPlakasi"
-Public Const AC2F_K_JB_ROUND  As String = "JBYuvarlamaMM"
 
 Public Const AC2F_DEF_JB_LONG   As Double = 4000#   ' longer sheets get p001 / p002
 Public Const AC2F_DEF_JB_DIALOG As Long = 1         ' show the DXF export dialog
 Public Const AC2F_DEF_JB_OPEN   As Long = 0         ' open Explorer afterwards
 Public Const AC2F_DEF_JB_NEST   As Long = 1         ' picking a sheet sets the nest sheet
-Public Const AC2F_DEF_JB_ROUND  As Double = 10#     ' partial sizes round up to this
 Public Const AC2F_DEF_JB_SEP    As String = "--"
 
 Private Const JOB_SEC     As String = "Jobs"        ' per document links
@@ -85,7 +88,6 @@ Private Const PROP_NAME   As String = "ac2fJob"
 Private Const PROP_ID     As Long = 1
 Private Const REC_VER     As String = "j1"
 Private Const MAX_RECENT  As Long = 9
-Private Const MIN_REMNANT As Double = 100#          ' mm; less left over = whole sheet
 Private Const HTTP_HEAD   As String = "#ac2f-corel "
 Private Const PROMPT_MAX  As Long = 880             ' InputBox stops near 1024
 
@@ -123,8 +125,9 @@ Attribute ac2fJob.VB_Description = "ac2f pack: Customer job menu - link, sheet, 
             "  2  -  Pick the sheet from stock" & vbCrLf & _
             "  3  -  Export DXF (automatic name)" & vbCrLf & _
             "  4  -  Toolpath folders" & vbCrLf & _
-            "  5  -  Open the customer folder" & vbCrLf & _
-            "  6  -  Job setup (server, key, day folder)"
+            "  5  -  Used parts from the quote (u1350x1000 files)" & vbCrLf & _
+            "  6  -  Open the customer folder" & vbCrLf & _
+            "  7  -  Job setup (server, key, day folder)"
 
     If Len(jr.CustFolder) = 0 Then
         dflt = "1"
@@ -142,8 +145,9 @@ Attribute ac2fJob.VB_Description = "ac2f pack: Customer job menu - link, sheet, 
         Case "2": ac2fJobMaterial
         Case "3": ac2fJobExport
         Case "4": ac2fJobFolders
-        Case "5": ac2fJobOpen
-        Case "6": ac2fJobSetup
+        Case "5": ac2fJobUsage
+        Case "6": ac2fJobOpen
+        Case "7": ac2fJobSetup
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_
     End Select
@@ -250,9 +254,9 @@ Fail:
 End Sub
 
 ' Creates the toolpath folders for the sheets this job uses, or stacks
-' them onto an existing folder for the same sheet. The plan is read off
-' the drawing: Nesting's sheet outlines when there are any, otherwise
-' the selection measured against the sheet.
+' them onto an existing folder for the same sheet. The number of sheets
+' is read off the drawing: Nesting's sheet outlines when there are any,
+' otherwise one sheet for the selection.
 Public Sub ac2fJobFolders()
 Attribute ac2fJobFolders.VB_Description = "ac2f pack: Create or stack the toolpath folders for this job"
     Dim jr As ac2fJobRec
@@ -275,11 +279,13 @@ Attribute ac2fJobFolders.VB_Description = "ac2f pack: Create or stack the toolpa
         m = "TOOLPATH FOLDERS  -  " & jr.CustFolder & vbCrLf
         m = m & "Sheet: " & ac2fJBMatText(jr) & vbCrLf & vbCrLf
         m = m & why & vbCrLf & vbCrLf
-        m = m & "Enter          accept what is shown below" & vbCrLf
-        m = m & "3              three whole sheets" & vbCrLf
-        m = m & "1 X1220x900    count and size (X = part of the sheet)" & vbCrLf
-        m = m & "2, 1 X1220x900 several sizes at once" & vbCrLf
-        m = m & "M              pick another sheet first"
+        m = m & "Enter            accept what is shown below" & vbCrLf
+        m = m & "3                three of the job's sheet" & vbCrLf
+        m = m & "1 2050x3050      count and size of another sheet" & vbCrLf
+        m = m & "2, 1 1220x1300   several sizes at once" & vbCrLf
+        m = m & "M                pick another sheet first" & vbCrLf & vbCrLf
+        m = m & "Every sheet counts whole here; the part a job used" & vbCrLf
+        m = m & "is marked from the quote later (job menu 5)."
         answer = InputBox(m, ac2fTitle(CAPTION_), proposal)
         If StrPtr(answer) = 0 Then Exit Sub
         answer = Trim$(answer)
@@ -300,6 +306,75 @@ Attribute ac2fJobFolders.VB_Description = "ac2f pack: Create or stack the toolpa
     Loop
 
     ac2fJBMakeFolders jr, custDir, toks, cnts, n
+End Sub
+
+' Run after the quote is made. Reads the quote's sheet lines from
+' StockTrack and, for every sheet only part of which was used, puts a
+' file named after that part (u1350x1000) into the sheet's toolpath
+' folder. A whole sheet gets nothing; a file already there is kept.
+Public Sub ac2fJobUsage()
+Attribute ac2fJobUsage.VB_Description = "ac2f pack: After the quote, mark the part of each sheet it used (u1350x1000 file in the folder)"
+    Dim jr As ac2fJobRec
+    Dim qrows() As String, irows() As String
+    Dim nq As Long, ni As Long, i As Long, k As Long
+    Dim m As String, answer As String, errText As String
+
+    If Not ac2fJBNeedDoc() Then Exit Sub
+    ac2fJBLoad jr
+    If Len(jr.CustFolder) = 0 Then
+        If Not ac2fJBPickCustomer(jr) Then Exit Sub
+        ac2fJBSave jr
+    End If
+    If Len(jr.CustId) = 0 Then
+        ac2fWarn jr.CustFolder & " was typed in, not taken from StockTrack," & vbCrLf & _
+                 "so there is no quote to read. Link the customer from" & vbCrLf & _
+                 "StockTrack (job menu 1) and run this again.", CAPTION_
+        Exit Sub
+    End If
+
+    nq = ac2fJBGetRows("/corel/quotes?limit=6&customerId=" & jr.CustId, qrows, errText)
+    If nq < 0 Then
+        ac2fWarn errText, CAPTION_
+        Exit Sub
+    End If
+    If nq = 0 Then
+        ac2fWarn "StockTrack has no quote for " & jr.CustLabel & " yet." & vbCrLf & _
+                 "Make the quote, then run this again.", CAPTION_
+        Exit Sub
+    End If
+
+    k = 1
+    If nq > 1 Then
+        m = "USED PARTS  -  " & jr.CustFolder & vbCrLf & vbCrLf & _
+            "Which quote? Newest first." & vbCrLf & vbCrLf
+        For i = 1 To nq
+            m = m & ac2fRPad(CStr(i), 3) & "  " & ac2fJBTab(qrows(i), 1) & "   " & _
+                ac2fJBTab(qrows(i), 2) & "   " & ac2fJBTab(qrows(i), 3) & "   " & _
+                ac2fJBTab(qrows(i), 4) & " sheet line(s)" & vbCrLf
+        Next i
+        Do
+            answer = InputBox(m, ac2fTitle(CAPTION_), "1")
+            If StrPtr(answer) = 0 Then Exit Sub
+            answer = Trim$(answer)
+            If Len(answer) = 0 Then Exit Sub
+            If ac2fJBIsCount(answer) Then
+                k = CLng(answer)
+                If k >= 1 And k <= nq Then Exit Do
+            End If
+            ac2fWarn "Type a number from the list.", CAPTION_
+        Loop
+    End If
+
+    ni = ac2fJBGetRows("/corel/quotes/" & ac2fJBTab(qrows(k), 0) & "/usage", irows, errText)
+    If ni < 0 Then
+        ac2fWarn errText, CAPTION_
+        Exit Sub
+    End If
+    If ni = 0 Then
+        ac2fInfo "Quote " & ac2fJBTab(qrows(k), 1) & " has no sheet from stock on it.", CAPTION_
+        Exit Sub
+    End If
+    ac2fJBMarkUsage jr, qrows(k), irows, ni
 End Sub
 
 Public Sub ac2fJobOpen()
@@ -694,7 +769,7 @@ End Function
 Private Function ac2fJBTypedMat(ByVal s As String) As String
     Dim f() As String
     Dim kind As String, thick As String
-    Dim w As Double, h As Double, part As Boolean
+    Dim w As Double, h As Double
     Dim r As String
 
     f = Split(s & ";;;;;", ";")
@@ -702,7 +777,7 @@ Private Function ac2fJBTypedMat(ByVal s As String) As String
     If Len(kind) = 0 Then Exit Function
     If ac2fParseNum(f(1), 0) > 0 Then thick = CStr(CLng(ac2fParseNum(f(1), 0) * 1000#))
     If Len(Trim$(f(5))) > 0 Then
-        If Not ac2fJBParseSize(f(5), w, h, part) Then Exit Function
+        If Not ac2fJBParseSize(f(5), w, h) Then Exit Function
     End If
 
     r = "" & vbTab & "M" & vbTab & kind & vbTab & thick & vbTab & _
@@ -770,7 +845,8 @@ End Function
 '=====================================================================
 
 ' Works out a plan from the drawing, written the way the user would
-' type it ("2 1220x2440, 1 X1220x900"), and says where it came from.
+' type it ("2", or "2, 1 2050x3050"), and says where it came from. Every
+' sheet counts whole: the part a job used is marked from the quote.
 Private Function ac2fJBPropose(ByRef jr As ac2fJobRec, ByRef why As String) As String
     Dim sx0() As Double, sy0() As Double, sx1() As Double, sy1() As Double
     Dim px0() As Double, py0() As Double, pw() As Double, ph() As Double
@@ -780,15 +856,11 @@ Private Function ac2fJBPropose(ByRef jr As ac2fJobRec, ByRef why As String) As S
     Dim oldUnit As cdrUnit, unitChanged As Boolean
     Dim i As Long, j As Long, k As Long
     Dim x As Double, y As Double, w As Double, h As Double
-    Dim cx As Double, cy As Double, topY As Double, used As Double
-    Dim sw As Double, sh As Double, mT As Double, mB As Double
-    Dim tok As String, s As String
+    Dim cx As Double, cy As Double, sw As Double, sh As Double
+    Dim filled As Boolean
+    Dim s As String, own As String
 
-    why = "Type how many sheets, and the size if it is not the whole sheet."
-    mT = ac2fGetNum(AC2F_K_NS_MT, AC2F_DEF_NS_MT)
-    mB = ac2fGetNum(AC2F_K_NS_MB, AC2F_DEF_NS_MB)
-    If mT < 0 Then mT = 0
-    If mB < 0 Then mB = 0
+    why = "Type how many sheets, and the size if it is not the job's sheet."
     ReDim sx0(1 To 8): ReDim sy0(1 To 8): ReDim sx1(1 To 8): ReDim sy1(1 To 8)
     ReDim toks(1 To 8): ReDim cnts(1 To 8)
 
@@ -805,48 +877,44 @@ Private Function ac2fJBPropose(ByRef jr As ac2fJobRec, ByRef why As String) As S
     If ns = 0 Then ac2fJBScanSheets ActivePage.Shapes, sx0, sy0, sx1, sy1, ns
 
     If ns > 0 Then
+        ' an outline counts when something sits on it
         np = ac2fJBScanParts(px0, py0, pw, ph)
         For j = 1 To ns
             sw = sx1(j) - sx0(j)
             sh = sy1(j) - sy0(j)
-            topY = -1E+30
+            filled = False
             For i = 1 To np
                 cx = px0(i) + pw(i) / 2#
                 cy = py0(i) + ph(i) / 2#
                 If cx >= sx0(j) And cx <= sx1(j) And cy >= sy0(j) And cy <= sy1(j) _
                    And pw(i) <= sw + 1# And ph(i) <= sh + 1# Then
-                    If py0(i) + ph(i) > topY Then topY = py0(i) + ph(i)
+                    filled = True
+                    Exit For
                 End If
             Next i
-            If topY > -1E+29 Then
+            If filled Then
                 ' the sheet as stocked when the outline matches it
                 If Abs(sw - jr.MatW) <= 2# And Abs(sh - jr.MatH) <= 2# Then
                     sw = jr.MatW
                     sh = jr.MatH
                 End If
-                used = topY - sy0(j) + mT
-                tok = ac2fJBUsedTok(sw, sh, used)
-                k = ac2fJBTally(toks, cnts, nt, tok, 1)
+                k = ac2fJBTally(toks, cnts, nt, ac2fJBSizeTok(sw, sh), 1)
             End If
         Next j
         If nt > 0 Then why = "From the " & ns & " nest sheet outline(s) on the page:"
 
-    ' --- otherwise the selection, against the sheet ---
+    ' --- otherwise one sheet for the selection ---
     ElseIf jr.MatW > 0 And jr.MatH > 0 And Not sr Is Nothing Then
         If sr.Count > 0 Then
             sr.GetBoundingBox x, y, w, h
             s = "Selection " & Format$(w, "0") & " x " & Format$(h, "0") & " mm"
-            If w <= jr.MatW + 1# And h <= jr.MatH + 1# Then
-                tok = ac2fJBUsedTok(jr.MatW, jr.MatH, h + mT + mB)
-                why = s & ", along the sheet:"
-            ElseIf h <= jr.MatW + 1# And w <= jr.MatH + 1# Then
-                tok = ac2fJBUsedTok(jr.MatW, jr.MatH, w + mT + mB)
-                why = s & ", turned on the sheet:"
+            If (w <= jr.MatW + 1# And h <= jr.MatH + 1#) Or _
+               (h <= jr.MatW + 1# And w <= jr.MatH + 1#) Then
+                why = s & ", fits on one sheet:"
             Else
-                tok = ac2fJBSizeTok(jr.MatW, jr.MatH, False)
                 why = s & " is bigger than one sheet; how many?"
             End If
-            k = ac2fJBTally(toks, cnts, nt, tok, 1)
+            k = ac2fJBTally(toks, cnts, nt, ac2fJBSizeTok(jr.MatW, jr.MatH), 1)
         End If
     End If
 
@@ -855,14 +923,18 @@ Done:
     If unitChanged Then ActiveDocument.Unit = oldUnit
     On Error GoTo 0
 
-    If nt = 0 And jr.MatW > 0 And jr.MatH > 0 Then
-        k = ac2fJBTally(toks, cnts, nt, ac2fJBSizeTok(jr.MatW, jr.MatH, False), 1)
-    End If
+    If jr.MatW > 0 And jr.MatH > 0 Then own = ac2fJBSizeTok(jr.MatW, jr.MatH)
+    If nt = 0 And Len(own) > 0 Then k = ac2fJBTally(toks, cnts, nt, own, 1)
+    s = ""
     For i = 1 To nt
-        If i > 1 Then s = s & ", " Else s = ""
-        s = s & cnts(i) & " " & toks(i)
+        If i > 1 Then s = s & ", "
+        ' the job's own sheet goes without its size
+        If toks(i) = own Then
+            s = s & cnts(i)
+        Else
+            s = s & cnts(i) & " " & toks(i)
+        End If
     Next i
-    If nt = 0 Then s = ""
     ac2fJBPropose = s
     Exit Function
 
@@ -935,40 +1007,16 @@ Private Function ac2fJBScanParts(ByRef px0() As Double, ByRef py0() As Double, _
     ac2fJBScanParts = n
 End Function
 
-' Size token for a sheet sw x sh of which a strip "used" mm long is cut.
-Private Function ac2fJBUsedTok(ByVal sw As Double, ByVal sh As Double, _
-                               ByVal used As Double) As String
-    Dim stp As Double, u As Double
-
-    stp = ac2fGetNum(AC2F_K_JB_ROUND, AC2F_DEF_JB_ROUND)
-    If stp < 1# Then stp = 1#
-    u = ac2fCeil(used / stp) * stp
-    If u >= sh - MIN_REMNANT Then
-        ac2fJBUsedTok = ac2fJBSizeTok(sw, sh, False)
-    Else
-        ac2fJBUsedTok = ac2fJBSizeTok(sw, u, True)
-    End If
+Private Function ac2fJBSizeTok(ByVal w As Double, ByVal h As Double) As String
+    ac2fJBSizeTok = CStr(CLng(w)) & "x" & CStr(CLng(h))
 End Function
 
-Private Function ac2fJBSizeTok(ByVal w As Double, ByVal h As Double, _
-                               ByVal part As Boolean) As String
-    Dim s As String
-    If part Then s = "X"
-    ac2fJBSizeTok = s & CStr(CLng(w)) & "x" & CStr(CLng(h))
-End Function
-
-' "1220x2440" / "X1220x900" -> width, height and whether it is a part.
+' "1220x2440" (or 1220*2440) -> width and height.
 Private Function ac2fJBParseSize(ByVal t As String, ByRef w As Double, _
-                                 ByRef h As Double, ByRef part As Boolean) As Boolean
+                                 ByRef h As Double) As Boolean
     Dim p As Long
 
-    t = LCase$(Trim$(t))
-    part = False
-    If Left$(t, 1) = "x" Then
-        part = True
-        t = Mid$(t, 2)
-    End If
-    t = Replace$(t, "*", "x")
+    t = Replace$(LCase$(Trim$(t)), "*", "x")
     p = InStr(t, "x")
     If p <= 1 Or p >= Len(t) Then Exit Function
     w = ac2fParseNum(Left$(t, p - 1), 0)
@@ -977,10 +1025,10 @@ Private Function ac2fJBParseSize(ByVal t As String, ByRef w As Double, _
     ac2fJBParseSize = True
 End Function
 
-' A size typed against the job's sheet: turned round if it only fits
-' that way, and marked as a part when it is smaller than the sheet.
+' A size typed against the job's sheet, turned round if it only fits
+' that way ("2440x1220" for a 1220x2440 sheet is the same sheet).
 Private Function ac2fJBNormTok(ByRef jr As ac2fJobRec, ByVal w As Double, _
-                               ByVal h As Double, ByVal part As Boolean) As String
+                               ByVal h As Double) As String
     Dim t As Double
 
     If jr.MatW > 0 And jr.MatH > 0 Then
@@ -988,9 +1036,8 @@ Private Function ac2fJBNormTok(ByRef jr As ac2fJobRec, ByVal w As Double, _
            h <= jr.MatW + 1# And w <= jr.MatH + 1# Then
             t = w: w = h: h = t
         End If
-        If w < jr.MatW - 1# Or h < jr.MatH - 1# Then part = True
     End If
-    ac2fJBNormTok = ac2fJBSizeTok(w, h, part)
+    ac2fJBNormTok = ac2fJBSizeTok(w, h)
 End Function
 
 ' Adds cnt of tok to the plan, merging identical sizes. Returns its row.
@@ -1016,7 +1063,7 @@ Private Function ac2fJBTally(ByRef toks() As String, ByRef cnts() As Long, _
     ac2fJBTally = nt
 End Function
 
-' Reads "2 1220x2440, 1 X1220x900". A count alone means whole sheets.
+' Reads "2, 1 2050x3050". A count alone means the job's own sheet.
 ' Returns the number of sizes, or -1 with errText.
 Private Function ac2fJBParsePlan(ByRef jr As ac2fJobRec, ByVal txt As String, _
                                  ByRef toks() As String, ByRef cnts() As Long, _
@@ -1024,7 +1071,7 @@ Private Function ac2fJBParsePlan(ByRef jr As ac2fJobRec, ByVal txt As String, _
     Dim entries() As String, words() As String
     Dim i As Long, j As Long, k As Long, n As Long
     Dim cnt As Long, tok As String
-    Dim w As Double, h As Double, part As Boolean
+    Dim w As Double, h As Double
 
     ReDim toks(1 To 8): ReDim cnts(1 To 8)
     entries = Split(Replace$(txt, "+", ","), ",")
@@ -1038,11 +1085,11 @@ Private Function ac2fJBParsePlan(ByRef jr As ac2fJobRec, ByVal txt As String, _
                     ' double space
                 ElseIf ac2fJBIsCount(words(j)) Then
                     cnt = CLng(words(j))
-                ElseIf ac2fJBParseSize(words(j), w, h, part) Then
-                    tok = ac2fJBNormTok(jr, w, h, part)
+                ElseIf ac2fJBParseSize(words(j), w, h) Then
+                    tok = ac2fJBNormTok(jr, w, h)
                 Else
                     errText = "Cannot read """ & words(j) & """." & vbCrLf & _
-                              "Write a count, a size, or both: 2 X1220x900"
+                              "Write a count, a size, or both: 2 2050x3050"
                     ac2fJBParsePlan = -1
                     Exit Function
                 End If
@@ -1058,7 +1105,7 @@ Private Function ac2fJBParsePlan(ByRef jr As ac2fJobRec, ByVal txt As String, _
                     ac2fJBParsePlan = -1
                     Exit Function
                 End If
-                tok = ac2fJBSizeTok(jr.MatW, jr.MatH, False)
+                tok = ac2fJBSizeTok(jr.MatW, jr.MatH)
             End If
             k = ac2fJBTally(toks, cnts, n, tok, cnt)
         End If
@@ -1075,7 +1122,7 @@ Private Sub ac2fJBMakeFolders(ByRef jr As ac2fJobRec, ByVal custDir As String, _
     Dim m As String, rep As String, errText As String
     Dim i As Long, k As Long, q As Long, first As Long
     Dim maxNo As Long, nextNo As Long, c As Long
-    Dim w As Double, h As Double, part As Boolean, lim As Double
+    Dim w As Double, h As Double, lim As Double
 
     ReDim found(1 To n): ReDim oldCnt(1 To n): ReDim grp(1 To n): ReDim splits(1 To n)
     tail = ac2fJBSpec(jr)
@@ -1086,7 +1133,7 @@ Private Sub ac2fJBMakeFolders(ByRef jr As ac2fJobRec, ByVal custDir As String, _
         head = jr.MatKind & "-" & toks(i)
         found(i) = ac2fJBFindGroup(custDir, head, tail, c, maxNo)
         oldCnt(i) = c
-        If ac2fJBParseSize(toks(i), w, h, part) Then
+        If ac2fJBParseSize(toks(i), w, h) Then
             If lim > 0 And h > lim Then
                 splits(i) = CLng(ac2fCeil(h / lim))
                 If splits(i) < 2 Then splits(i) = 2
@@ -1281,6 +1328,203 @@ Private Function ac2fJBNextExport(ByVal custDir As String) As String
 End Function
 
 '=====================================================================
+' USED PARTS
+'=====================================================================
+
+' Finds each quote line's toolpath folder, shows what will be written,
+' asks, then writes the u-files.
+Private Sub ac2fJBMarkUsage(ByRef jr As ac2fJobRec, ByVal qrow As String, _
+                            ByRef irows() As String, ByVal ni As Long)
+    Dim it As ac2fJobRec
+    Dim paths() As String, bodies() As String
+    Dim nf As Long, i As Long, j As Long
+    Dim quoteNo As String, qdate As String, lbl As String
+    Dim grp As String, target As String, body As String
+    Dim todo As String, whole As String, missing As String
+    Dim made As String, errText As String, m As String
+    Dim uw As Double, uh As Double, gw As Double, gh As Double
+    Dim d0 As Date
+
+    quoteNo = ac2fJBTab(qrow, 1)
+    qdate = ac2fJBTab(qrow, 2)
+    d0 = ac2fJBIsoDate(qdate)
+    ReDim paths(1 To ni): ReDim bodies(1 To ni)
+
+    For i = 1 To ni
+        ac2fJBSetFields it, irows(i)
+        uw = it.MatW
+        uh = it.MatH
+        lbl = ac2fJBClip(ac2fJBTab(irows(i), 10), 60)
+        gw = 0: gh = 0
+        grp = ac2fJBFindSheetGroup(jr.CustFolder, d0, it.MatKind, ac2fJBSpec(it), uw, uh, gw, gh)
+        If Len(grp) = 0 Then
+            missing = missing & "   " & lbl & vbCrLf
+        ElseIf uw <= 0 Or uh <= 0 Or ac2fJBSameSize(uw, uh, gw, gh) Then
+            whole = whole & "   " & lbl & vbCrLf
+        Else
+            target = grp & "\" & ac2fJBUseName(uw, uh, gw, gh)
+            body = "Quote " & quoteNo & "  " & qdate & vbCrLf & _
+                   ac2fJBTab(irows(i), 10) & vbCrLf & _
+                   "Used " & Format$(uw, "0") & " x " & Format$(uh, "0") & " mm of the " & _
+                   Format$(gw, "0") & " x " & Format$(gh, "0") & " mm sheet, qty " & _
+                   ac2fJBTab(irows(i), 9) & vbCrLf
+            ' two lines landing on the same file share it
+            For j = 1 To nf
+                If StrComp(paths(j), target, vbTextCompare) = 0 Then Exit For
+            Next j
+            If j <= nf Then
+                bodies(j) = bodies(j) & body
+            Else
+                nf = nf + 1
+                paths(nf) = target
+                bodies(nf) = body
+                todo = todo & "   " & ac2fJBTail2(target) & vbCrLf
+            End If
+        End If
+    Next i
+
+    m = "QUOTE " & quoteNo & "  -  " & jr.CustFolder & vbCrLf & vbCrLf
+    If nf > 0 Then m = m & "Will write:" & vbCrLf & todo & vbCrLf
+    If Len(whole) > 0 Then m = m & "Whole sheet, nothing to mark:" & vbCrLf & whole & vbCrLf
+    If Len(missing) > 0 Then
+        m = m & "No toolpath folder found for:" & vbCrLf & missing & _
+            "(searched the customer's folders up to two weeks back)" & vbCrLf & vbCrLf
+    End If
+    If Len(m) > PROMPT_MAX Then m = Left$(m, PROMPT_MAX) & " ..." & vbCrLf & vbCrLf
+    If nf = 0 Then
+        ac2fInfo m & "Nothing to write.", CAPTION_
+        Exit Sub
+    End If
+    If MsgBox(m & "Write them?", vbQuestion + vbYesNo, ac2fTitle(CAPTION_)) <> vbYes Then Exit Sub
+
+    For i = 1 To nf
+        If ac2fJBFileExists(paths(i)) Then
+            made = made & "   " & ac2fJBTail2(paths(i)) & "  (already there)" & vbCrLf
+        ElseIf ac2fJBWriteText(paths(i), bodies(i)) Then
+            made = made & "   " & ac2fJBTail2(paths(i)) & vbCrLf
+        Else
+            errText = errText & "   " & paths(i) & vbCrLf
+        End If
+    Next i
+
+    If Len(errText) > 0 Then
+        ac2fWarn "Could not write:" & vbCrLf & errText & vbCrLf & "Written:" & vbCrLf & made, CAPTION_
+    Else
+        ac2fInfo "Written:" & vbCrLf & made, CAPTION_
+    End If
+End Sub
+
+' The toolpath folder a quote line's sheet went into: same kind and the
+' same thickness, brand, variant and colour, in this customer's folder.
+' A quote is made after the cutting, so the day folders are searched
+' from the day after the quote back two weeks, then today. Among several
+' sizes, the smallest sheet the used part fits on. gw, gh return its size.
+Private Function ac2fJBFindSheetGroup(ByVal custFolder As String, ByVal d0 As Date, _
+                                      ByVal kind As String, ByVal tail As String, _
+                                      ByVal uw As Double, ByVal uh As Double, _
+                                      ByRef gw As Double, ByRef gh As Double) As String
+    Dim root As String, fmt As String, dsep As String
+    Dim cdir As String, best As String, h As String, t As String
+    Dim days() As String, grps() As String
+    Dim nd As Long, ng As Long, i As Long, j As Long, back As Long
+    Dim grpNo As Long, c As Long
+    Dim w As Double, ht As Double, bestArea As Double
+    Dim d As Date
+
+    If Len(kind) = 0 Then Exit Function
+    If Not ac2fJBDayRule(root, fmt, dsep) Then Exit Function
+
+    For back = -1 To 15
+        If back = 15 Then d = Date Else d = d0 - back
+        nd = ac2fJBListNames(root, ac2fJBStrftime(fmt, d) & "*", True, days)
+        For i = 1 To nd
+            cdir = root & "\" & days(i) & "\" & custFolder
+            If ac2fJBDirExists(cdir) Then
+                ng = ac2fJBListNames(cdir, "*", True, grps)
+                For j = 1 To ng
+                    If ac2fJBSplitGroup(grps(j), grpNo, h, c, t) Then
+                        If StrComp(t, tail, vbTextCompare) = 0 And _
+                           StrComp(Left$(h, Len(kind) + 1), kind & "-", vbTextCompare) = 0 Then
+                            If ac2fJBParseSize(Mid$(h, Len(kind) + 2), w, ht) Then
+                                If (uw <= w + 1# And uh <= ht + 1#) Or _
+                                   (uh <= w + 1# And uw <= ht + 1#) Then
+                                    If Len(best) = 0 Or w * ht < bestArea Then
+                                        best = cdir & "\" & grps(j)
+                                        bestArea = w * ht
+                                        gw = w
+                                        gh = ht
+                                    End If
+                                End If
+                            End If
+                        End If
+                    End If
+                Next j
+            End If
+        Next i
+        If Len(best) > 0 Then Exit For
+    Next back
+    ac2fJBFindSheetGroup = best
+End Function
+
+' True when the part used is the whole sheet, either way round.
+Private Function ac2fJBSameSize(ByVal uw As Double, ByVal uh As Double, _
+                                ByVal gw As Double, ByVal gh As Double) As Boolean
+    ac2fJBSameSize = (Abs(uw - gw) <= 1# And Abs(uh - gh) <= 1#) Or _
+                     (Abs(uw - gh) <= 1# And Abs(uh - gw) <= 1#)
+End Function
+
+' u + the part used, the side along the sheet's width first: 1000 x 1350
+' used of a 1350 x 2000 sheet is u1350x1000.
+Private Function ac2fJBUseName(ByVal uw As Double, ByVal uh As Double, _
+                               ByVal gw As Double, ByVal gh As Double) As String
+    Dim a As Double, b As Double
+
+    If Abs(uw - gw) <= 1# Then
+        a = uw: b = uh
+    ElseIf Abs(uh - gw) <= 1# Then
+        a = uh: b = uw
+    ElseIf uw <= gw + 1# And uh <= gh + 1# Then
+        a = uw: b = uh
+    Else
+        a = uh: b = uw
+    End If
+    ac2fJBUseName = "u" & CStr(CLng(a)) & "x" & CStr(CLng(b))
+End Function
+
+' "2026-10-17" -> that date; anything else is today.
+Private Function ac2fJBIsoDate(ByVal s As String) As Date
+    On Error GoTo Bad
+    If Len(s) >= 10 And Mid$(s, 5, 1) = "-" And Mid$(s, 8, 1) = "-" Then
+        ac2fJBIsoDate = DateSerial(CInt(Left$(s, 4)), CInt(Mid$(s, 6, 2)), CInt(Mid$(s, 9, 2)))
+        Exit Function
+    End If
+Bad:
+    ac2fJBIsoDate = Date
+End Function
+
+' The last two parts of a path: "001-pleksi-...ፐx1000".
+Private Function ac2fJBTail2(ByVal p As String) As String
+    Dim a As Long, b As Long
+    a = InStrRev(p, "\")
+    If a > 1 Then b = InStrRev(p, "\", a - 1)
+    ac2fJBTail2 = Mid$(p, b + 1)
+End Function
+
+Private Function ac2fJBWriteText(ByVal path As String, ByVal txt As String) As Boolean
+    Dim f As Integer
+    On Error GoTo Fail
+    f = FreeFile
+    Open path For Output As #f
+    Print #f, txt;
+    Close #f
+    ac2fJBWriteText = True
+    Exit Function
+Fail:
+    On Error Resume Next
+    Close #f
+End Function
+
+'=====================================================================
 ' NAMES
 '=====================================================================
 
@@ -1306,7 +1550,7 @@ Private Function ac2fJBMatText(ByRef jr As ac2fJobRec) As String
     s = ac2fJBJoin(s, jr.MatBrand, " ")
     s = ac2fJBJoin(s, jr.MatGrade, " ")
     s = ac2fJBJoin(s, jr.MatColor, " ")
-    If jr.MatW > 0 And jr.MatH > 0 Then s = s & " " & ac2fJBSizeTok(jr.MatW, jr.MatH, False)
+    If jr.MatW > 0 And jr.MatH > 0 Then s = s & " " & ac2fJBSizeTok(jr.MatW, jr.MatH)
     ac2fJBMatText = s
 End Function
 
@@ -1474,7 +1718,7 @@ Private Function ac2fJBSummary(ByRef jr As ac2fJobRec) As String
     s = s & "Sheet    :  " & ac2fJBMatText(jr) & vbCrLf
     If Len(jr.CustFolder) > 0 Then
         where = ac2fJBCustomerDir(jr, False, errText)
-        If Len(where) = 0 Then where = "<day folder not found: see 6>"
+        If Len(where) = 0 Then where = "<day folder not found: see 7>"
         s = s & "Folder   :  " & ac2fJBClip(where, 70) & vbCrLf
     End If
     ac2fJBSummary = s

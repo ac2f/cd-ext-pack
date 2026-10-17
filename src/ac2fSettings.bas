@@ -761,8 +761,8 @@ Private Sub ac2fBuildTable()
         "so each of its 001, 002 ... folders holds p001 and p002. A " & _
         "sheet more than twice as long gets p003 as well." & _
         vbCrLf & vbCrLf & _
-        "The length that counts is the length used: a 900 mm strip " & _
-        "off that sheet needs no split. 0 never splits."
+        "The length that counts is the sheet's, as the folder name " & _
+        "gives it. 0 never splits."
 
     ac2fAddSetting AC2F_K_JB_DIALOG, "JOB", "Export dialog", "", _
         AC2F_KIND_INT, CDbl(AC2F_DEF_JB_DIALOG), 0, 1, _
@@ -777,7 +777,7 @@ Private Sub ac2fBuildTable()
         AC2F_KIND_INT, CDbl(AC2F_DEF_JB_OPEN), 0, 1, _
         "Open the customer folder in Explorer after Export DXF and " & _
         "Toolpath folders. 1 on, 0 off." & vbCrLf & vbCrLf & _
-        "Open the customer folder (job menu 5) does it on demand."
+        "Open the customer folder (job menu 6) does it on demand."
 
     ac2fAddSetting AC2F_K_JB_NEST, "JOB", "Nest sheet", "", _
         AC2F_KIND_INT, CDbl(AC2F_DEF_JB_NEST), 0, 1, _
@@ -786,15 +786,6 @@ Private Sub ac2fBuildTable()
         "Then Nesting packs onto the sheet that will really be cut, " & _
         "including a cut-down one left from an earlier job, and " & _
         "Toolpath folders reads the number of sheets off the nest."
-
-    ac2fAddSetting AC2F_K_JB_ROUND, "JOB", "Round up", "mm", _
-        AC2F_KIND_NUM, AC2F_DEF_JB_ROUND, 1, 0, _
-        "When only part of a sheet is used, its length is rounded up " & _
-        "to a multiple of this for the folder name." & vbCrLf & vbCrLf & _
-        "Parts reaching 873 mm up a 1220 x 2440 sheet, plus the top " & _
-        "margin of Nesting, give X1220x890 at 10 mm. A strip that " & _
-        "would leave less than 100 mm behind counts as the whole " & _
-        "sheet, since that offcut is not worth keeping."
 End Sub
 
 ' Adds more help to the setting just declared. VBA refuses a statement

@@ -131,6 +131,12 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.12.0'dan 1.13.0'a
+
+`ac2fJob` ve `ac2fSettings` değişti — ikisini silip yeniden aktarın.
+StockTrack'i de güncelleyin (teklif uçları). İş menüsünde kurulum artık
+`7`. `Round up` ayarı kalktı; diğer ayar numaraları değişmedi.
+
 ### Sürüm 1.11.0'dan 1.12.0'a
 
 `ac2fJob.bas` **yeni** — doğrudan aktarın. `ac2fSettings`, `ac2fMenu`,
@@ -139,7 +145,7 @@ grubu eklendi (56-60); diğer ayar numaraları değişmedi.
 
 StockTrack bağlantısı için StockTrack'i de güncelleyin, *Ayarlar ›
 Corel entegrasyonu*'ndan anahtar oluşturun ve Corel'de ana menü `21` →
-`6` (Job setup) ile adresi ve anahtarı girin. Ayrıntı:
+`7` (Job setup) ile adresi ve anahtarı girin. Ayrıntı:
 [kullanım](kullanim.md#13-müşteri-işi--stocktrack-ile-otomatik-adlandırma).
 
 ### Sürüm 1.10.0'dan 1.11.0'a

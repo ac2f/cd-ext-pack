@@ -2,6 +2,29 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.13.0] - 2026-10-17
+
+### Değişti: ebatta `X` yok, kullanılan parça tekliften
+
+Klasör adındaki ebat artık hep plakanın stoktaki tam ölçüsü; `X1220x900`
+gibi kesik ölçü yazılmıyor. Bir kısmı kullanılacak plaka tam plakalarla
+aynı klasöre istifleniyor.
+
+Plakanın ne kadarının kullanıldığı teklif kesilince belli oluyor:
+
+- **Yeni `ac2fJobUsage`** (iş menüsü `5`): müşterinin teklifini
+  StockTrack'ten okuyor, her tabaka kaleminin takım yolu klasörünü
+  buluyor ve plakanın yalnız bir kısmı kullanıldıysa klasöre
+  `u1350x1000` adlı bir dosya yazıyor (1350 × 2000 plakanın
+  1000 × 1350'si; plakanın eni önce). Tam kullanılan plakaya dosya
+  konmuyor, var olan dosyaya dokunulmuyor.
+- Klasör, teklif gününden iki hafta geriye kadar müşterinin gün
+  klasörlerinde aranıyor.
+- `Round up` ayarı (60) kaldırıldı; yalnız `X` için vardı.
+- İş menüsü: `5` kullanılan parça, `6` klasörü aç, `7` kurulum.
+
+Gereksinim: StockTrack'in `/corel/quotes` uçlarını içeren sürümü.
+
 ## [1.12.0] - 2026-10-17
 
 ### Eklendi: müşteri işi (`ac2fJob`)
