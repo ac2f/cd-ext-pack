@@ -630,4 +630,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.15.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.16.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

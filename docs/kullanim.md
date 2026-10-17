@@ -1228,11 +1228,15 @@ sorar).
 ### Kurulum
 
 1. StockTrack'te **Ayarlar › Corel entegrasyonu** → *Anahtar oluştur*.
-   Sunucu adresi ve anahtar orada yazar.
+   Sunucu adresi ve anahtar orada yazar. **Her dükkânın kendi anahtarı
+   vardır:** eklentiye hangi dükkânın anahtarını yapıştırırsanız müşteri,
+   stok ve teklif listeleri o dükkândan gelir. Anahtarı üretmek için o
+   dükkânın ayarlarını değiştirme izni gerekir.
 2. Corel'de iş menüsü `7` (`ac2fJobSetup`):
 
 ```
-1=http://192.168.1.50/api/v1
+1=http://192.168.1.50/api/v1          (dükkândaki sunucu)
+1=https://stok.ornek.com/api/v1       (uzak sunucu)
 2=<anahtar>
 T          bağlantıyı dener
 ```
@@ -1241,8 +1245,18 @@ T          bağlantıyı dener
    bir yer istiyorsanız `3=D:\Isler` yazın; `3=` (boş) geri alır.
 4. Ayraç varsayılan `--`; `4=` ile değişir.
 
-StockTrack'e ulaşılamazsa eklenti çalışmayı sürdürür: müşteri adını ve
-plakayı yazarak devam edersiniz.
+StockTrack'e ulaşılamazsa eklenti çalışmayı sürdürür:
+
+- StockTrack'ten gelen her liste bilgisayarda saklanır
+  (`%LOCALAPPDATA%\ac2f\stocktrack`, sunucu ve anahtar başına ayrı). Sunucu
+  cevap vermezse (kapalı, yeniden başlıyor, internet yok) aynı liste
+  buradan gelir; başlıkta `(offline, saved 17.10.2026 09:30)` yazar.
+- Daha önce hiç aranmamış bir müşteri ya da plaka araması, o güne dek
+  görülen bütün müşteriler / işletme plakaları içinde yapılır (en fazla
+  1000'er satır). Müşterinin kendi plakaları yalnız o müşterinin
+  kaydedilmiş listesinden gelir — çevrimdışıyken başka müşteriye
+  önerilmez.
+- Hiçbiri yoksa müşteri adını ve plakayı yazarak devam edersiniz.
 
 ### Ayarlar (56-61)
 

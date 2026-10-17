@@ -104,6 +104,7 @@ Private Const MAX_RECENT  As Long = 9
 Private Const HISTORY_DAYS As Long = 365
 Private Const HTTP_HEAD   As String = "#ac2f-corel "
 Private Const PROMPT_MAX  As Long = 880             ' InputBox stops near 1024
+Private Const CACHE_LINES As Long = 1000            ' customers / sheets kept for offline search
 
 ' What the document is linked to. The sheet fields hold StockTrack's
 ' ready made name pieces: lower case ASCII, thickness in microns.
@@ -124,6 +125,10 @@ Private Type ac2fJobRec
     JobDay     As String     ' day folder the job's customer folder is in
     JobAsked   As String     ' date (serial) the day was last chosen
 End Type
+
+' When the last StockTrack reply came from the offline copy: the copy's
+' date, else empty. Lists say so in their heading.
+Private mJBSaved As String
 
 '=====================================================================
 ' MACROS
@@ -746,7 +751,7 @@ Private Function ac2fJBPickCustomer(ByRef jr As ac2fJobRec) As Boolean
                 Exit Function
             End If
         Else
-            n = ac2fJBGetRows("/corel/customers?limit=12&q=" & ac2fJBUrl(answer), rows, errText)
+            n = ac2fJBGetRows("/corel/customers?limit=12&q=" & ac2fJBUrl(answer), rows, errText, answer)
             If n < 0 Then
                 nm = ac2fJBSafeName(answer)
                 If Len(nm) = 0 Then
@@ -768,7 +773,8 @@ Private Function ac2fJBPickCustomer(ByRef jr As ac2fJobRec) As Boolean
                 ac2fJBPickCustomer = True
                 Exit Function
             Else
-                k = ac2fJBChoose("Customers matching """ & answer & """:", rows, n, 2, pending)
+                k = ac2fJBChoose("Customers matching """ & answer & """" & ac2fJBSavedNote() & ":", _
+                                 rows, n, 2, pending)
                 If k > 0 Then
                     ac2fJBSetCust jr, rows(k)
                     ac2fJBPickCustomer = True
@@ -809,6 +815,7 @@ Private Function ac2fJBPickMaterial(ByRef jr As ac2fJobRec) As Boolean
     If nOpt > 0 Then dflt = "1"
     head = "PICK THE SHEET"
     If Len(jr.CustFolder) > 0 Then head = head & "  -  " & jr.CustFolder
+    head = head & ac2fJBSavedNote()
 
     Do
         m = ac2fJBMatPrompt(head, opts, nOpt, online)
@@ -839,7 +846,7 @@ Private Function ac2fJBPickMaterial(ByRef jr As ac2fJobRec) As Boolean
             End If
         ElseIf online Then
             nSrv = ac2fJBGetRows("/corel/materials?limit=15" & cq & "&q=" & ac2fJBUrl(answer), _
-                                 srv, errText)
+                                 srv, errText, answer)
             If nSrv < 0 Then
                 ac2fWarn errText, CAPTION_
             ElseIf nSrv = 0 Then
@@ -852,7 +859,7 @@ Private Function ac2fJBPickMaterial(ByRef jr As ac2fJobRec) As Boolean
             Else
                 opts = srv
                 nOpt = nSrv
-                head = "SHEETS MATCHING """ & answer & """"
+                head = "SHEETS MATCHING """ & answer & """" & ac2fJBSavedNote()
                 dflt = "1"
             End If
         Else
@@ -2129,42 +2136,190 @@ Private Function ac2fJBNormServer(ByVal s As String) As String
 End Function
 
 ' Data lines of a StockTrack reply, or -1 with errText when the server
-' could not be used.
+' could not be used. When the server is away (no answer, or the gateway
+' in front of it says it is down) the last good reply to the same request
+' is used instead; customer and sheet searches are then run on every
+' customer / stock sheet seen so far. `search` is that search text.
 Private Function ac2fJBGetRows(ByVal path As String, ByRef rows() As String, _
-                               ByRef errText As String) As Long
+                               ByRef errText As String, _
+                               Optional ByVal search As String = "") As Long
     Dim srv As String, body As String
-    Dim code As Long, i As Long, n As Long
-    Dim lines() As String
+    Dim code As Long, n As Long
+    Dim answered As Boolean
 
     ac2fJBGetRows = -1
+    mJBSaved = ""
     srv = ac2fJBServer()
     If Len(srv) = 0 Then
         errText = "StockTrack is not set up. Enter its address and key in Job setup."
         Exit Function
     End If
-    If Not ac2fJBHttpGet(srv & path, body, code, errText) Then
-        errText = "StockTrack did not answer at" & vbCrLf & "   " & srv & vbCrLf & vbCrLf & errText
-        Exit Function
-    End If
-    If code <> 200 Then
-        errText = "StockTrack answered " & code & ":" & vbCrLf & ac2fJBJsonMessage(body)
-        Exit Function
-    End If
-    If Left$(body, Len(HTTP_HEAD)) <> HTTP_HEAD Then
-        errText = srv & vbCrLf & "answers, but not as StockTrack's Corel interface." & vbCrLf & _
-                  "Check the address (it ends in /api/v1) and update StockTrack."
+    answered = ac2fJBHttpGet(srv & path, body, code, errText)
+    If answered And code = 200 And Left$(body, Len(HTTP_HEAD)) = HTTP_HEAD Then
+        ac2fJBCacheSave path, body
+        ac2fJBGetRows = ac2fJBBodyRows(body, rows)
         Exit Function
     End If
 
+    If Not answered Or code = 502 Or code = 503 Or code = 504 Then
+        n = ac2fJBCacheRows(path, search, rows)
+        If n >= 0 Then
+            ac2fJBGetRows = n
+            Exit Function
+        End If
+    End If
+
+    If Not answered Then
+        errText = "StockTrack did not answer at" & vbCrLf & "   " & srv & vbCrLf & vbCrLf & errText
+    ElseIf code <> 200 Then
+        errText = "StockTrack answered " & code & ":" & vbCrLf & ac2fJBJsonMessage(body)
+    Else
+        errText = srv & vbCrLf & "answers, but not as StockTrack's Corel interface." & vbCrLf & _
+                  "Check the address (it ends in /api/v1) and update StockTrack."
+    End If
+End Function
+
+' The data lines of a reply body (the header and # lines dropped).
+Private Function ac2fJBBodyRows(ByVal body As String, ByRef rows() As String) As Long
+    Dim lines() As String
+    Dim i As Long, n As Long
+
     lines = Split(Replace$(body, vbCr, ""), vbLf)
-    ReDim rows(1 To UBound(lines) - LBound(lines) + 1)
+    ReDim rows(1 To UBound(lines) - LBound(lines) + 2)
     For i = LBound(lines) To UBound(lines)
         If Len(lines(i)) > 0 And Left$(lines(i), 1) <> "#" Then
             n = n + 1
             rows(n) = lines(i)
         End If
     Next i
-    ac2fJBGetRows = n
+    ac2fJBBodyRows = n
+End Function
+
+'---------------------------------------------------------------------
+' Offline copy: %LOCALAPPDATA%\ac2f\stocktrack. One file per request,
+' plus every customer and every business stock sheet seen (a customer's
+' own sheets are left out: offline they could be offered to another
+' customer). Kept apart per server and key, so a computer that works
+' for two shops never mixes their lists.
+'---------------------------------------------------------------------
+
+' "customers" or "materials" for the lists searched offline, else empty.
+Private Function ac2fJBCacheList(ByVal path As String) As String
+    If Left$(path, 16) = "/corel/customers" And Mid$(path, 17, 1) <> "/" Then
+        ac2fJBCacheList = "customers"
+    ElseIf Left$(path, 16) = "/corel/materials" Then
+        ac2fJBCacheList = "materials"
+    End If
+End Function
+
+Private Function ac2fJBCacheFile(ByVal what As String) As String
+    Dim d As String
+    d = Environ$("LOCALAPPDATA")
+    If Len(d) = 0 Then d = Environ$("TEMP")
+    ac2fJBCacheFile = d & "\ac2f\stocktrack\" & _
+                      ac2fJBHash(ac2fJBServer() & "|" & ac2fGetStr(AC2F_K_JB_KEY, "") & "|" & what) & ".tsv"
+End Function
+
+Private Sub ac2fJBCacheSave(ByVal path As String, ByVal body As String)
+    Dim f As String, old As String, list As String
+    Dim rows() As String, n As Long, i As Long, kept As Long
+
+    On Error Resume Next
+    f = ac2fJBCacheFile(path)
+    If Not ac2fJBMakeDirs(Left$(f, InStrRev(f, "\") - 1)) Then Exit Sub
+    ac2fJBWriteText f, body
+    list = ac2fJBCacheList(path)
+    If Len(list) = 0 Then Exit Sub
+    n = ac2fJBBodyRows(body, rows)
+    If list = "materials" Then
+        For i = 1 To n
+            If ac2fJBTab(rows(i), 1) = "B" Then
+                kept = kept + 1
+                rows(kept) = rows(i)
+            End If
+        Next i
+        n = kept
+    End If
+    f = ac2fJBCacheFile(list)
+    If ac2fJBFileExists(f) Then old = ac2fJBReadUtf8(f)
+    ac2fJBWriteText f, ac2fJBMergeLines(rows, n, old, CACHE_LINES)
+End Sub
+
+' New lines first, then the old ones whose id (first field) is not among
+' them; at most `most` lines.
+Private Function ac2fJBMergeLines(ByRef rows() As String, ByVal n As Long, _
+                                  ByVal old As String, ByVal most As Long) As String
+    Dim seen As String, out As String, id As String
+    Dim prev() As String
+    Dim i As Long, kept As Long
+
+    seen = vbLf
+    For i = 1 To n
+        id = ac2fJBTab(rows(i), 0)
+        If Len(id) > 0 And InStr(seen, vbLf & id & vbLf) = 0 And kept < most Then
+            seen = seen & id & vbLf
+            out = out & rows(i) & vbLf
+            kept = kept + 1
+        End If
+    Next i
+    prev = Split(Replace$(old, vbCr, ""), vbLf)
+    For i = LBound(prev) To UBound(prev)
+        id = ac2fJBTab(prev(i), 0)
+        If Len(id) > 0 And InStr(seen, vbLf & id & vbLf) = 0 And kept < most Then
+            seen = seen & id & vbLf
+            out = out & prev(i) & vbLf
+            kept = kept + 1
+        End If
+    Next i
+    ac2fJBMergeLines = out
+End Function
+
+' Lines of the offline copy, or -1 when there is none. A customer or sheet
+' search that was never asked before is answered from every one seen: each
+' word must appear in the line (folder name, label, phone, colour ...).
+Private Function ac2fJBCacheRows(ByVal path As String, ByVal search As String, _
+                                 ByRef rows() As String) As Long
+    Dim f As String, words() As String, all() As String, hay As String
+    Dim i As Long, j As Long, n As Long, nAll As Long
+    Dim hit As Boolean
+
+    ac2fJBCacheRows = -1
+    On Error GoTo Done
+    f = ac2fJBCacheFile(path)
+    If ac2fJBFileExists(f) Then
+        mJBSaved = Format$(FileDateTime(f), "dd.mm.yyyy hh:nn")
+        ac2fJBCacheRows = ac2fJBBodyRows(ac2fJBReadUtf8(f), rows)
+        Exit Function
+    End If
+    If Len(ac2fJBCacheList(path)) = 0 Or Len(Trim$(search)) = 0 Then Exit Function
+    f = ac2fJBCacheFile(ac2fJBCacheList(path))
+    If Not ac2fJBFileExists(f) Then Exit Function
+
+    nAll = ac2fJBBodyRows(ac2fJBReadUtf8(f), all)
+    words = Split(LCase$(ac2fJBFold(Trim$(search))), " ")
+    ReDim rows(1 To nAll + 1)
+    For i = 1 To nAll
+        hay = LCase$(all(i))
+        hit = True
+        For j = LBound(words) To UBound(words)
+            If Len(words(j)) > 0 Then
+                If InStr(hay, words(j)) = 0 Then hit = False
+            End If
+        Next j
+        If hit Then
+            n = n + 1
+            rows(n) = all(i)
+        End If
+    Next i
+    mJBSaved = Format$(FileDateTime(f), "dd.mm.yyyy hh:nn")
+    ac2fJBCacheRows = n
+Done:
+End Function
+
+' "  (offline, saved 17.10.2026 09:30)" when the last list came from the
+' offline copy, else empty.
+Private Function ac2fJBSavedNote() As String
+    If Len(mJBSaved) > 0 Then ac2fJBSavedNote = "  (offline, saved " & mJBSaved & ")"
 End Function
 
 ' One GET. MSXML's server object is used rather than the browser one: it

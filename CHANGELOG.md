@@ -2,6 +2,28 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.16.0] - 2026-10-17
+
+### Eklendi: StockTrack'e ulaşılamazken son listeler (`ac2fJob`)
+
+StockTrack uzak bir sunucuya taşınınca bağlantı kopabilir. Eklenti artık
+StockTrack'ten gelen her listeyi bilgisayarda saklıyor
+(`%LOCALAPPDATA%\ac2f\stocktrack`, sunucu + anahtar başına ayrı).
+
+- Sunucu cevap vermezse (ya da önündeki ağ geçidi 502/503/504 dönerse)
+  aynı istek kayıtlı kopyadan cevaplanıyor; listelerin başlığında
+  `(offline, saved <tarih>)` yazıyor.
+- Daha önce aranmamış müşteri/plaka araması, o güne dek görülen bütün
+  müşteriler ve işletme plakaları (en fazla 1000'er) içinde yapılıyor.
+  Müşterinin kendi plakaları ortak listeye girmiyor; çevrimdışıyken başka
+  müşteriye önerilmesin.
+
+### Değişti: dükkân başına anahtar
+
+StockTrack çok dükkânlı oldu: her dükkânın kendi Corel anahtarı var ve
+anahtar dükkânı belirliyor. Eklentide değişiklik gerekmiyor; bilgisayarın
+çalıştığı dükkânın anahtarını girmek yeterli.
+
 ## [1.15.0] - 2026-10-17
 
 ### Eklendi: export öncesi kontrol (`ac2fCheck`)

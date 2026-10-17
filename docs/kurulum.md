@@ -137,6 +137,14 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.15.0'dan 1.16.0'a
+
+Yalnız `ac2fJob` ve `ac2fCore` değişti — ikisini silip yeniden aktarın.
+StockTrack çok dükkânlı olduysa: her dükkânın anahtarı ayrıdır; bu
+bilgisayarın çalıştığı dükkânın *Ayarlar › Corel entegrasyonu*'ndaki
+anahtarı iş menüsü `7` → `2=` ile girin. Eski anahtar ilk dükkânın
+anahtarı olarak çalışmaya devam eder.
+
 ### Sürüm 1.14.0'dan 1.15.0'a
 
 `ac2fCheck.bas`, `ac2fCutTime.bas`, `ac2fCutArea.bas` **yeni** —
