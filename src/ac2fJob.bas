@@ -1601,6 +1601,13 @@ Private Sub ac2fJBMakeFolders(ByRef jr As ac2fJobRec, ByVal custDir As String, _
                 Format$(lim, "0") & " mm)" & vbCrLf
         End If
     Next i
+    rep = ac2fJBRunnerNote(custDir)
+    If Len(rep) > 0 Then
+        m = m & vbCrLf & "StockTrack Runner already made the folders here when these" & vbCrLf & _
+            "quotes became jobs: " & rep & vbCrLf & _
+            "If this drawing is one of them, Yes stacks its sheets a second time." & vbCrLf
+        rep = ""
+    End If
     If Len(m) > PROMPT_MAX Then m = Left$(m, PROMPT_MAX) & " ..."
     If MsgBox(m & vbCrLf & "Create them?", vbQuestion + vbYesNo, _
               ac2fTitle(CAPTION_)) <> vbYes Then Exit Sub
@@ -1657,6 +1664,28 @@ Private Sub ac2fJBMakeFolders(ByRef jr As ac2fJobRec, ByVal custDir As String, _
         ac2fInfo "Ready in " & custDir & ":" & vbCrLf & vbCrLf & rep, CAPTION_
     End If
 End Sub
+
+' Quotes StockTrack Runner has opened folders for in this customer folder
+' (it leaves a .stocktrack\<quote>.done file, first line "Teklif TKF-...,"),
+' as "TKF-2026-0003, TKF-2026-0004". Empty when there are none.
+Private Function ac2fJBRunnerNote(ByVal custDir As String) As String
+    Dim names() As String
+    Dim i As Long, n As Long, p As Long
+    Dim txt As String, q As String, out As String
+
+    n = ac2fJBListNames(custDir & "\.stocktrack", "*.done", False, names)
+    For i = 1 To n
+        txt = ac2fJBReadUtf8(custDir & "\.stocktrack\" & names(i))
+        q = ""
+        If Left$(txt, 7) = "Teklif " Then
+            p = InStr(8, txt, ",")
+            If p > 8 Then q = Mid$(txt, 8, p - 8)
+        End If
+        If Len(q) = 0 Then q = "?"
+        out = ac2fJBJoin(out, q, ", ")
+    Next i
+    ac2fJBRunnerNote = out
+End Function
 
 ' "001", or "001-003"; prefix "p" gives "p001-p002".
 Private Function ac2fJBRange(ByVal a As Long, ByVal b As Long, _

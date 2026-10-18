@@ -1201,6 +1201,26 @@ iki kez çalıştırmak bir şey bozmaz. Teklif kaleminde ölçü girilmemişse
 StockTrack plakanın tamamını yazar ve dosya konmaz; parça satıyor ya da
 işliyorsanız kalemde en × boyu girin.
 
+### Teklif işe dönüşünce: StockTrack Runner
+
+StockTrack'te teklif *Satış/İşlemeye Dönüştür* ile işe döndüğünde
+klasörleri dükkân bilgisayarındaki
+[stock-track-runner](https://github.com/ac2f/stock-track-runner) açar;
+Corel'i açmanız gerekmez:
+
+- müşteri klasörü (teklif günü ile dönüşüm günü arasında müşterinin bir
+  klasörü varsa o, yoksa dönüşüm gününün altında yeni),
+- teklifteki her tabaka için takım yolu klasörü, aynı adlarla ve aynı
+  istifleme kuralıyla (`001-pleksi-1220x2440--2pcs--...\001`, `\002`,
+  uzun tabakada `p001`/`p002`),
+- tabakanın bir kısmı kullanıldıysa `u1220x900` dosyası.
+
+Runner'ın klasör açtığı işler için **Toolpath folders**'ı (iş menüsü `4`)
+ayrıca çalıştırmayın, tabakalar ikinci kez istiflenir. Eklenti müşteri
+klasöründe runner'ın `.stocktrack` işaretini görürse onay penceresinde
+hangi teklifler için açıldığını söyler. **Export DXF** ve **Used parts**
+eskisi gibi kullanılır. Kurulum ve ayarlar runner deposunun README'sinde.
+
 ### Müşteri bağlama
 
 Bir **liste penceresi** açılır: son seçtiğiniz müşteriler ve StockTrack'te

@@ -508,6 +508,10 @@ Müşterinin dosyasını açın, `ac2fJobExport` çalıştırın: müşteriyi
 - 4000 mm'den uzun plakalarda her sayfa klasörüne `p001`, `p002`.
 - Klasör adları küçük harf ve boşluksuzdur (`ozturk-reklam-ltd-sti`);
   eski adla açılmış klasörler bulunmaya devam eder.
+- Teklif StockTrack'te **işe dönüştürülünce** takım yolu klasörlerini
+  dükkân bilgisayarındaki [stock-track-runner](https://github.com/ac2f/stock-track-runner)
+  kendiliğinden açar (aynı adlarla). O işler için iş menüsü `4`'ü ayrıca
+  çalıştırmayın; eklenti runner'ın işaretini görürse uyarır.
 - Müşteri, plaka, teklif ve eski iş bir **liste penceresinde** seçilir:
   yazdıkça daralır, StockTrack'te bulunanların hepsi listelenir (tek sonuç
   da sorulur), çift tıkla ya da Enter ile seçilir.
@@ -635,4 +639,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.17.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.17.1 — bkz. [CHANGELOG.md](CHANGELOG.md)

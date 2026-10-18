@@ -2,6 +2,17 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.17.1] - 2026-10-18
+
+### Eklendi: StockTrack Runner uyarısı
+
+Teklif işe dönüştürülünce klasörleri artık dükkân bilgisayarındaki
+[stock-track-runner](https://github.com/ac2f/stock-track-runner) açabiliyor
+(aynı adlarla). Runner müşteri klasörüne `.stocktrack\<teklif>.done`
+işareti bırakıyor; **Toolpath folders** (iş menüsü 4) bu işareti görürse
+onay penceresinde hangi teklifler için klasörlerin zaten açıldığını
+söylüyor, aynı işin tabakaları ikinci kez istiflenmesin.
+
 ## [1.17.0] - 2026-10-18
 
 ### Değişti: klasör adları küçük harf ve boşluksuz (`ac2fJob`)
