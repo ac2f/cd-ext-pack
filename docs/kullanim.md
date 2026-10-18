@@ -1075,8 +1075,13 @@ koyun (bkz. [kurulum](kurulum.md#araç-çubuğuna-kısayol-koymak)).
   (`%LOCALAPPDATA%\CdrAutoRenamer\config.json`): ana dizin, tarih biçimi
   ve ayraç oradan gelir, ikinci bir ayar gerekmez. Bugünün klasörü yoksa
   aynı adla açılır.
-- **Müşteri klasörü**: firma adı varsa o, yoksa kişi adı. İş daha önceki
-  bir günde başladıysa nereye yazılacağı sorulur (aşağıda).
+- **Müşteri klasörü**: firma adı varsa o, yoksa kişi adı; **küçük harf,
+  boşluksuz**, Türkçe harfler sadeleşir, harf/rakam dışı her şey tek `-`
+  olur: *Öztürk Reklam Ltd. Şti.* → `ozturk-reklam-ltd-sti`. Bu sürümden
+  önce açılmış `Ozturk Reklam Ltd. Sti` gibi klasörler bulunmaya devam
+  eder; iş eski klasörde sürerse o klasöre yazılır, yeni klasörler yeni
+  kuralla açılır. İş daha önceki bir günde başladıysa nereye yazılacağı
+  sorulur (aşağıda).
 - **Export**: `exp` + sıra numarası + ayraç + malzeme türü. Numara o
   klasördeki son `exp`'nin bir fazlasıdır.
 - **Takım yolu klasörü**: `NNN-tür-ebat--Nadet--kalınlıkµm-marka-varyant-renk`.
@@ -1094,7 +1099,7 @@ klasörleri ya da klasörü aç çalışınca şu sorulur:
 
 ```
 This job already has a folder from an earlier day:
-   22-10-2026--persembe\Ozturk Reklam Ltd. Sti
+   22-10-2026--persembe\ozturk-reklam-ltd-sti
    2 export(s), 1 toolpath folder(s), last exp02--pleksi.dxf
 
 Today is 25-10-2026--pazar.
@@ -1159,7 +1164,7 @@ Teklif kesildikten sonra `5` (aşağıda).
 olan günleri, yeniden eskiye listeler.
 
 ```
-OLD JOBS  -  Ozturk Reklam Ltd. Sti
+OLD JOBS  -  ozturk-reklam-ltd-sti
   1  25-10-2026--pazar       2 export, 1 folder
   2  22-10-2026--persembe    3 export, 2 folder, 1 cdr
 ```
@@ -1198,25 +1203,42 @@ işliyorsanız kalemde en × boyu girin.
 
 ### Müşteri bağlama
 
-Liste son 9 müşteriyle açılır; numara yazın ya da adın, firma adının
-veya telefonun bir parçasını. Arama Türkçe harfe duyarsızdır (`ozturk` →
-*Öztürk*). Tek sonuç çıkarsa doğrudan bağlanır.
+Bir **liste penceresi** açılır: son seçtiğiniz müşteriler ve StockTrack'te
+en son işlem gören müşteriler. Üstteki kutuya adın, firma adının ya da
+telefonun bir parçasını yazdıkça liste daralır (Türkçe harfe duyarsız:
+`ozturk` → *Öztürk*). Müşteriye çift tıklayın ya da oklarla gelip
+**Enter**'a basın.
 
-- Dosya zaten bir `<gün>\<müşteri>\` klasöründen açıldıysa o müşterinin
-  adı hazır gelir; Enter yeter.
-- `=Mehmet Usta` StockTrack'e bakmadan, yazıldığı gibi kullanır.
+- Listede kalmadıysa **Enter** (ya da *Search StockTrack*, F3) bütün
+  müşterilerde arar. Bulunanların **hepsi listelenir — tek sonuç çıksa
+  bile** kendiliğinden bağlanmaz, siz seçersiniz.
+- *Use as typed* (ya da başına `=` koyup Enter: `=Mehmet Usta`)
+  StockTrack'e bakmadan, yazıldığı gibi kullanır.
+- Pencere PowerShell ile çizilir (Windows'la gelir). PowerShell
+  engelliyse ya da ayarlarda **List window** `0` ise eski numaralı soru
+  açılır; orada da tek sonuç artık listelenip sorulur.
+- Dosya zaten bir `<gün>\<müşteri>\` klasöründen açıldıysa (eski
+  numaralı soruda) o müşterinin adı hazır gelir; Enter yeter.
 - Bağlantı **dosyanın içine** yazılır (belge özelliği): dosyayı kaydedip
   sonra açtığınızda müşteri ve plaka yerinde durur. Kaydedilmemiş
   dosyalar için kayıt defterinde de bir kopyası tutulur.
 
 ### Plaka seçme
 
-Liste sırası: **müşterinin kendi malzemesi** (StockTrack'te ona ait
-konsinye stok, `[musterinin]` işaretli), son seçtikleriniz, sonra
-işletme stoğu. Kelime yazarsanız stokta arar: `pleksi beyaz 3`,
-`dokme 2,8`, `1220x2440`, renk kodu ya da stok kodu.
+Müşteri bağlamadaki gibi bir liste penceresi açılır. Sırası:
+**müşterinin kendi malzemesi** (StockTrack'te ona ait konsinye stok,
+`[musterinin]` işaretli), son seçtikleriniz, sonra işletme stoğu.
+Kutuya yazdıkça liste daralır; listede kalmayınca **Enter** (ya da
+*Search stock*, F3) stokta arar: `pleksi beyaz 3`, `dokme 2,8`,
+`1220x2440`, renk kodu ya da stok kodu. Bulunanların hepsi listelenir,
+tek sonuç da seçilmeden kullanılmaz.
 
-StockTrack'te olmayan bir plaka için:
+Teklif seçerken (*Used parts*) ve **eski işlerde** de aynı pencere
+çıkar; eski işlerde *Open its CorelDRAW file* ve *Carry this job on here*
+düğmeleri vardır.
+
+StockTrack'te olmayan bir plaka için (kutuya yazıp *Use as typed* ya da
+Enter):
 
 ```
 =pleksi;2.8;akpolimer;dokme;beyaz;1220x2440
@@ -1321,7 +1343,7 @@ gruplar ve PowerClip içerikleri de taranır.
 Seçimi yapın, `ac2fCutTime` (iş menüsü `10`):
 
 ```
-CUT TIME  -  Ozturk Reklam Ltd. Sti
+CUT TIME  -  ozturk-reklam-ltd-sti
 48 outline(s), 2 pass(es)  (pleksi 5 mm at 3 mm a pass)
 
 Cutting   12.450 mm x2 at 25 mm/s       16 min 36 s
@@ -1361,7 +1383,7 @@ Birden fazlası tek satırda: `f=30 n=1`.
 Seçimi yapın, `ac2fCutArea` (iş menüsü `11`):
 
 ```
-AREA PRICE  -  Ozturk Reklam Ltd. Sti
+AREA PRICE  -  ozturk-reklam-ltd-sti
 
 1  Selection box     1180 x 870 mm         1,027 m2  <- used
 2  Each object's box 6 object(s)           0,640 m2

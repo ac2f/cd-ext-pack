@@ -489,7 +489,7 @@ Müşterinin dosyasını açın, `ac2fJobExport` çalıştırın: müşteriyi
 önce) sorar, DXF'i günün klasörüne otomatik adla yazar.
 
 ```
-17-10-2026--cumartesi\Ozturk Reklam Ltd. Sti\exp01--pleksi.dxf
+17-10-2026--cumartesi\ozturk-reklam-ltd-sti\exp01--pleksi.dxf
                                              001-pleksi-1350x2000--2pcs--2800um-akpolimer-dokme-beyaz\001
                                                                                                      \002
                                                                                                      \u1350x1000
@@ -506,6 +506,11 @@ Müşterinin dosyasını açın, `ac2fJobExport` çalıştırın: müşteriyi
   `ac2fJobUsage`, plakanın yalnız bir kısmı kullanıldıysa klasöre
   `u1350x1000` adlı bir dosya koyar.
 - 4000 mm'den uzun plakalarda her sayfa klasörüne `p001`, `p002`.
+- Klasör adları küçük harf ve boşluksuzdur (`ozturk-reklam-ltd-sti`);
+  eski adla açılmış klasörler bulunmaya devam eder.
+- Müşteri, plaka, teklif ve eski iş bir **liste penceresinde** seçilir:
+  yazdıkça daralır, StockTrack'te bulunanların hepsi listelenir (tek sonuç
+  da sorulur), çift tıkla ya da Enter ile seçilir.
 - `ac2fJobFolders` sayfa sayısını Nesting'in plaka çerçevelerinden okur.
 
 Kurulum: StockTrack › Ayarlar › Corel entegrasyonu'ndan anahtar alın,
@@ -630,4 +635,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.16.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.17.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

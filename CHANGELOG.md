@@ -2,6 +2,38 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.17.0] - 2026-10-18
+
+### Değişti: klasör adları küçük harf ve boşluksuz (`ac2fJob`)
+
+Müşteri klasörü artık `Ozturk Reklam Ltd. Sti` değil
+`ozturk-reklam-ltd-sti`: küçük harf, Türkçe harfler sadeleşmiş, harf ve
+rakam dışındaki her dizi tek `-`. StockTrack aynı kuralla gönderiyor;
+`=ad` ile yazılan ve son seçilenler listesinden gelen adlar da aynı
+kurala uyuyor. Ayraç ayarı artık boşluk kabul etmiyor.
+
+Eski adla açılmış klasörler bulunmaya devam ediyor (aynı okunan ad
+eşleşir): önceki günde başlayan iş, eski işler listesi ve kullanılan
+parça işareti o klasörleri görür; yalnız yeni açılan klasörler yeni adı
+alır.
+
+### Eklendi: liste penceresi
+
+Müşteri bağlarken, plaka seçerken, teklif seçerken (*Used parts*) ve
+eski işlerde numara yazılan kutu yerine bir pencere açılıyor: üstteki
+kutuya yazdıkça liste daralıyor (Türkçe harfe duyarsız), çift tıklama ya
+da oklar + Enter ile seçiliyor.
+
+- StockTrack'te aramanın **bütün sonuçları listeleniyor; tek sonuç da
+  kendiliğinden seçilmiyor.** Listede kalmayınca Enter (ya da F3) aramayı
+  sunucuda yapıyor; *Use as typed* yazılanı olduğu gibi kullanıyor.
+- Eski işlerde *Open its CorelDRAW file* ve *Carry this job on here*
+  düğmeleri var.
+- Pencereyi PowerShell çiziyor (Windows'la gelir; Plot da kullanıyor).
+  PowerShell engelliyse eski numaralı soru kendiliğinden açılıyor; orada
+  da tek sonuç artık listelenip soruluyor. Ayarlarda **List window** `0`
+  her zaman numaralı soruyu kullanır.
+
 ## [1.16.0] - 2026-10-17
 
 ### Eklendi: StockTrack'e ulaşılamazken son listeler (`ac2fJob`)

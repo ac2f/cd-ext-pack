@@ -34,7 +34,8 @@ Attribute VB_Name = "ac2fJob"
 '  day folder is created the same way.
 '
 '  The customer folder is the company name when there is one, else the
-'  person's name. A job that already has a folder on an earlier day (a
+'  person's name, lower case with dashes for spaces (ozturk-reklam-ltd-sti);
+'  a folder made under the older spaced name is still found. A job that already has a folder on an earlier day (a
 '  quote given on the 22nd, approved on the 25th) asks whether to carry
 '  on there or to start again under today; the answer stays with the
 '  job for the rest of the day. Every name is plain ASCII: Turkish letters are folded
@@ -63,6 +64,11 @@ Attribute VB_Name = "ac2fJob"
 '  integration and pasted into Job setup once. Without a server the
 '  module still works: names and sheets are typed instead.
 '
+'  Customers, sheets, quotes and old jobs are picked in a list window
+'  (PowerShell, part of Windows) that narrows as you type; every hit is
+'  listed, even a single one. Without PowerShell the numbered prompts
+'  come back.
+'
 '  The link is kept in the document (a document property), so reopening
 '  the file brings the customer back. A copy goes to the registry
 '  against the file path, for files that are never saved.
@@ -87,6 +93,7 @@ Public Const AC2F_K_JB_NEST   As String = "JBNestPlakasi"
 Public Const AC2F_K_JB_BACK   As String = "JBGeriBakmaGun"
 Public Const AC2F_K_JB_CHECK  As String = "JBExportOncesiKontrol"
 Public Const AC2F_K_JB_PRICE  As String = "JBKesimFiyatlari"   ' string, last pricing row
+Public Const AC2F_K_JB_LIST   As String = "JBListePenceresi"
 
 Public Const AC2F_DEF_JB_LONG   As Double = 4000#   ' longer sheets get p001 / p002
 Public Const AC2F_DEF_JB_DIALOG As Long = 1         ' show the DXF export dialog
@@ -94,6 +101,7 @@ Public Const AC2F_DEF_JB_OPEN   As Long = 0         ' open Explorer afterwards
 Public Const AC2F_DEF_JB_NEST   As Long = 1         ' picking a sheet sets the nest sheet
 Public Const AC2F_DEF_JB_BACK   As Long = 30        ' days to look back for the job's folder
 Public Const AC2F_DEF_JB_CHECK  As Long = 1         ' check the drawing before every export
+Public Const AC2F_DEF_JB_LIST   As Long = 1         ' pick customers and sheets in a list window
 Public Const AC2F_DEF_JB_SEP    As String = "--"
 
 Private Const JOB_SEC     As String = "Jobs"        ' per document links
@@ -354,6 +362,7 @@ Attribute ac2fJobUsage.VB_Description = "ac2f pack: After the quote, mark the pa
     Dim qrows() As String, irows() As String
     Dim nq As Long, ni As Long, i As Long, k As Long
     Dim m As String, answer As String, errText As String
+    Dim labels() As String, act As String, typed As String
 
     If Not ac2fJBNeedDoc() Then Exit Sub
     ac2fJBLoad jr
@@ -381,12 +390,21 @@ Attribute ac2fJobUsage.VB_Description = "ac2f pack: After the quote, mark the pa
 
     k = 1
     If nq > 1 Then
+        ReDim labels(1 To nq)
+        For i = 1 To nq
+            labels(i) = ac2fJBTab(qrows(i), 1) & "   " & ac2fJBTab(qrows(i), 2) & "   " & _
+                        ac2fJBTab(qrows(i), 3) & "   " & ac2fJBTab(qrows(i), 4) & " sheet line(s)"
+        Next i
+        k = ac2fJBListWin("USED PARTS  -  " & jr.CustLabel & "~nWhich quote? Newest first.", _
+                          labels, nq, "Use this quote", "", "", _
+                          "Type to narrow the list; Enter takes the highlighted quote.", act, typed)
+        If k = -1 Or k = 0 Then Exit Sub
+    End If
+    If k = -2 Then
         m = "USED PARTS  -  " & jr.CustFolder & vbCrLf & vbCrLf & _
             "Which quote? Newest first." & vbCrLf & vbCrLf
         For i = 1 To nq
-            m = m & ac2fRPad(CStr(i), 3) & "  " & ac2fJBTab(qrows(i), 1) & "   " & _
-                ac2fJBTab(qrows(i), 2) & "   " & ac2fJBTab(qrows(i), 3) & "   " & _
-                ac2fJBTab(qrows(i), 4) & " sheet line(s)" & vbCrLf
+            m = m & ac2fRPad(CStr(i), 3) & "  " & labels(i) & vbCrLf
         Next i
         Do
             answer = InputBox(m, ac2fTitle(CAPTION_), "1")
@@ -485,8 +503,8 @@ Attribute ac2fJobSetup.VB_Description = "ac2f pack: StockTrack server, key, day 
                     Case "3": ac2fSetStr AC2F_K_JB_BASE, ac2fJBNoSlash(arg)
                     Case "4"
                         If Len(arg) = 0 Then arg = AC2F_DEF_JB_SEP
-                        If ac2fJBSafeName("a" & arg & "a") <> "a" & arg & "a" Then
-                            ac2fWarn "A separator is plain ASCII and cannot hold" & vbCrLf & _
+                        If Not ac2fJBSepOk(arg) Then
+                            ac2fWarn "A separator is plain ASCII, without spaces, and cannot hold" & vbCrLf & _
                                      "\ / : * ? "" < > |", "Job Setup"
                         Else
                             ac2fSetStr AC2F_K_JB_SEP, arg
@@ -509,9 +527,10 @@ Attribute ac2fJobHistory.VB_Description = "ac2f pack: Find this customer's earli
     Dim days() As String, names() As String
     Dim hitDay() As String, hitInfo() As String, hitCdr() As String
     Dim nHit As Long, nd As Long, nf As Long, back As Long, i As Long, k As Long
-    Dim cdir As String, m As String, ln As String, answer As String
+    Dim cdir As String, answer As String
     Dim nExp As Long, nGrp As Long, grpNo As Long, c As Long
     Dim h As String, t As String
+    Dim labels() As String, act As String, typed As String
 
     If Not ac2fJBNeedDoc() Then Exit Sub
     ac2fJBLoad jr
@@ -528,7 +547,7 @@ Attribute ac2fJobHistory.VB_Description = "ac2f pack: Find this customer's earli
     For back = 0 To HISTORY_DAYS
         nd = ac2fJBListNames(root, ac2fJBStrftime(fmt, Date - back) & "*", True, days)
         For i = 1 To nd
-            cdir = root & "\" & days(i) & "\" & jr.CustFolder
+            cdir = ac2fJBCustPath(root & "\" & days(i), jr.CustFolder)
             If ac2fJBDirExists(cdir) Then
                 nExp = ac2fJBListNames(cdir, "exp*", False, names)
                 nf = ac2fJBListNames(cdir, "*", True, names)
@@ -559,29 +578,22 @@ Attribute ac2fJobHistory.VB_Description = "ac2f pack: Find this customer's earli
         Exit Sub
     End If
 
-    m = "OLD JOBS  -  " & jr.CustFolder & vbCrLf & "Newest first." & vbCrLf & vbCrLf
+    ReDim labels(1 To nHit)
     For i = 1 To nHit
-        ln = ac2fRPad(CStr(i), 3) & "  " & ac2fPad(hitDay(i), 24) & hitInfo(i) & vbCrLf
-        If Len(m) + Len(ln) > PROMPT_MAX - 160 Then
-            m = m & "     ... " & (nHit - i + 1) & " older" & vbCrLf
-            Exit For
-        End If
-        m = m & ln
+        labels(i) = ac2fPad(hitDay(i), 26) & hitInfo(i)
     Next i
-    m = m & vbCrLf & "A number opens that folder. Add O to open its CorelDRAW" & vbCrLf & _
-        "file too (3 O), or C to carry this job on in it (3 C)."
+    k = ac2fJBListWin("OLD JOBS  -  " & jr.CustLabel & "~nNewest first.", labels, nHit, _
+                      "Open folder", "O=Open its CorelDRAW file|C=Carry this job on here", "", _
+                      "Type a date or month to narrow the list (10-2026).", act, typed)
+    If k = -1 Then Exit Sub
+    If k > 0 Then
+        answer = act
+    Else
+        answer = ac2fJBHistoryPrompt(jr, hitDay, hitInfo, nHit, k)
+        If k = 0 Then Exit Sub
+    End If
 
-    Do
-        answer = InputBox(m, ac2fTitle(CAPTION_), "1")
-        If StrPtr(answer) = 0 Then Exit Sub
-        answer = UCase$(Trim$(answer))
-        If Len(answer) = 0 Then Exit Sub
-        k = CLng(Val(answer))
-        If k >= 1 And k <= nHit Then Exit Do
-        ac2fWarn "Type a number from the list.", CAPTION_
-    Loop
-
-    cdir = root & "\" & hitDay(k) & "\" & jr.CustFolder
+    cdir = ac2fJBCustPath(root & "\" & hitDay(k), jr.CustFolder)
     If Right$(answer, 1) = "C" Then
         jr.JobDay = hitDay(k)
         jr.JobAsked = CStr(CLng(Date))
@@ -603,6 +615,40 @@ Attribute ac2fJobHistory.VB_Description = "ac2f pack: Find this customer's earli
         ac2fJBExplore cdir
     End If
 End Sub
+
+' Old jobs as a numbered prompt, when the list window is not available.
+' Returns "", "O" or "C" and the day picked in k (0 on cancel).
+Private Function ac2fJBHistoryPrompt(ByRef jr As ac2fJobRec, ByRef hitDay() As String, _
+                                     ByRef hitInfo() As String, ByVal nHit As Long, _
+                                     ByRef k As Long) As String
+    Dim m As String, ln As String, answer As String
+    Dim i As Long
+
+    k = 0
+    m = "OLD JOBS  -  " & jr.CustFolder & vbCrLf & "Newest first." & vbCrLf & vbCrLf
+    For i = 1 To nHit
+        ln = ac2fRPad(CStr(i), 3) & "  " & ac2fPad(hitDay(i), 24) & hitInfo(i) & vbCrLf
+        If Len(m) + Len(ln) > PROMPT_MAX - 160 Then
+            m = m & "     ... " & (nHit - i + 1) & " older" & vbCrLf
+            Exit For
+        End If
+        m = m & ln
+    Next i
+    m = m & vbCrLf & "A number opens that folder. Add O to open its CorelDRAW" & vbCrLf & _
+        "file too (3 O), or C to carry this job on in it (3 C)."
+
+    Do
+        answer = InputBox(m, ac2fTitle(CAPTION_), "1")
+        If StrPtr(answer) = 0 Then Exit Function
+        answer = UCase$(Trim$(answer))
+        If Len(answer) = 0 Then Exit Function
+        k = CLng(Val(answer))
+        If k >= 1 And k <= nHit Then Exit Do
+        k = 0
+        ac2fWarn "Type a number from the list.", CAPTION_
+    Loop
+    ac2fJBHistoryPrompt = Right$(answer, 1)
+End Function
 
 '=====================================================================
 ' FOR THE PRICE AND CHECK MODULES
@@ -698,6 +744,10 @@ Private Function ac2fJBPickCustomer(ByRef jr As ac2fJobRec) As Boolean
     Dim errText As String, nm As String
     Dim i As Long, k As Long
     Dim online As Boolean
+    Dim handled As Boolean
+
+    ac2fJBPickCustomer = ac2fJBPickCustomerWin(jr, handled)
+    If handled Then Exit Function
 
     nRec = ac2fJBRecentLoad(AC2F_K_JB_RCUST, rec)
     online = Len(ac2fJBServer()) > 0
@@ -768,11 +818,8 @@ Private Function ac2fJBPickCustomer(ByRef jr As ac2fJobRec) As Boolean
                 ac2fWarn "No customer matches """ & answer & """." & vbCrLf & _
                          "Try fewer letters, or =" & answer & " to use it as typed.", CAPTION_
                 dflt = answer
-            ElseIf n = 1 Then
-                ac2fJBSetCust jr, rows(1)
-                ac2fJBPickCustomer = True
-                Exit Function
             Else
+                ' even a single hit is shown, so the wrong customer is never linked unseen
                 k = ac2fJBChoose("Customers matching """ & answer & """" & ac2fJBSavedNote() & ":", _
                                  rows, n, 2, pending)
                 If k > 0 Then
@@ -797,6 +844,7 @@ Private Function ac2fJBPickMaterial(ByRef jr As ac2fJobRec) As Boolean
     Dim errText As String, cq As String, head As String
     Dim k As Long
     Dim online As Boolean
+    Dim handled As Boolean
 
     nRec = ac2fJBRecentLoad(AC2F_K_JB_RMAT, rec)
     online = Len(ac2fJBServer()) > 0
@@ -816,6 +864,9 @@ Private Function ac2fJBPickMaterial(ByRef jr As ac2fJobRec) As Boolean
     head = "PICK THE SHEET"
     If Len(jr.CustFolder) > 0 Then head = head & "  -  " & jr.CustFolder
     head = head & ac2fJBSavedNote()
+
+    ac2fJBPickMaterial = ac2fJBPickMaterialWin(jr, opts, nOpt, online, cq, head, handled)
+    If handled Then Exit Function
 
     Do
         m = ac2fJBMatPrompt(head, opts, nOpt, online)
@@ -852,10 +903,6 @@ Private Function ac2fJBPickMaterial(ByRef jr As ac2fJobRec) As Boolean
             ElseIf nSrv = 0 Then
                 ac2fWarn "Nothing in stock matches """ & answer & """.", CAPTION_
                 dflt = answer
-            ElseIf nSrv = 1 Then
-                ac2fJBSetMat jr, srv(1)
-                ac2fJBPickMaterial = True
-                Exit Function
             Else
                 opts = srv
                 nOpt = nSrv
@@ -868,6 +915,177 @@ Private Function ac2fJBPickMaterial(ByRef jr As ac2fJobRec) As Boolean
             dflt = "=" & ac2fJBToken(answer)
         End If
     Loop
+End Function
+
+' The customer from a list window: recent picks and StockTrack's latest
+' customers to start with. Typing narrows the list; Search StockTrack
+' (or Enter when nothing on the list matches) asks the server, and every
+' hit is listed, even a single one, to be picked by hand. Use as typed
+' links a name StockTrack does not have. handled is False when the window
+' cannot be shown.
+Private Function ac2fJBPickCustomerWin(ByRef jr As ac2fJobRec, ByRef handled As Boolean) As Boolean
+    Dim rows() As String, srv() As String, labels() As String
+    Dim n As Long, nSrv As Long, k As Long, i As Long
+    Dim head As String, hint As String, textBtns As String
+    Dim act As String, typed As String, errText As String, nm As String
+    Dim online As Boolean
+
+    online = Len(ac2fJBServer()) > 0
+    n = ac2fJBRecentLoad(AC2F_K_JB_RCUST, rows)
+    head = "LINK CUSTOMER"
+    If Len(jr.CustFolder) > 0 Then head = head & "   (now: " & jr.CustLabel & ")"
+    If online Then
+        nSrv = ac2fJBGetRows("/corel/customers?limit=40", srv, errText)
+        If nSrv > 0 Then
+            n = ac2fJBAddRows(rows, n, srv, nSrv)
+            head = head & ac2fJBSavedNote()
+        End If
+        textBtns = "S=Search StockTrack|T=Use as typed"
+        hint = "Type part of a name or phone. Enter links the highlighted one; " & _
+               "with nothing left on the list it searches StockTrack (F3)."
+    Else
+        textBtns = "T=Use as typed"
+        hint = "StockTrack is not set up (Job setup), so type the name and press Enter."
+    End If
+
+    Do
+        ReDim labels(1 To n + 1)
+        For i = 1 To n
+            labels(i) = ac2fJBOr(ac2fJBTab(rows(i), 2), ac2fJBTab(rows(i), 1))
+        Next i
+        k = ac2fJBListWin(head, labels, n, "Link", "", textBtns, hint, act, typed)
+        If k = -2 Then Exit Function
+        handled = True
+        If k = -1 Then Exit Function
+        If k > 0 Then
+            ac2fJBSetCust jr, rows(k)
+            ac2fJBPickCustomerWin = True
+            Exit Function
+        End If
+
+        If Left$(typed, 1) = "=" Then
+            typed = Trim$(Mid$(typed, 2))
+            act = "T"
+        End If
+        If act = "T" Or Not online Then
+            nm = ac2fJBSafeName(typed)
+            If Len(nm) = 0 Then
+                ac2fWarn "That name leaves nothing to use as a folder name.", CAPTION_
+            Else
+                ac2fJBSetCust jr, "" & vbTab & nm & vbTab & typed
+                ac2fJBPickCustomerWin = True
+                Exit Function
+            End If
+        Else
+            nSrv = ac2fJBGetRows("/corel/customers?limit=40&q=" & ac2fJBUrl(typed), srv, errText, typed)
+            If nSrv < 0 Then
+                ac2fWarn errText & vbCrLf & vbCrLf & _
+                         "Use as typed links a name without StockTrack.", CAPTION_
+            ElseIf nSrv = 0 Then
+                ac2fWarn "No customer matches """ & typed & """." & vbCrLf & _
+                         "Try fewer letters, or Use as typed.", CAPTION_
+            Else
+                rows = srv
+                n = nSrv
+                head = "CUSTOMERS MATCHING """ & typed & """" & ac2fJBSavedNote()
+            End If
+        End If
+    Loop
+End Function
+
+' The sheet from a list window: the customer's own sheets, recent picks
+' and the stock to start with, narrowed as you type. Search stock asks
+' StockTrack and lists every hit; Use as typed takes
+' =kind;thickness;brand;variant;colour;size. handled is False when the
+' window cannot be shown.
+Private Function ac2fJBPickMaterialWin(ByRef jr As ac2fJobRec, ByRef opts() As String, _
+                                       ByVal nOpt As Long, ByVal online As Boolean, _
+                                       ByVal cq As String, ByVal head As String, _
+                                       ByRef handled As Boolean) As Boolean
+    Dim labels() As String, srv() As String
+    Dim nSrv As Long, k As Long, i As Long
+    Dim hint As String, textBtns As String, act As String, typed As String
+    Dim errText As String, row As String
+
+    If online Then
+        textBtns = "S=Search stock|T=Use as typed"
+        hint = "Type to narrow the list (pleksi beyaz 3). Enter picks the highlighted " & _
+               "sheet; with nothing left it searches the stock (F3).~n" & _
+               "A sheet not in stock: =pleksi;2.8;akpolimer;dokme;beyaz;1220x2440, then Use as typed."
+    Else
+        textBtns = "T=Use as typed"
+        hint = "Type to narrow the list. A sheet not on it: " & _
+               "=pleksi;2.8;akpolimer;dokme;beyaz;1220x2440, then Enter."
+    End If
+
+    Do
+        ReDim labels(1 To nOpt + 1)
+        For i = 1 To nOpt
+            labels(i) = ac2fJBTab(opts(i), 10)
+            If Len(labels(i)) = 0 Or ac2fJBTab(opts(i), 1) = "M" Then labels(i) = ac2fJBRowText(opts(i))
+        Next i
+        k = ac2fJBListWin(head, labels, nOpt, "Use this sheet", "", textBtns, hint, act, typed)
+        If k = -2 Then Exit Function
+        handled = True
+        If k = -1 Then Exit Function
+        If k > 0 Then
+            ac2fJBSetMat jr, opts(k)
+            ac2fJBPickMaterialWin = True
+            Exit Function
+        End If
+
+        If Left$(typed, 1) = "=" Or act = "T" Or Not online Then
+            If Left$(typed, 1) = "=" Then typed = Mid$(typed, 2)
+            row = ac2fJBTypedMat(typed)
+            If Len(row) = 0 Then
+                ac2fWarn "Type it as kind;thickness;brand;variant;colour;size," & vbCrLf & _
+                         "e.g. =pleksi;2.8;akpolimer;dokme;beyaz;1220x2440" & vbCrLf & _
+                         "Only the kind is required.", CAPTION_
+            Else
+                ac2fJBSetMat jr, row
+                ac2fJBPickMaterialWin = True
+                Exit Function
+            End If
+        Else
+            nSrv = ac2fJBGetRows("/corel/materials?limit=40" & cq & "&q=" & ac2fJBUrl(typed), _
+                                 srv, errText, typed)
+            If nSrv < 0 Then
+                ac2fWarn errText, CAPTION_
+            ElseIf nSrv = 0 Then
+                ac2fWarn "Nothing in stock matches """ & typed & """.", CAPTION_
+            Else
+                opts = srv
+                nOpt = nSrv
+                head = "SHEETS MATCHING """ & typed & """" & ac2fJBSavedNote()
+            End If
+        End If
+    Loop
+End Function
+
+' rows plus the rows of more that are not on it yet (same StockTrack id,
+' or the same folder for typed ones). Returns the new count.
+Private Function ac2fJBAddRows(ByRef rows() As String, ByVal n As Long, _
+                               ByRef more() As String, ByVal nMore As Long) As Long
+    Dim i As Long, j As Long
+    Dim dup As Boolean
+
+    ReDim Preserve rows(1 To n + nMore + 1)
+    For i = 1 To nMore
+        dup = False
+        For j = 1 To n
+            If Len(ac2fJBTab(more(i), 0)) > 0 Then
+                dup = ac2fJBTab(rows(j), 0) = ac2fJBTab(more(i), 0)
+            Else
+                dup = ac2fJBSafeName(ac2fJBTab(rows(j), 1)) = ac2fJBSafeName(ac2fJBTab(more(i), 1))
+            End If
+            If dup Then Exit For
+        Next j
+        If Not dup Then
+            n = n + 1
+            rows(n) = more(i)
+        End If
+    Next i
+    ac2fJBAddRows = n
 End Function
 
 ' Numbered list of rows showing field col. Returns the number picked,
@@ -1006,9 +1224,11 @@ End Function
 Private Sub ac2fJBSetCust(ByRef jr As ac2fJobRec, ByVal row As String)
     Dim changed As Boolean
 
-    changed = ac2fJBTab(row, 0) <> jr.CustId Or ac2fJBTab(row, 1) <> jr.CustFolder
+    ' rows saved before folder names went lower case with dashes, and
+    ' typed names, all come out the same way
+    changed = ac2fJBTab(row, 0) <> jr.CustId Or ac2fJBSafeName(ac2fJBTab(row, 1)) <> jr.CustFolder
     jr.CustId = ac2fJBTab(row, 0)
-    jr.CustFolder = ac2fJBTab(row, 1)
+    jr.CustFolder = ac2fJBSafeName(ac2fJBTab(row, 1))
     jr.CustLabel = ac2fJBOr(ac2fJBTab(row, 2), jr.CustFolder)
     ' the previous customer's own material and day are not this one's
     If changed And jr.MatOwner = "C" Then ac2fJBSetMat jr, ""
@@ -1652,7 +1872,7 @@ Private Function ac2fJBFindSheetGroup(ByVal custFolder As String, ByVal jobDay A
     If Not ac2fJBDayRule(root, fmt, dsep) Then Exit Function
 
     If Len(jobDay) > 0 Then
-        ac2fJBBestGroup root & "\" & jobDay & "\" & custFolder, kind, tail, uw, uh, _
+        ac2fJBBestGroup ac2fJBCustPath(root & "\" & jobDay, custFolder), kind, tail, uw, uh, _
                         best, bestArea, gw, gh
     End If
     If Len(best) > 0 Then
@@ -1664,7 +1884,7 @@ Private Function ac2fJBFindSheetGroup(ByVal custFolder As String, ByVal jobDay A
         If back = 15 Then d = Date Else d = d0 - back
         nd = ac2fJBListNames(root, ac2fJBStrftime(fmt, d) & "*", True, days)
         For i = 1 To nd
-            ac2fJBBestGroup root & "\" & days(i) & "\" & custFolder, kind, tail, uw, uh, _
+            ac2fJBBestGroup ac2fJBCustPath(root & "\" & days(i), custFolder), kind, tail, uw, uh, _
                             best, bestArea, gw, gh
         Next i
         If Len(best) > 0 Then Exit For
@@ -1847,33 +2067,68 @@ Private Function ac2fJBFold(ByVal s As String) As String
     ac2fJBFold = out
 End Function
 
-' Folder name, the same rule StockTrack applies: ASCII, case and spaces
-' kept, characters Windows refuses become spaces, no trailing dot.
+' Folder name, the same rule StockTrack applies: lower case ASCII, every
+' run of other characters one "-", so no space or capital reaches a path
+' ("Ozturk Reklam Ltd. Sti." -> "ozturk-reklam-ltd-sti").
 Private Function ac2fJBSafeName(ByVal s As String) As String
-    Dim i As Long
-    Dim c As String, out As String
+    Dim out As String
 
-    s = ac2fJBFold(s)
-    For i = 1 To Len(s)
-        c = Mid$(s, i, 1)
-        If InStr("\/:*?""<>|", c) > 0 Then c = " "
-        out = out & c
-    Next i
-    Do While InStr(out, "  ") > 0
-        out = Replace$(out, "  ", " ")
-    Loop
-    out = Trim$(out)
+    out = ac2fJBToken(s)
     If Len(out) > 60 Then out = Left$(out, 60)
-    Do While Right$(out, 1) = "." Or Right$(out, 1) = " "
+    Do While Right$(out, 1) = "-"
         out = Left$(out, Len(out) - 1)
     Loop
-    Select Case LCase$(out)
+    Select Case out
         Case "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", _
              "com6", "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", _
              "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"
             out = out & "_"
     End Select
     ac2fJBSafeName = out
+End Function
+
+' A separator: printable ASCII, no space, nothing Windows refuses in a name.
+Private Function ac2fJBSepOk(ByVal s As String) As Boolean
+    Dim i As Long
+    Dim c As String
+
+    If Len(s) = 0 Then Exit Function
+    For i = 1 To Len(s)
+        c = Mid$(s, i, 1)
+        If AscW(c) < 33 Or AscW(c) > 126 Then Exit Function
+        If InStr("\/:*?""<>|", c) > 0 Then Exit Function
+    Next i
+    ac2fJBSepOk = True
+End Function
+
+' The folder this customer really has in dayPath: the name as it is now
+' or, for folders made before names went lower case with dashes, the one
+' that reads the same ("Ozturk Reklam" for "ozturk-reklam"). Empty when
+' there is none.
+Private Function ac2fJBCustSub(ByVal dayPath As String, ByVal custFolder As String) As String
+    Dim names() As String
+    Dim i As Long, n As Long
+    Dim want As String
+
+    If Len(custFolder) = 0 Then Exit Function
+    If ac2fJBDirExists(dayPath & "\" & custFolder) Then
+        ac2fJBCustSub = custFolder
+        Exit Function
+    End If
+    want = ac2fJBToken(custFolder)
+    If Len(want) = 0 Then Exit Function
+    n = ac2fJBListNames(dayPath, "*", True, names)
+    For i = 1 To n
+        If ac2fJBToken(names(i)) = want Then
+            ac2fJBCustSub = names(i)
+            Exit Function
+        End If
+    Next i
+End Function
+
+' dayPath\<customer folder>, the existing one when there is one.
+Private Function ac2fJBCustPath(ByVal dayPath As String, ByVal custFolder As String) As String
+    ac2fJBCustPath = dayPath & "\" & ac2fJBOr(ac2fJBCustSub(dayPath, custFolder), custFolder)
 End Function
 
 ' One name piece: lower case ASCII, every run of other characters one
@@ -1981,7 +2236,7 @@ Private Function ac2fJBLoad(ByRef jr As ac2fJobRec) As Boolean
 
     f = Split(s & String$(16, Chr$(31)), Chr$(31))
     jr.CustId = f(1)
-    jr.CustFolder = f(2)
+    jr.CustFolder = ac2fJBSafeName(f(2))  ' an older, spaced name finds its folder by ac2fJBCustSub
     jr.CustLabel = f(3)
     jr.MatId = f(4)
     jr.MatOwner = f(5)
@@ -2106,6 +2361,322 @@ Private Function ac2fJBRowId(ByVal row As String) As String
     id = ac2fJBTab(row, 0)
     If Len(id) = 0 Then id = LCase$(row)
     ac2fJBRowId = id
+End Function
+
+'=====================================================================
+' LIST WINDOW
+'=====================================================================
+
+' A list to click in, with a box above it that narrows the list as you
+' type (Turkish letters match either way: ozturk finds the dotted and
+' dotless spellings). It is a small Windows Forms window run through
+' PowerShell, which comes with Windows and which Plot already uses.
+'   okLabel   the main button, acting on the item picked
+'   itemBtns  more buttons on the item picked: "O=Open the .cdr|C=Carry on"
+'   textBtns  buttons that send the box's text back: "S=Search|T=Use as typed"
+' Returns the item number (act = its button's code, "" for the main one),
+' 0 when text came back (act = the button's code, typed = the text), -1
+' on cancel, and -2 when the window could not be shown (List window is 0,
+' or PowerShell is blocked): the caller then asks the old way.
+Private Function ac2fJBListWin(ByVal head As String, ByRef labels() As String, _
+                               ByVal n As Long, ByVal okLabel As String, _
+                               ByVal itemBtns As String, ByVal textBtns As String, _
+                               ByVal hint As String, ByRef act As String, _
+                               ByRef typed As String) As Long
+    Dim ps As String, cfg As String, outf As String, body As String, cmd As String
+    Dim f() As String
+    Dim i As Long, rc As Long
+    Dim sh As Object
+
+    ac2fJBListWin = -2
+    act = ""
+    typed = ""
+    If ac2fGetLng(AC2F_K_JB_LIST, AC2F_DEF_JB_LIST) = 0 Then Exit Function
+    ps = ac2fJBTempPath("ac2f_list.ps1")
+    cfg = ac2fJBTempPath("ac2f_list_in.txt")
+    outf = ac2fJBTempPath("ac2f_list_out.txt")
+    On Error Resume Next
+    Kill outf
+    On Error GoTo 0
+
+    body = ac2fJBLine(ac2fTitle(CAPTION_)) & vbCrLf & ac2fJBLine(head) & vbCrLf & _
+           ac2fJBLine(hint) & vbCrLf & ac2fJBLine(okLabel) & vbCrLf & _
+           ac2fJBLine(itemBtns) & vbCrLf & ac2fJBLine(textBtns)
+    For i = 1 To n
+        body = body & vbCrLf & ac2fJBOr(ac2fJBLine(labels(i)), "-")
+    Next i
+    If Not ac2fJBWriteListScript(ps) Then Exit Function
+    If Not ac2fJBWriteUtf8(cfg, body) Then Exit Function
+
+    On Error GoTo Fail
+    Set sh = CreateObject("WScript.Shell")
+    cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden" & _
+          " -File """ & ps & """ -In """ & cfg & """ -Out """ & outf & """"
+    rc = sh.Run(cmd, 0, True)
+    On Error GoTo 0
+    If rc <> 0 Or Not ac2fJBFileExists(outf) Then Exit Function
+
+    body = ac2fJBReadUtf8(outf)
+    If Len(body) > 0 Then
+        If AscW(Left$(body, 1)) = &HFEFF Then body = Mid$(body, 2)
+    End If
+    f = Split(body & vbTab & vbTab & vbTab, vbTab)
+    Select Case f(0)
+        Case "PICK"
+            i = CLng(Val(f(1)))
+            If i >= 1 And i <= n Then
+                act = f(2)
+                ac2fJBListWin = i
+            Else
+                ac2fJBListWin = -1
+            End If
+        Case "TEXT"
+            act = f(1)
+            typed = Trim$(f(2))
+            ac2fJBListWin = 0
+        Case Else
+            ac2fJBListWin = -1
+    End Select
+    Exit Function
+
+Fail:
+    ac2fJBListWin = -2
+End Function
+
+' One line of the list file: no line breaks (a heading's become ~n) or tabs.
+Private Function ac2fJBLine(ByVal s As String) As String
+    s = Replace$(s, vbCrLf, "~n")
+    s = Replace$(s, vbCr, "~n")
+    s = Replace$(s, vbLf, "~n")
+    ac2fJBLine = Replace$(s, vbTab, " ")
+End Function
+
+Private Function ac2fJBTempPath(ByVal nm As String) As String
+    Dim t As String
+    t = Environ$("TEMP")
+    If Len(t) = 0 Then t = Environ$("TMP")
+    If Len(t) = 0 Then t = "C:\Windows\Temp"
+    ac2fJBTempPath = ac2fJBNoSlash(t) & "\" & nm
+End Function
+
+' UTF-8, so customer names keep their Turkish letters in the window.
+Private Function ac2fJBWriteUtf8(ByVal path As String, ByVal txt As String) As Boolean
+    Dim st As Object
+
+    On Error GoTo Fail
+    Set st = CreateObject("ADODB.Stream")
+    st.Type = 2                 ' text
+    st.Charset = "utf-8"
+    st.Open
+    st.WriteText txt
+    st.SaveToFile path, 2       ' overwrite
+    st.Close
+    ac2fJBWriteUtf8 = True
+    Exit Function
+Fail:
+    On Error Resume Next
+    If Not st Is Nothing Then st.Close
+End Function
+
+' The window. Written out each run so it always matches this module.
+Private Function ac2fJBWriteListScript(ByVal ps As String) As Boolean
+    Dim f As Integer
+
+    On Error GoTo Fail
+    f = FreeFile
+    Open ps For Output As #f
+    Print #f, "param([string]$In, [string]$Out)"
+    Print #f, "$ErrorActionPreference = 'Stop'"
+    Print #f, "Add-Type -AssemblyName System.Windows.Forms"
+    Print #f, "Add-Type -AssemblyName System.Drawing"
+    Print #f, "[System.Windows.Forms.Application]::EnableVisualStyles()"
+    Print #f, "$all = [System.IO.File]::ReadAllLines($In, [System.Text.Encoding]::UTF8)"
+    Print #f, "function T([string]$s) { return $s.Replace('~n', [Environment]::NewLine) }"
+    Print #f, "function Btns([string]$spec) {"
+    Print #f, "  $r = @()"
+    Print #f, "  foreach ($p in $spec.Split('|')) {"
+    Print #f, "    $i = $p.IndexOf('=')"
+    Print #f, "    if ($i -gt 0) { $r += ,@($p.Substring(0, $i), $p.Substring($i + 1)) }"
+    Print #f, "  }"
+    Print #f, "  return ,$r"
+    Print #f, "}"
+    Print #f, "function Fold([string]$s) {"
+    Print #f, "  $t = $s.Replace([string][char]0x130, 'i').Replace([string][char]0x131, 'i').ToLowerInvariant()"
+    Print #f, "  $t = $t.Normalize([System.Text.NormalizationForm]::FormD)"
+    Print #f, "  $b = New-Object System.Text.StringBuilder"
+    Print #f, "  foreach ($c in $t.ToCharArray()) {"
+    Print #f, "    if ([System.Globalization.CharUnicodeInfo]::GetUnicodeCategory($c) -ne [System.Globalization.UnicodeCategory]::NonSpacingMark) { [void]$b.Append($c) }"
+    Print #f, "  }"
+    Print #f, "  return $b.ToString()"
+    Print #f, "}"
+    Print #f, "$items = @()"
+    Print #f, "if ($all.Length -gt 6) { $items = @($all[6..($all.Length - 1)]) }"
+    Print #f, "$folded = @()"
+    Print #f, "foreach ($x in $items) { $folded += (Fold $x) }"
+    Print #f, "$itemBtns = Btns $all[4]"
+    Print #f, "$textBtns = Btns $all[5]"
+    Print #f, "$script:res = 'CANCEL'"
+    Print #f, "$script:map = New-Object System.Collections.Generic.List[int]"
+    Print #f, ""
+    Print #f, "$f = New-Object System.Windows.Forms.Form"
+    Print #f, "$f.Text = $all[0]"
+    Print #f, "$f.StartPosition = 'CenterScreen'"
+    Print #f, "$f.Size = New-Object System.Drawing.Size(760, 580)"
+    Print #f, "$f.MinimumSize = New-Object System.Drawing.Size(520, 380)"
+    Print #f, "$f.Font = New-Object System.Drawing.Font('Segoe UI', 10)"
+    Print #f, "$f.TopMost = $true"
+    Print #f, "$f.KeyPreview = $true"
+    Print #f, "$f.ShowInTaskbar = $true"
+    Print #f, ""
+    Print #f, "$tl = New-Object System.Windows.Forms.TableLayoutPanel"
+    Print #f, "$tl.Dock = 'Fill'"
+    Print #f, "$tl.ColumnCount = 1"
+    Print #f, "$tl.RowCount = 5"
+    Print #f, "$tl.Padding = New-Object System.Windows.Forms.Padding(12)"
+    Print #f, "[void]$tl.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))"
+    Print #f, "for ($i = 0; $i -lt 5; $i++) {"
+    Print #f, "  if ($i -eq 2) { $st = New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100) }"
+    Print #f, "  else { $st = New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize) }"
+    Print #f, "  [void]$tl.RowStyles.Add($st)"
+    Print #f, "}"
+    Print #f, ""
+    Print #f, "$head = New-Object System.Windows.Forms.Label"
+    Print #f, "$head.Text = T $all[1]"
+    Print #f, "$head.AutoSize = $true"
+    Print #f, "$head.MaximumSize = New-Object System.Drawing.Size(720, 0)"
+    Print #f, "$head.Font = New-Object System.Drawing.Font('Segoe UI', 10.5, [System.Drawing.FontStyle]::Bold)"
+    Print #f, "$head.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)"
+    Print #f, ""
+    Print #f, "$box = New-Object System.Windows.Forms.TextBox"
+    Print #f, "$box.Dock = 'Fill'"
+    Print #f, "$box.Font = New-Object System.Drawing.Font('Segoe UI', 11)"
+    Print #f, "$box.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 6)"
+    Print #f, ""
+    Print #f, "$list = New-Object System.Windows.Forms.ListBox"
+    Print #f, "$list.Dock = 'Fill'"
+    Print #f, "$list.IntegralHeight = $false"
+    Print #f, "$list.Font = New-Object System.Drawing.Font('Segoe UI', 10.5)"
+    Print #f, "$list.HorizontalScrollbar = $true"
+    Print #f, ""
+    Print #f, "$hint = New-Object System.Windows.Forms.Label"
+    Print #f, "$hint.AutoSize = $true"
+    Print #f, "$hint.MaximumSize = New-Object System.Drawing.Size(720, 0)"
+    Print #f, "$hint.ForeColor = [System.Drawing.Color]::DimGray"
+    Print #f, "$hint.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 6)"
+    Print #f, ""
+    Print #f, "$bar = New-Object System.Windows.Forms.FlowLayoutPanel"
+    Print #f, "$bar.Dock = 'Fill'"
+    Print #f, "$bar.AutoSize = $true"
+    Print #f, "$bar.FlowDirection = 'RightToLeft'"
+    Print #f, "$bar.WrapContents = $true"
+    Print #f, ""
+    Print #f, "function Finish([string]$r) { $script:res = $r; $f.Close() }"
+    Print #f, "function Picked([string]$code) {"
+    Print #f, "  if ($list.SelectedIndex -ge 0) { Finish ('PICK' + ""`t"" + ($script:map[$list.SelectedIndex] + 1) + ""`t"" + $code) }"
+    Print #f, "}"
+    Print #f, "function SendText([string]$code) {"
+    Print #f, "  $t = $box.Text.Trim()"
+    Print #f, "  if ($t.Length -gt 0) { Finish ('TEXT' + ""`t"" + $code + ""`t"" + $t) } else { $box.Focus() }"
+    Print #f, "}"
+    Print #f, "function Fill {"
+    Print #f, "  $tokens = @((Fold $box.Text).Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries))"
+    Print #f, "  $list.BeginUpdate()"
+    Print #f, "  $list.Items.Clear()"
+    Print #f, "  $script:map.Clear()"
+    Print #f, "  for ($i = 0; $i -lt $items.Count; $i++) {"
+    Print #f, "    $ok = $true"
+    Print #f, "    foreach ($t in $tokens) { if ($folded[$i].IndexOf($t) -lt 0) { $ok = $false; break } }"
+    Print #f, "    if ($ok) { [void]$list.Items.Add($items[$i]); $script:map.Add($i) }"
+    Print #f, "  }"
+    Print #f, "  $list.EndUpdate()"
+    Print #f, "  if ($list.Items.Count -gt 0) { $list.SelectedIndex = 0 }"
+    Print #f, "  $okBtn.Enabled = ($list.Items.Count -gt 0)"
+    Print #f, "  foreach ($b in $script:itemButtons) { $b.Enabled = $okBtn.Enabled }"
+    Print #f, "  $hint.Text = '' + $list.Items.Count + ' / ' + $items.Count + '    ' + (T $all[2])"
+    Print #f, "}"
+    Print #f, "function OnEnter {"
+    Print #f, "  $t = $box.Text.Trim()"
+    Print #f, "  $byText = $null"
+    Print #f, "  foreach ($b in $textBtns) {"
+    Print #f, "    if ($t.StartsWith('=') -and $b[0] -eq 'T') { $byText = 'T' }"
+    Print #f, "  }"
+    Print #f, "  if (-not $byText -and $list.SelectedIndex -ge 0) { Picked ''; return }"
+    Print #f, "  if (-not $byText -and $textBtns.Count -gt 0) { $byText = $textBtns[0][0] }"
+    Print #f, "  if ($byText -and $t.Length -gt 0) { SendText $byText }"
+    Print #f, "}"
+    Print #f, ""
+    Print #f, "$cancel = New-Object System.Windows.Forms.Button"
+    Print #f, "$cancel.Text = 'Cancel'"
+    Print #f, "$cancel.AutoSize = $true"
+    Print #f, "$cancel.Add_Click({ Finish 'CANCEL' })"
+    Print #f, "[void]$bar.Controls.Add($cancel)"
+    Print #f, ""
+    Print #f, "$okBtn = New-Object System.Windows.Forms.Button"
+    Print #f, "$okBtn.Text = $all[3]"
+    Print #f, "$okBtn.AutoSize = $true"
+    Print #f, "$okBtn.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)"
+    Print #f, "$okBtn.Add_Click({ Picked '' })"
+    Print #f, "[void]$bar.Controls.Add($okBtn)"
+    Print #f, ""
+    Print #f, "$script:itemButtons = @()"
+    Print #f, "foreach ($spec in $itemBtns) {"
+    Print #f, "  $b = New-Object System.Windows.Forms.Button"
+    Print #f, "  $b.Text = $spec[1]"
+    Print #f, "  $b.AutoSize = $true"
+    Print #f, "  $b.Tag = $spec[0]"
+    Print #f, "  $b.Add_Click({ param($s, $e) Picked ([string]$s.Tag) })"
+    Print #f, "  [void]$bar.Controls.Add($b)"
+    Print #f, "  $script:itemButtons += $b"
+    Print #f, "}"
+    Print #f, "foreach ($spec in $textBtns) {"
+    Print #f, "  $b = New-Object System.Windows.Forms.Button"
+    Print #f, "  $b.Text = $spec[1]"
+    Print #f, "  $b.AutoSize = $true"
+    Print #f, "  $b.Tag = $spec[0]"
+    Print #f, "  $b.Add_Click({ param($s, $e) SendText ([string]$s.Tag) })"
+    Print #f, "  [void]$bar.Controls.Add($b)"
+    Print #f, "}"
+    Print #f, ""
+    Print #f, "$box.Add_TextChanged({ Fill })"
+    Print #f, "$box.Add_KeyDown({ param($s, $e)"
+    Print #f, "  if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Down) {"
+    Print #f, "    if ($list.SelectedIndex -lt $list.Items.Count - 1) { $list.SelectedIndex = $list.SelectedIndex + 1 }"
+    Print #f, "    $e.Handled = $true; $e.SuppressKeyPress = $true"
+    Print #f, "  } elseif ($e.KeyCode -eq [System.Windows.Forms.Keys]::Up) {"
+    Print #f, "    if ($list.SelectedIndex -gt 0) { $list.SelectedIndex = $list.SelectedIndex - 1 }"
+    Print #f, "    $e.Handled = $true; $e.SuppressKeyPress = $true"
+    Print #f, "  } elseif ($e.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {"
+    Print #f, "    $e.Handled = $true; $e.SuppressKeyPress = $true"
+    Print #f, "    OnEnter"
+    Print #f, "  }"
+    Print #f, "})"
+    Print #f, "$list.Add_DoubleClick({ Picked '' })"
+    Print #f, "$list.Add_KeyDown({ param($s, $e)"
+    Print #f, "  if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Enter) { $e.Handled = $true; $e.SuppressKeyPress = $true; Picked '' }"
+    Print #f, "})"
+    Print #f, "$f.Add_KeyDown({ param($s, $e)"
+    Print #f, "  if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Escape) { Finish 'CANCEL' }"
+    Print #f, "  elseif ($e.KeyCode -eq [System.Windows.Forms.Keys]::F3) {"
+    Print #f, "    foreach ($b in $textBtns) { if ($b[0] -eq 'S') { SendText 'S' } }"
+    Print #f, "  }"
+    Print #f, "})"
+    Print #f, "$f.Add_Shown({ $f.Activate(); $box.Focus() })"
+    Print #f, ""
+    Print #f, "$tl.Controls.Add($head, 0, 0)"
+    Print #f, "$tl.Controls.Add($box, 0, 1)"
+    Print #f, "$tl.Controls.Add($list, 0, 2)"
+    Print #f, "$tl.Controls.Add($hint, 0, 3)"
+    Print #f, "$tl.Controls.Add($bar, 0, 4)"
+    Print #f, "$f.Controls.Add($tl)"
+    Print #f, "Fill"
+    Print #f, "[void]$f.ShowDialog()"
+    Print #f, "[System.IO.File]::WriteAllText($Out, $script:res, (New-Object System.Text.UTF8Encoding($false)))"
+    Close #f
+    ac2fJBWriteListScript = True
+    Exit Function
+Fail:
+    On Error Resume Next
+    Close #f
 End Function
 
 '=====================================================================
@@ -2470,6 +3041,7 @@ Private Function ac2fJBCustomerDir(ByRef jr As ac2fJobRec, ByVal create As Boole
                                    Optional ByVal ask As Boolean = False) As String
     Dim todayDir As String, root As String, todayName As String
     Dim earlier As String, dayName As String, stamp As String
+    Dim cdir As String
     Dim p As Long
 
     If Len(jr.CustFolder) = 0 Then
@@ -2486,7 +3058,7 @@ Private Function ac2fJBCustomerDir(ByRef jr As ac2fJobRec, ByVal create As Boole
     ' --- an earlier day this job could carry on in ---
     If StrComp(jr.JobDay, todayName, vbTextCompare) = 0 Then
         earlier = ""
-    ElseIf Len(jr.JobDay) > 0 And ac2fJBDirExists(root & "\" & jr.JobDay & "\" & jr.CustFolder) Then
+    ElseIf Len(jr.JobDay) > 0 And Len(ac2fJBCustSub(root & "\" & jr.JobDay, jr.CustFolder)) > 0 Then
         earlier = jr.JobDay
     Else
         earlier = ac2fJBEarlierDay(root, jr.CustFolder, todayName)
@@ -2511,13 +3083,14 @@ Private Function ac2fJBCustomerDir(ByRef jr As ac2fJobRec, ByVal create As Boole
     End If
     If ask Then jr.JobDay = dayName
 
+    cdir = ac2fJBCustPath(root & "\" & dayName, jr.CustFolder)
     If create Then
-        If Not ac2fJBMakeDirs(root & "\" & dayName & "\" & jr.CustFolder) Then
-            errText = "Could not create" & vbCrLf & "   " & root & "\" & dayName & "\" & jr.CustFolder
+        If Not ac2fJBMakeDirs(cdir) Then
+            errText = "Could not create" & vbCrLf & "   " & cdir
             Exit Function
         End If
     End If
-    ac2fJBCustomerDir = root & "\" & dayName & "\" & jr.CustFolder
+    ac2fJBCustomerDir = cdir
 End Function
 
 ' Most recent earlier day folder, within Look back days, holding a folder
@@ -2535,7 +3108,7 @@ Private Function ac2fJBEarlierDay(ByVal root As String, ByVal custFolder As Stri
         n = ac2fJBListNames(root, ac2fJBStrftime(fmt, Date - back) & "*", True, names)
         For i = 1 To n
             If StrComp(names(i), todayName, vbTextCompare) <> 0 Then
-                If ac2fJBDirExists(root & "\" & names(i) & "\" & custFolder) Then
+                If Len(ac2fJBCustSub(root & "\" & names(i), custFolder)) > 0 Then
                     ac2fJBEarlierDay = names(i)
                     Exit Function
                 End If
@@ -2554,7 +3127,7 @@ Private Function ac2fJBAskDay(ByVal root As String, ByVal earlier As String, _
     Dim i As Long, grpNo As Long, c As Long
     Dim h As String, t As String
 
-    cdir = root & "\" & earlier & "\" & custFolder
+    cdir = ac2fJBCustPath(root & "\" & earlier, custFolder)
     nExp = ac2fJBListNames(cdir, "exp*", False, names)
     If nExp > 0 Then lastExp = names(nExp)
     nDir = ac2fJBListNames(cdir, "*", True, names)
@@ -2564,7 +3137,7 @@ Private Function ac2fJBAskDay(ByVal root As String, ByVal earlier As String, _
 
     m = "CUSTOMER FOLDER  -  " & custFolder & vbCrLf & vbCrLf
     m = m & "This job already has a folder from an earlier day:" & vbCrLf
-    m = m & "   " & earlier & "\" & custFolder & vbCrLf
+    m = m & "   " & earlier & "\" & Mid$(cdir, InStrRev(cdir, "\") + 1) & vbCrLf
     m = m & "   " & nExp & " export(s), " & nGrp & " toolpath folder(s)"
     If Len(lastExp) > 0 Then m = m & ", last " & lastExp
     m = m & vbCrLf & vbCrLf

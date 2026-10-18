@@ -810,6 +810,17 @@ Private Sub ac2fBuildTable()
         "edge, Nesting's sheet outline in the export. Open outlines, " & _
         "specks and PowerClips are reported by Check (job menu 9) but " & _
         "never hold an export up."
+
+    ac2fAddSetting AC2F_K_JB_LIST, "JOB", "List window", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_JB_LIST), 0, 1, _
+        "Pick customers, sheets, quotes and old jobs in a list window. " & _
+        "1 on, 0 off." & vbCrLf & vbCrLf & _
+        "The window has a box that narrows the list as you type, and " & _
+        "every hit from StockTrack is listed, even a single one, to be " & _
+        "clicked or chosen with the arrow keys. It is drawn by " & _
+        "PowerShell, which comes with Windows; where PowerShell is " & _
+        "blocked the numbered prompts come back by themselves. 0 always " & _
+        "uses the numbered prompts."
 End Sub
 
 ' Adds more help to the setting just declared. VBA refuses a statement
