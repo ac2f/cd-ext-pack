@@ -2,6 +2,18 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.18.0] - 2026-10-20
+
+### Eklendi: işin gün klasörünü değiştirme (`ac2fJobDay`, iş menüsü 12)
+
+Export "önceki günde devam mı, bugün yeni klasör mü" diye sorduğunda
+verilen cevap işle saklanıyor ve aynı gün bir daha sorulmuyordu; yanlış
+cevap verilince (özellikle **bugün** seçilince) aynı gün geri dönmenin
+yolu yoktu. İş menüsü `12` bugünü ve müşterinin klasörü olan önceki
+günleri (export ve klasör sayılarıyla, şu anki gün işaretli) listeler;
+seçilen gün işe kaydedilir. Soru kutusu, export bildirimi ve menü özeti
+bunu hatırlatır.
+
 ## [1.17.1] - 2026-10-18
 
 ### Eklendi: StockTrack Runner uyarısı

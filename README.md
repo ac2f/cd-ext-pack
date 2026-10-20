@@ -63,6 +63,7 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fJobOpen` | Müşteri klasörünü Gezgin'de açar |
 | `ac2fJobSetup` | StockTrack adresi, anahtar, gün klasörü, ayraç |
 | `ac2fJobHistory` | Müşterinin eski işleri: klasörü ya da CorelDRAW dosyasını açar |
+| `ac2fJobDay` | İşin gün klasörü: bugün ya da önceki bir gün; export'un sorduğu seçimi sonradan değiştirir |
 | `ac2fCheck` | Seçimi (ya da sayfayı) export öncesi kontrol eder |
 | `ac2fCutTime` | Seçimin kesim süresi ve saatlik ücretle fiyatı |
 | `ac2fCutArea` | Seçimin m² alanı ve m² ücretiyle fiyatı |

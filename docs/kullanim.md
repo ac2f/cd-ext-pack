@@ -1055,6 +1055,7 @@ koyun (bkz. [kurulum](kurulum.md#araç-çubuğuna-kısayol-koymak)).
 | `9` | `ac2fCheck` | Export öncesi kontrol ([14](#14-export-öncesi-kontrol)) |
 | `10` | `ac2fCutTime` | Süre ile fiyat ([15](#15-süre-ile-fiyat)) |
 | `11` | `ac2fCutArea` | m² ile fiyat ([16](#16-m-ile-fiyat)) |
+| `12` | `ac2fJobDay` | İşin gün klasörü: bugün ya da önceki bir gün (seçimi değiştirir) |
 
 ### Klasör düzeni
 
@@ -1107,6 +1108,9 @@ Today is 25-10-2026--pazar.
 Yes       carry on in 22-10-2026--persembe
 No        start a new folder under today
 Cancel    stop
+
+The answer is kept with the job. To change it later:
+Customer job menu > 12 (Day folder).
 ```
 
 - **Evet** → export numarası (`exp03`) ve istifler 22'sindeki klasörden
@@ -1115,6 +1119,12 @@ Cancel    stop
   baştan başlar.
 - Cevap işle birlikte saklanır; **aynı gün** bir daha sorulmaz. Ertesi
   gün yeniden sorulur.
+- **Cevabı değiştirmek için** iş menüsü `12` (`ac2fJobDay`): bugün ve
+  müşterinin klasörü olan önceki günler listelenir (her birinde kaç export
+  ve takım yolu klasörü olduğu, şu anki gün `<- now` ile işaretli);
+  seçilen gün işe kaydedilir. Aynı gün içinde, bugüne geri dönmek için de
+  çalışır. Dosyayı kaydetmeyi unutmayın. Menünün özetindeki **Folder**
+  satırı işin şu anki klasörünü gösterir.
 - Dosya henüz bir güne bağlı değilse müşterinin son **30 günde**
   (`Look back`) açılmış klasörüne bakılır. Bulunursa yine sorulur;
   bulunmazsa bugünün altına yazılır.

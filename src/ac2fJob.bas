@@ -16,6 +16,7 @@ Attribute VB_Name = "ac2fJob"
 '    ac2fJobOpen     - open the customer folder in Explorer
 '    ac2fJobSetup    - server, key, day folder, separator
 '    ac2fJobHistory  - this customer's earlier jobs
+'    ac2fJobDay      - which day folder the job goes into (change it)
 '
 '  The job menu also reaches Check before export (ac2fCheck) and the two
 '  price modules, Cut time (ac2fCutTime) and Area price (ac2fCutArea),
@@ -160,7 +161,8 @@ Attribute ac2fJob.VB_Description = "ac2f pack: Customer job menu - link, sheet, 
             "  8  -  Old jobs of this customer" & vbCrLf & _
             "  9  -  Check the drawing before export" & vbCrLf & _
             " 10  -  Cut time and price" & vbCrLf & _
-            " 11  -  Area (m2) price"
+            " 11  -  Area (m2) price" & vbCrLf & _
+            " 12  -  Day folder of this job (today / an earlier day)"
 
     If Len(jr.CustFolder) = 0 Then
         dflt = "1"
@@ -185,6 +187,7 @@ Attribute ac2fJob.VB_Description = "ac2f pack: Customer job menu - link, sheet, 
         Case "9": ac2fCheck
         Case "10": ac2fCutTime
         Case "11": ac2fCutArea
+        Case "12": ac2fJobDay
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_
     End Select
@@ -288,7 +291,8 @@ Attribute ac2fJobExport.VB_Description = "ac2f pack: Export DXF into the custome
     If ac2fGetLng(AC2F_K_JB_OPEN, AC2F_DEF_JB_OPEN) <> 0 Then ac2fJBExplore custDir
     ac2fInfo "Exported:" & vbCrLf & "   " & fname & vbCrLf & vbCrLf & _
              "into:" & vbCrLf & "   " & custDir & vbCrLf & vbCrLf & _
-             "Sheet: " & ac2fJBMatText(jr), CAPTION_
+             "Sheet: " & ac2fJBMatText(jr) & vbCrLf & vbCrLf & _
+             "Wrong day? Customer job menu > 12 (Day folder).", CAPTION_
     Exit Sub
 
 Fail:
@@ -520,6 +524,141 @@ End Sub
 ' Earlier work for this customer: every day folder in the last year that
 ' holds a folder for them, newest first. Pick one to open it, open its
 ' CorelDRAW file, or carry this job on in it.
+' Which day folder this job's customer folder is in: today, or an earlier
+' day that already has a folder for this customer. Export asks this once
+' and keeps the answer with the job; this is where it is changed, also on
+' the same day and also back to today.
+Public Sub ac2fJobDay()
+Attribute ac2fJobDay.VB_Description = "ac2f pack: Choose or change the day folder this job goes into"
+    Dim jr As ac2fJobRec
+    Dim root As String, fmt As String, dsep As String, errText As String
+    Dim todayDir As String, todayName As String, cur As String, cdir As String
+    Dim days() As String, cand() As String, info() As String, labels() As String
+    Dim n As Long, nd As Long, back As Long, lim As Long, i As Long, k As Long
+    Dim act As String, typed As String, m As String, answer As String
+
+    If Not ac2fJBNeedDoc() Then Exit Sub
+    ac2fJBLoad jr
+    If Len(jr.CustFolder) = 0 Then
+        If Not ac2fJBPickCustomer(jr) Then Exit Sub
+        ac2fJBSave jr
+    End If
+    todayDir = ac2fJBDayDir(False, errText)
+    If Len(todayDir) = 0 Or Not ac2fJBDayRule(root, fmt, dsep) Then
+        ac2fWarn ac2fJBOr(errText, "The daily folder is not known (Job setup, 3)."), CAPTION_
+        Exit Sub
+    End If
+    root = Left$(todayDir, InStrRev(todayDir, "\") - 1)
+    todayName = Mid$(todayDir, InStrRev(todayDir, "\") + 1)
+
+    ' where the job goes now (only looking, nothing is asked)
+    cdir = ac2fJBCustomerDir(jr, False, errText)
+    If Len(cdir) > 0 Then
+        cur = Left$(cdir, InStrRev(cdir, "\") - 1)
+        cur = Mid$(cur, InStrRev(cur, "\") + 1)
+    End If
+
+    ' today first, then earlier days that have a folder for this customer
+    lim = ac2fGetLng(AC2F_K_JB_BACK, AC2F_DEF_JB_BACK)
+    If lim < 7 Then lim = 7
+    ReDim cand(1 To 16): ReDim info(1 To 16)
+    n = 1
+    cand(1) = todayName
+    info(1) = "today, " & ac2fJBDayInfo(root & "\" & todayName, jr.CustFolder)
+    For back = 1 To lim
+        nd = ac2fJBListNames(root, ac2fJBStrftime(fmt, Date - back) & "*", True, days)
+        For i = 1 To nd
+            If StrComp(days(i), todayName, vbTextCompare) <> 0 Then
+                If Len(ac2fJBCustSub(root & "\" & days(i), jr.CustFolder)) > 0 Then
+                    n = n + 1
+                    If n > UBound(cand) Then
+                        ReDim Preserve cand(1 To n * 2)
+                        ReDim Preserve info(1 To n * 2)
+                    End If
+                    cand(n) = days(i)
+                    info(n) = ac2fJBDayInfo(root & "\" & days(i), jr.CustFolder)
+                End If
+            End If
+        Next i
+    Next back
+    ' the job's own day, if it is older than Look back
+    If Len(jr.JobDay) > 0 Then
+        k = 0
+        For i = 1 To n
+            If StrComp(cand(i), jr.JobDay, vbTextCompare) = 0 Then k = i
+        Next i
+        If k = 0 And Len(ac2fJBCustSub(root & "\" & jr.JobDay, jr.CustFolder)) > 0 Then
+            n = n + 1
+            If n > UBound(cand) Then
+                ReDim Preserve cand(1 To n)
+                ReDim Preserve info(1 To n)
+            End If
+            cand(n) = jr.JobDay
+            info(n) = ac2fJBDayInfo(root & "\" & jr.JobDay, jr.CustFolder)
+        End If
+    End If
+
+    ReDim labels(1 To n)
+    For i = 1 To n
+        labels(i) = ac2fPad(cand(i), 26) & info(i)
+        If StrComp(cand(i), cur, vbTextCompare) = 0 Then labels(i) = labels(i) & "   <- now"
+    Next i
+    k = ac2fJBListWin("DAY FOLDER  -  " & jr.CustLabel & _
+                      "~nExports and toolpath folders of this job go into the chosen day.", _
+                      labels, n, "Use this day", "", "", _
+                      "Today is " & todayName & ". Earlier days listed have a folder for this customer.", _
+                      act, typed)
+    If k = -1 Or k = 0 Then Exit Sub
+    If k = -2 Then
+        ' list window off or failed: numbered prompt
+        m = "DAY FOLDER  -  " & jr.CustFolder & vbCrLf & vbCrLf
+        For i = 1 To n
+            If Len(m) > PROMPT_MAX - 200 Then
+                m = m & "     ... " & (n - i + 1) & " more" & vbCrLf
+                Exit For
+            End If
+            m = m & ac2fRPad(CStr(i), 3) & "  " & labels(i) & vbCrLf
+        Next i
+        m = m & vbCrLf & "Type the number of the day this job goes into."
+        Do
+            answer = InputBox(m, ac2fTitle(CAPTION_), "1")
+            If StrPtr(answer) = 0 Then Exit Sub
+            answer = Trim$(answer)
+            If Len(answer) = 0 Then Exit Sub
+            k = CLng(Val(answer))
+            If k >= 1 And k <= n Then Exit Do
+            ac2fWarn "Type a number from the list.", CAPTION_
+        Loop
+    End If
+
+    jr.JobDay = cand(k)
+    jr.JobAsked = CStr(CLng(Date))
+    ac2fJBSave jr
+    ac2fInfo "This job now goes into" & vbCrLf & "   " & _
+             ac2fJBCustPath(root & "\" & cand(k), jr.CustFolder) & vbCrLf & vbCrLf & _
+             "Save the document to keep this. Change it again with" & vbCrLf & _
+             "Customer job menu > 12 (Day folder).", CAPTION_
+End Sub
+
+' "2 export, 3 folder" for a customer's folder in a day, or "no folder yet".
+Private Function ac2fJBDayInfo(ByVal dayPath As String, ByVal custFolder As String) As String
+    Dim names() As String
+    Dim cdir As String, h As String, t As String
+    Dim nExp As Long, nf As Long, nGrp As Long, i As Long, grpNo As Long, c As Long
+
+    If Len(ac2fJBCustSub(dayPath, custFolder)) = 0 Then
+        ac2fJBDayInfo = "no folder yet (it is made on export)"
+        Exit Function
+    End If
+    cdir = ac2fJBCustPath(dayPath, custFolder)
+    nExp = ac2fJBListNames(cdir, "exp*", False, names)
+    nf = ac2fJBListNames(cdir, "*", True, names)
+    For i = 1 To nf
+        If ac2fJBSplitGroup(names(i), grpNo, h, c, t) Then nGrp = nGrp + 1
+    Next i
+    ac2fJBDayInfo = nExp & " export, " & nGrp & " toolpath folder"
+End Function
+
 Public Sub ac2fJobHistory()
 Attribute ac2fJobHistory.VB_Description = "ac2f pack: Find this customer's earlier jobs and open one"
     Dim jr As ac2fJobRec
@@ -2243,6 +2382,7 @@ Private Function ac2fJBSummary(ByRef jr As ac2fJobRec) As String
         where = ac2fJBCustomerDir(jr, False, errText)
         If Len(where) = 0 Then where = "<day folder not found: see 7>"
         s = s & "Folder   :  " & ac2fJBClip(where, 70) & vbCrLf
+        s = s & "           (another day: 12)" & vbCrLf
     End If
     ac2fJBSummary = s
 End Function
@@ -3173,7 +3313,9 @@ Private Function ac2fJBAskDay(ByVal root As String, ByVal earlier As String, _
     m = m & "Today is " & todayName & "." & vbCrLf & vbCrLf
     m = m & "Yes       carry on in " & earlier & vbCrLf
     m = m & "No        start a new folder under today" & vbCrLf
-    m = m & "Cancel    stop"
+    m = m & "Cancel    stop" & vbCrLf & vbCrLf
+    m = m & "The answer is kept with the job. To change it later:" & vbCrLf
+    m = m & "Customer job menu > 12 (Day folder)."
     ac2fJBAskDay = MsgBox(m, vbQuestion + vbYesNoCancel, ac2fTitle(CAPTION_))
 End Function
 
