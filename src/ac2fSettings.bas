@@ -427,13 +427,14 @@ Private Sub ac2fBuildTable()
 
     ac2fAddSetting AC2F_K_NS_GAP, "NEST", "Part gap", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_NS_GAP, 0, 0, _
-        "Space kept between neighbouring parts." & vbCrLf & vbCrLf & _
+        "Space kept between neighbouring parts, measured between their " & _
+        "real outlines - not their boxes." & vbCrLf & vbCrLf & _
         "Give the cutter room: a knife needs the kerf plus a little, a " & _
         "router bit needs at least its own diameter or it will cut into " & _
         "the part next door." & vbCrLf & vbCrLf & _
-        "The gap is added to the right and top of each part as it is " & _
-        "placed, and the last column and row are allowed to use it, so " & _
-        "no material is wasted at the far edges." & vbCrLf & vbCrLf & _
+        "Every part is grown by half the gap (plus a hair for the outline " & _
+        "reading), so two parts can never come closer than this. Parts " & _
+        "may still touch the margin line itself." & vbCrLf & vbCrLf & _
         "0 butts parts against each other, which only makes sense when " & _
         "neighbours share a cut."
 
@@ -445,33 +446,179 @@ Private Sub ac2fBuildTable()
         "and 270. 180 allows only a half turn, which suits material " & _
         "with a grain or a print direction. 45 gives eight angles, 15 " & _
         "gives the finest the tool accepts." & vbCrLf & vbCrLf & _
-        "Quarter turns are free: the bounding box simply swaps sides. " & _
-        "Any other angle has to be measured by actually turning each " & _
-        "part, so a small step on a large job takes noticeably longer." & _
+        "Every turn of every different part is made once by really " & _
+        "turning it in CorelDRAW and reading its outline, then the copies " & _
+        "share it. A small step on many different parts takes longer." & _
         vbCrLf & vbCrLf & _
-        "Rotation can never cost you material. When it is allowed the " & _
-        "job is packed twice, with and without, and the better result " & _
-        "is kept. The report says which won."
+        "Rotation cannot cost material: one of the trial layouts keeps " & _
+        "every part as drawn, and the best layout wins."
 
     ac2fAddSetting AC2F_K_NS_SW, "NEST", "Sheet W", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_NS_SW, 0, 0, _
-        "Width of the material. 0 takes the width of the page." & vbCrLf & vbCrLf & _
-        "For roll work this is the roll width, and it is the dimension " & _
-        "that really decides how well a job nests."
+        "Width of the job's sheet. The customer job sets it from the " & _
+        "sheet taken from stock." & vbCrLf & vbCrLf & _
+        "The nesting window keeps a whole list of sheets with quantities; " & _
+        "a sheet of this size is put on top of that list when it is not " & _
+        "there yet. 0 = no job sheet (the page size is used only when " & _
+        "the list is empty)."
 
     ac2fAddSetting AC2F_K_NS_SH, "NEST", "Sheet H", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_NS_SH, 0, 0, _
-        "Height of the material. 0 takes the height of the page." & vbCrLf & vbCrLf & _
-        "Parts that no longer fit start another sheet, drawn alongside " & _
-        "the first. On a roll, set this to the longest piece you are " & _
-        "willing to pull off in one go; the report tells you how much " & _
-        "of it was actually used."
+        "Height of the job's sheet. See Sheet W." & vbCrLf & vbCrLf & _
+        "On a roll, set this to the longest piece you are willing to " & _
+        "pull off in one go; the report tells you how much of the last " & _
+        "sheet was actually used."
 
     ac2fAddSetting AC2F_K_NS_SGAP, "NEST", "Sheet gap", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_NS_SGAP, 0, 0, _
         "Space left between sheets when more than one is drawn." & vbCrLf & vbCrLf & _
         "Only affects how the result is laid out on your page, never " & _
         "the packing itself."
+
+    ac2fAddSetting AC2F_K_NS_OMARGIN, "NEST", "Offcut edge", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_OMARGIN, 0, 0, _
+        "Clear space kept from the edge of a drawn offcut sheet." & vbCrLf & vbCrLf & _
+        "An offcut is any closed shape named offcut, sheet, artik, plaka, " & _
+        "tabaka or levha (or lying on a layer with such a name), selected " & _
+        "together with the parts. Main menu 26 names the selection for " & _
+        "you. It is used where it lies, holes in it included."
+
+    ac2fAddSetting AC2F_K_NS_RES, "NEST", "Precision", "mm", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_RES, 0.2, 20, _
+        "Size of the grid squares the packer tests shapes with." & vbCrLf & vbCrLf & _
+        "The gap is always kept whatever this is: a square counts as " & _
+        "taken when any part of a shape could fall in it. Finer squares " & _
+        "follow curves more closely and nest tighter, at the cost of time " & _
+        "and memory. 1 mm suits most sign work; 2-3 mm is plenty for big " & _
+        "sheets of large parts." & vbCrLf & vbCrLf & _
+        "A very large job is coarsened automatically to stay within " & _
+        "memory; the report says when that happened."
+
+    ac2fAddSetting AC2F_K_NS_TIME, "NEST", "Optimise s", "s", _
+        AC2F_KIND_NUM, AC2F_DEF_NS_TIME, 0, 3600, _
+        "How long the packer keeps looking for a better layout." & vbCrLf & vbCrLf & _
+        "It first tries a few fixed orders (biggest first, longest first, " & _
+        "tallest, widest, without rotation) and both placement strategies, " & _
+        "then keeps swapping parts in the best order at random. The best " & _
+        "layout found is used: fewest parts left over, then the least " & _
+        "material, the last sheet counting only up to its highest part." & _
+        vbCrLf & vbCrLf & "0 = a single quick pass."
+
+    ac2fAddSetting AC2F_K_NS_HOLES, "NEST", "Holes used", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_NS_HOLES), 0, 1, _
+        "1 = small parts may be nested inside the holes of bigger ones." & vbCrLf & vbCrLf & _
+        "A closed contour inside another is a hole (cutting logic: one " & _
+        "inside that is material again). Turn this on when inner shapes " & _
+        "are really cut out - letter counters, frames." & vbCrLf & vbCrLf & _
+        "Leave it at 0 when inner shapes are engravings or prints on the " & _
+        "part: their area is still material."
+
+    ac2fAddSetting AC2F_K_NS_INNER, "NEST", "Inner w/outer", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_NS_INNER), 0, 1, _
+        "1 = a shape lying inside another shape moves with it as one part." & _
+        vbCrLf & vbCrLf & _
+        "So an O drawn as two separate circles, a frame with text in it or " & _
+        "a panel with its holes stays together without grouping first. A " & _
+        "shape inside one that is inside a third goes with the third." & _
+        vbCrLf & vbCrLf & "0 = every selected object is a part of its own."
+
+    ac2fAddSetting AC2F_K_NS_GROUP, "NEST", "Group result", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_NS_GROUP), 0, 3, _
+        "How the nested parts are grouped afterwards." & vbCrLf & vbCrLf & _
+        "0  no grouping (inner and outer shapes are left loose again)" & vbCrLf & _
+        "1  each part: inner and outer shapes stay one group" & vbCrLf & _
+        "2  each sheet: its parts and its outline in one group" & vbCrLf & _
+        "3  everything in one group"
+
+    ac2fAddSetting AC2F_K_NS_MIRROR, "NEST", "Mirror", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_NS_MIRROR), 0, 1, _
+        "1 = parts may also be mirrored to fit better." & vbCrLf & vbCrLf & _
+        "Never on printed, coated or filmed material, or anything with a " & _
+        "front and a back. Doubles the turns to try."
+
+    ac2fAddSetting AC2F_K_NS_CORNER, "NEST", "Start corner", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_NS_CORNER), 1, 4, _
+        "The corner of the sheet packing starts from:" & vbCrLf & _
+        "1 bottom left, 2 bottom right, 3 top left, 4 top right." & vbCrLf & vbCrLf & _
+        "Match it to where your machine's origin is, so the used material " & _
+        "is the part nearest the origin and the offcut is one clean piece."
+
+    ac2fAddSetting AC2F_K_NS_DIR, "NEST", "Fill columns", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_NS_DIR), 0, 1, _
+        "0 = fill in rows, keeping the used height short." & vbCrLf & _
+        "1 = fill in columns, keeping the used width short." & vbCrLf & vbCrLf & _
+        "Pick the one that leaves the offcut you can use again."
+
+    ac2fAddSetting AC2F_K_NS_STRAT, "NEST", "Strategy", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_NS_STRAT), 0, 2, _
+        "How each part chooses its place among the turns it may take." & _
+        vbCrLf & vbCrLf & _
+        "1  lowest top edge: the turn whose top ends lowest wins - keeps " & _
+        "the used length short, usually the best." & vbCrLf & _
+        "2  bottom-left: the turn that can rest lowest wins." & vbCrLf & _
+        "0  automatic: tries both and keeps the better layout."
+
+    ac2fAddSetting AC2F_K_NS_COPIES, "NEST", "Copies", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_NS_COPIES), 1, 500, _
+        "Every selected part is nested this many times." & vbCrLf & vbCrLf & _
+        "Copies are only made for the ones that find room; identical " & _
+        "parts are recognised and cost almost nothing to place."
+
+    ac2fAddSetting AC2F_K_NS_OUTLINE, "NEST", "Sheet outline", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_NS_OUTLINE), 0, 1, _
+        "1 = draws a grey hairline rectangle for every sheet used." & vbCrLf & vbCrLf & _
+        "They are named ac2f sheet N and are ignored by the next nesting " & _
+        "run, so you can select everything and nest again."
+
+    ac2fAddSetting AC2F_K_NS_START, "NEST", "Start points", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_NS_START), 0, 1, _
+        "1 = after nesting, every placed part gets its start points set " & _
+        "with the START settings (main menu 23)."
+
+    '--- Start points ------------------------------------------------
+    ac2fAddSetting AC2F_K_SP_POS, "START", "Position", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_SP_POS), 1, 9, _
+        "Where every path starts, as on the numeric keypad:" & vbCrLf & _
+        "   7 8 9     top left, top centre, top right" & vbCrLf & _
+        "   4 5 6     left centre, centre, right centre" & vbCrLf & _
+        "   1 2 3     bottom left, bottom centre, bottom right" & vbCrLf & vbCrLf & _
+        "The point of the path nearest that spot of its box becomes the " & _
+        "start node."
+
+    ac2fAddSetting AC2F_K_SP_REF, "START", "Box", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_SP_REF), 1, 3, _
+        "The box the position is measured on:" & vbCrLf & _
+        "1 each contour's own box (a hole starts at its own corner)" & vbCrLf & _
+        "2 each object's box" & vbCrLf & _
+        "3 the box of the whole selection"
+
+    ac2fAddSetting AC2F_K_SP_EXACT, "START", "Exact point", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_SP_EXACT), 0, 1, _
+        "1 = the start goes exactly to the nearest point of the path: a " & _
+        "node is added there if none sits on it (the shape does not " & _
+        "change). The middle of a rectangle's side needs this." & vbCrLf & vbCrLf & _
+        "0 = the nearest existing node is used, nothing is added."
+
+    ac2fAddSetting AC2F_K_SP_DIR, "START", "Direction", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_SP_DIR), 0, 4, _
+        "Cutting direction of closed paths:" & vbCrLf & _
+        "0 keep as drawn" & vbCrLf & _
+        "1 outer clockwise, holes counter-clockwise" & vbCrLf & _
+        "2 outer counter-clockwise, holes clockwise" & vbCrLf & _
+        "3 all clockwise    4 all counter-clockwise" & vbCrLf & vbCrLf & _
+        "Climb or conventional milling on a router, or the laser's lead-in " & _
+        "side, depend on it."
+
+    ac2fAddSetting AC2F_K_SP_OPEN, "START", "Open paths", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_SP_OPEN), 0, 1, _
+        "1 = an open path (a line) is turned round when its other end is " & _
+        "nearer the chosen position, so it starts from there."
+
+    ac2fAddSetting AC2F_K_SP_MARK, "START", "Markers", "", _
+        AC2F_KIND_INT, CDbl(AC2F_DEF_SP_MARK), 0, 1, _
+        "1 = after setting the start points, a small red circle marks each " & _
+        "start and a short line shows the direction, on the layer " & _
+        "ac2f start points. Main menu 25 removes them again."
 
     '--- Plotter ------------------------------------------------------
     ac2fAddSetting AC2F_K_PL_MARGIN, "PLOT", "Margin", "mm", _

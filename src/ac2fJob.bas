@@ -1560,13 +1560,28 @@ Private Function ac2fJBScanParts(ByRef px0() As Double, ByRef py0() As Double, _
     Dim x As Double, y As Double, w As Double, h As Double
 
     ReDim px0(1 To 64): ReDim py0(1 To 64): ReDim pw(1 To 64): ReDim ph(1 To 64)
+    ac2fJBScanPartsIn ActivePage.Shapes, px0, py0, pw, ph, n
+    ac2fJBScanParts = n
+End Function
+
+' Nesting's "everything" group spans several sheets, so its parts are
+' looked at one by one.
+Private Sub ac2fJBScanPartsIn(ByVal coll As Object, ByRef px0() As Double, ByRef py0() As Double, _
+                              ByRef pw() As Double, ByRef ph() As Double, ByRef n As Long)
+    Dim s As Shape
+    Dim i As Long
+    Dim nm As String
+    Dim x As Double, y As Double, w As Double, h As Double
+
     On Error Resume Next
-    For i = 1 To ActivePage.Shapes.Count
+    For i = 1 To coll.Count
         Set s = Nothing
-        Set s = ActivePage.Shapes(i)
+        Set s = coll(i)
         nm = ""
         nm = LCase$(s.Name)
-        If nm <> "ac2f sheets" And Not (nm Like "ac2f sheet #*") And Not s Is Nothing Then
+        If nm = "ac2f nesting" Then
+            ac2fJBScanPartsIn s.Shapes, px0, py0, pw, ph, n
+        ElseIf nm <> "ac2f sheets" And Not (nm Like "ac2f sheet #*") And Not s Is Nothing Then
             w = 0: h = 0
             s.GetBoundingBox x, y, w, h
             If w > 0 Or h > 0 Then
@@ -1579,8 +1594,7 @@ Private Function ac2fJBScanParts(ByRef px0() As Double, ByRef py0() As Double, _
             End If
         End If
     Next i
-    ac2fJBScanParts = n
-End Function
+End Sub
 
 Private Function ac2fJBSizeTok(ByVal w As Double, ByVal h As Double) As String
     ac2fJBSizeTok = CStr(CLng(w)) & "x" & CStr(CLng(h))

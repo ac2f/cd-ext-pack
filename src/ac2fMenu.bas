@@ -34,7 +34,7 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         "  7  -  Box letter report (no drawing)" & vbCrLf & _
         "  8  -  ACP panel V-grooves" & vbCrLf & _
         "  9  -  Centerline (reduce to a single line)" & vbCrLf & _
-        " 10  -  Nesting (pack parts onto sheets)" & vbCrLf & _
+        " 10  -  Nesting (true shape, sheets window)" & vbCrLf & _
         " 11  -  Nesting report (nothing moves)" & vbCrLf
     m = m & _
         " 12  -  Bending order: apply it to the objects" & vbCrLf & _
@@ -46,7 +46,10 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         " 18  -  Normalise an existing .plt and send" & vbCrLf & _
         " 19  -  Settings and profiles" & vbCrLf & _
         " 20  -  About" & vbCrLf & _
-        " 21  -  Customer job: export, folders, price  (J)" & vbCrLf
+        " 21  -  Customer job: export, folders, price  (J)" & vbCrLf & _
+        " 22  -  Nesting again, last settings" & vbCrLf & _
+        " 23  -  Start points   24 - again   25 - markers" & vbCrLf & _
+        " 26  -  Mark selection as offcut sheets" & vbCrLf
 
     choice = InputBox(m, ac2fTitle(CAPTION_), "1")
     If StrPtr(choice) = 0 Then Exit Sub          ' Cancel
@@ -75,6 +78,11 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         Case "19": ac2fSettings
         Case "20": ac2fAbout
         Case "21", "J", "j": ac2fJob
+        Case "22": ac2fNestAgain
+        Case "23": ac2fStartPoints
+        Case "24": ac2fStartPointsAgain
+        Case "25": ac2fStartPointsShow
+        Case "26": ac2fNestMarkSheets
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_
     End Select
@@ -88,50 +96,27 @@ Attribute ac2fAbout.VB_Description = "ac2f pack: Version and contents"
     Dim s As String
     Dim prof As String
 
-    s = AC2F_NAME & "  " & AC2F_VERSION & vbCrLf & vbCrLf
-    s = s & "Add-on package for CorelDRAW." & vbCrLf & vbCrLf
+    ' A message box shows about 1024 characters and cuts the rest off, so
+    ' every feature gets one line.
+    s = AC2F_NAME & "  " & AC2F_VERSION & "  -  add-on package for CorelDRAW" & vbCrLf & vbCrLf
     s = s & "CONTENTS" & vbCrLf
-    s = s & "   - Length measurement" & vbCrLf
-    s = s & "     Measures the total length of the outlines" & vbCrLf
-    s = s & "     around the selected vectors." & vbCrLf & vbCrLf
-    s = s & "   - 3-LED module count" & vbCrLf
-    s = s & "     Works out the modules, LEDs, power and power" & vbCrLf
-    s = s & "     supplies needed for the measured length." & vbCrLf & vbCrLf
-    s = s & "   - Box letter strip" & vbCrLf
-    s = s & "     Develops the return, lays out the grooves and" & vbCrLf
-    s = s & "     draws a flat strip ready to cut." & vbCrLf & vbCrLf
-    s = s & "   - ACP panel V-grooves" & vbCrLf
-    s = s & "     Draws the flat sheet and the four V-groove" & vbCrLf
-    s = s & "     lines, clockwise, in cutting order." & vbCrLf & vbCrLf
-    s = s & "   - Centerline" & vbCrLf
-    s = s & "     Reduces filled artwork to a single line to" & vbCrLf
-    s = s & "     route a neon strip channel along." & vbCrLf & vbCrLf
-    s = s & "   - Nesting" & vbCrLf
-    s = s & "     Packs parts onto sheets: a margin per edge," & vbCrLf
-    s = s & "     a gap between parts, a rotation step." & vbCrLf & vbCrLf
-    s = s & "   - Send to plotter" & vbCrLf
-    s = s & "     Writes HPGL straight from the selection and" & vbCrLf
-    s = s & "     streams it over the network. No export, and" & vbCrLf
-    s = s & "     no file to fix afterwards." & vbCrLf & vbCrLf
-    s = s & "   - Bending order" & vbCrLf
-    s = s & "     Groups contours into letters, orders them" & vbCrLf
-    s = s & "     left to right, bends identical letters on" & vbCrLf
-    s = s & "     one setup, straight work before curved, and" & vbCrLf
-    s = s & "     can hold the counters back to the end." & vbCrLf & vbCrLf
-    s = s & "   - Customer job" & vbCrLf
-    s = s & "     Links the file to a StockTrack customer, takes" & vbCrLf
-    s = s & "     the sheet from stock, names the DXF export and" & vbCrLf
-    s = s & "     builds the stacked toolpath folders." & vbCrLf & vbCrLf
-    s = s & "   - Check, cut time, area price" & vbCrLf
-    s = s & "     Looks the drawing over before export; prices" & vbCrLf
-    s = s & "     the job by cutting time or by m2." & vbCrLf & vbCrLf
+    s = s & "  Length measurement   total length of the outlines" & vbCrLf
+    s = s & "  3-LED module count   modules, LEDs, power, supplies" & vbCrLf
+    s = s & "  Box letter strip     developed return, grooves, strip" & vbCrLf
+    s = s & "  ACP panel V-grooves  flat sheet and groove lines" & vbCrLf
+    s = s & "  Centerline           filled artwork to a single line" & vbCrLf
+    s = s & "  Nesting              true shape, holes, offcuts, sheets" & vbCrLf
+    s = s & "  Start points         corner, side or centre; direction" & vbCrLf
+    s = s & "  Send to plotter      HPGL straight from the selection" & vbCrLf
+    s = s & "  Bending order        letters, setups, counters last" & vbCrLf
+    s = s & "  Customer job         StockTrack, DXF name, folders" & vbCrLf
+    s = s & "  Check, cut time, m2  look over and price the job" & vbCrLf & vbCrLf
     prof = ac2fActiveProfile()
     If Len(prof) = 0 Then prof = "<none>"
-
-    s = s & "CURRENT SETTINGS  (profile: " & prof & ")" & vbCrLf
-    s = s & ac2fSettingsBrief() & vbCrLf
-    s = s & "Change any of them from the main menu, option 19." & vbCrLf
-    s = s & "There, ?N explains what setting N does."
+    s = s & "SETTINGS: " & ac2fSettingCount() & " in " & ac2fGroupCount() & _
+            " groups, profile " & prof & vbCrLf
+    s = s & "Change them from the main menu, option 19;" & vbCrLf
+    s = s & "there ?N explains what setting N does."
 
     ac2fInfo s, "About"
 End Sub

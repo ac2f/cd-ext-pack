@@ -128,7 +128,8 @@ ac2fMenu ────┬──> ac2fLength ─────┐
              ├──> ac2fCenterline ─┤
              ├──> ac2fBending ────┤
              ├──> ac2fPlot ───────┤
-             ├──> ac2fNest ───────┼──> ac2fCore
+             ├──> ac2fNest ───────┼──> ac2fCore     (ac2fNest -> ac2fNestCore,
+             ├──> ac2fStart ──────┤                  saf motor; -> ac2fStart)
              ├──> ac2fJob ────────┤   (ac2fJob, ac2fNest'in plaka
              ├──> ac2fCheck ──────┤    ayarlarını da okur/yazar)
              ├──> ac2fCutTime ────┤   (ac2fBending'in düzleştirmesini
@@ -332,6 +333,18 @@ olarak verilir.
 
 Form eklenecekse VBE içinde çizilip `.frm` + `.frx` **birlikte**
 depoya konmalıdır.
+
+### Sayfalı ayar ekranı
+
+42 ayar tek `InputBox` istemine sığmıyor. Sayfa gruba göre bölündü ama
+**ayar numaraları genel** kaldı: `N=value` her sayfadan çalışır, yani
+kullanıcı açısından hâlâ tek menü. `tools/lint.py` artık en büyük
+sayfayı ölçer.
+
+Sayfadaki değerler `ac2fSheetVal` ile kompakt biçimlenir (binlik ayırıcı
+yok, tam sayıda ondalık yok); `ac2fSettingText` tam biçimi `?N` ve
+raporlar için korur. Bu ayrım olmadan `1220.00` sütuna sığmayıp
+`1220.0` diye kırpılıyordu.
 
 ## ACP panel yerleşimi (`ac2fPanel`)
 
@@ -551,58 +564,165 @@ matematik yardımcıları (`ac2fSolveTheta`, `ac2fAtan2`, `ac2fWrapAngle`)
 için bilinçli bırakıldı — açma katmanının tek yere çıkarılması bir
 takip işidir.
 
-## Nesting (`ac2fNest`)
+## Nesting (`ac2fNest` + `ac2fNestCore`)
 
-Sınırlayıcı kutular üzerinde skyline bottom-left. Skyline, `(x, w, y)`
-parçalarından oluşan bir profildir; her yerleştirmede bölünür ve aynı
-yükseklikteki komşular birleştirilir.
+1.19.0'da sınırlayıcı kutu skyline'ı bırakıldı; yerleştirme gerçek
+şekille, ızgara üzerinde yapılıyor. İş ikiye bölündü:
 
-### Skor seçimi ölçüldü
+- **`ac2fNestCore`** saf hesaptır: hiçbir CorelDRAW nesnesine dokunmaz.
+  Bu yüzden `tools/vbapy.py` onu olduğu gibi Python'a çevirip
+  `tools/test_nest.py` ile gerçek geometride sınayabiliyor.
+- **`ac2fNest`** belgeyle konuşur: seçimi ayırır, konturu okur,
+  dönüşleri yapar, sonucu uygular, pencereyi açar.
 
-Aday yerleşimler arasından **skyline'ı en alçak bırakan** (`y + h`)
-seçilir, eşitlikte altta gömülü kalan alan az olan. Bariz görünen "en
-düşük `y`" seçimi döndürmeyi **zararlı** hâle getiriyor:
+### Korumacı ızgara
 
-| Set | en düşük y | y + h |
-|---|---|---|
-| Eşit kutular | −%8,3 | **+%8,1** |
-| Karışık | +%1,6 | **+%7,2** |
-| Uzun şeritler | +%5,8 | **+%17,6** |
-| Dar-uzun | −%18,5 | **+%5,0** |
-| 450×160 | +%7,6 | **+%13,5** |
+Bir parça kare hücrelere dökülürken bir hücre şu durumda dolu sayılır:
 
-Sebep: düşük oturan ama uzun bir parça, skyline'ı biraz yüksek oturan
-kısa bir parçadan daha çok yükseltir ve sonraki parçaları yukarı iter.
+```
+dolu = merkezi malzemenin içinde kalan hücreler
+     + her kenar çevresindeki m_d yarıçaplı kapsülün değdiği hücreler
+m_d  = parça aralığı / 2 + okuma toleransı
+```
 
-### Döndürme neden zarar veremez
+Parça, kenarları çevresindeki kapsüllerle birleşince tam olarak `m_d`
+kadar büyütülmüş hâlini verir (Minkowski toplamı); merkezi içeride olan
+ya da kapsüle değen her hücre işaretlendiği için örtü korumacıdır. Hücresi
+çakışmayan iki parça arasında en az `2·m_d >= aralık` vardır. Kapsülün
+satır bandıyla kesişimi, kenarın `[y0-r, y1+r]` içindeki x aralığı `r`
+kadar genişletilerek alınır (köşeler kare kalır, yine korumacı).
 
-Ölçülmemiş bir parça karışımında sezgisel yine ters tepebilir. Bu yüzden
-döndürme açıkken `ac2fNSPack` iki kez çağrılır — `allowRot` False ve True
-— ve `ac2fNSKeepBest` az malzeme kullananı tutar. Maliyet iki kat
-yerleştirme, ki bu etkileşimli olmayan bir işlem için önemsizdir.
+Malzeme kesim mantığına göre: kapalı bir konturun **iç içe derinliği**
+çiftse malzeme, tekse delik. Bir taramada her konturun içi tek-çift ile
+bulunur, sonra o noktayı tutan en derin kontur çift mi diye bakılır;
+böylece üst üste binen iki dış şekil XOR'lanıp delik olmaz. Delikler
+kapalıyken her kapalı kontur dolu boyanır.
 
-Yerleşemeyen parça, toplam maliyete 1.000.000 eklenerek cezalandırılır;
-böylece "hepsini yerleştiren ama uzun" çözüm, "kısa ama parça düşüren"
-çözüme her zaman yeğlenir.
+### Satır başına koşular
 
-### Açı başına kutu
+Tabaka satırı `Integer` dizisidir:
 
-Çeyrek turlarda kutu analitik olarak takas edilir. Başka açılarda gerçek
-kutuyu yalnız şeklin kendisi verir, bu yüzden parça fiilen döndürülüp
-ölçülür ve geri döndürülür. Varsayılan adım 90 olduğu için olağan
-durumda hiç fiziksel döndürme olmaz.
+```
+run(c) > 0   boş, c'den itibaren bu kadar boş hücre (KESİN)
+run(c) < 0   dolu, c'den itibaren EN AZ -run(c) dolu hücre (alt sınır)
+```
 
-### Sayfalı ayar ekranı
+Parçanın bir satır aralığı `[a, b)` için tek okuma yeter: `run(x+a) >=
+b-a` ise sığar; değilse aynı okuma bir sonraki adayı verir (kısa boş
+koşunun bittiği dolu hücrenin koşusunun sonu). Kayan pencere her
+atlamada bütün satırları yeniden gezmek yerine döngüsel ilerler ve hiç
+atlamasız tam tur atınca durur; her atlama x'i büyüttüğü için sonludur.
 
-42 ayar tek `InputBox` istemine sığmıyor. Sayfa gruba göre bölündü ama
-**ayar numaraları genel** kaldı: `N=value` her sayfadan çalışır, yani
-kullanıcı açısından hâlâ tek menü. `tools/lint.py` artık en büyük
-sayfayı ölçer.
+Dolu hücrelerde **alt sınır** tutmak kritik: kesin "sonraki boş hücreye
+uzaklık" tutulduğunda her yerleştirme soldaki bütün dolu bölgeyi yeniden
+yazıyordu (bir dikdörtgen sınamasında süre 25 s'den 10 s'ye indi).
+Tabaka bir geçiş boyunca yalnız dolduğu için eski bir sınır asla yanlış
+olmaz, yalnız bir atlama daha yaptırır. Boş koşular ise kesin kalmak
+zorunda; yalnız yerleşen aralığın solundaki boş koşu güncellenir.
 
-Sayfadaki değerler `ac2fSheetVal` ile kompakt biçimlenir (binlik ayırıcı
-yok, tam sayıda ondalık yok); `ac2fSettingText` tam biçimi `?N` ve
-raporlar için korur. Bu ayrım olmadan `1220.00` sütuna sığmayıp
-`1220.0` diye kırpılıyordu.
+### Arama ve not defteri
+
+Her yön (dönüş/ayna) için en alçak, sonra en soldaki boş yer aranır.
+Her satırın **en geniş boş koşusu** (`m_mf`) tutulur; parçanın en geniş
+tek aralığına sahip üç satırı o satırlara sığmıyorsa satır hiç
+denenmeden geçilir.
+
+Not defteri `(yön, tabaka)` başına "son aramanın bittiği yer"dir.
+Tabaka yalnız dolduğu için altı bir daha açılmaz; aynı parçanın ikinci
+kopyası aramaya oradan başlar. Strateji 1'de (en alçak üst kenar) bir yön
+bulunduktan sonra diğer yönler o üst kenarı geçemeyecek satırlarda
+aramayı bırakır; bırakılan satırlar da not defterine yazılır.
+
+### Optimizasyon
+
+Bir geçiş bütün parçaları bir sırada yerleştirir. `ac2fNCOptStep` önce
+sabit geçişleri yapar (alana göre, uzun kenara göre, yükseklik,
+genişlik, ikinci strateji, döndürmesiz), sonra en iyi sırada farklı
+sınıftan parçaları (çoğunlukla yakın olanları) takas eder; çağıran süre
+bitene kadar çağırır. Skor sözlüksel: yerleşmeyen parça sayısı, sonra
+malzeme (son açılan tabaka yalnız en üstteki parçaya kadar), sonra
+toplam kullanılan yükseklik. Tabakaların başlangıç hâli tek bir dizi
+atamasıyla (`m_run = m_runInit`, yerel memcpy) geri gelir.
+
+### Belge tarafı
+
+- **Dönüşler CorelDRAW'da yapılır.** Her sınıfın her yönü için temsilci
+  şekil gerçekten çevrilir (`Flip`, `Rotate`), kontur o hâliyle okunur,
+  sınırlayıcı kutusunun köşesi kaydedilir, şekil geri çevrilir. Uygularken
+  parça aynı işlemleri görür ve **kutusunun köşesine göre** taşınır:
+  dönme merkezi nerede olursa olsun, kopyalar dahil, doğru konum.
+- **Başlangıç köşesi ve yön** motora dokunmadan, koordinat çerçevesi
+  değiştirilerek yapılır: `x' = a x + b y`, `y' = c x + e y` (eksen
+  takası ve işaret çevirme). Motor hep kendi sol altından, kendi
+  satırlarıyla doldurur; taşıma vektörü çerçevenin tersiyle (devriği)
+  sayfaya döner.
+- **Kontur okuma**: `Segment.GetPointPositionAt` ile eğri boyunca
+  noktalar. İlk çağrıda uçların düğümlere denk geldiği, her noktada
+  `|AP| + |PB| <= L` olduğu denetlenir. Çağrı yoksa ya da tutarsızsa her
+  eğri parçası için kiriş + **o boydaki her eğriyi içine alan** kutu
+  (`AB` odaklı, büyük ekseni `L` olan elipsin dikdörtgeni) katı kontur
+  olarak eklenir; yerleşim gevşer ama çakışmaz.
+- **İç / dış**: her nesnenin konturu bir havuza yazılır; bir nesnenin üç
+  noktası başka nesnenin kapalı konturunda ve kutusu kesin büyükse
+  onun içindedir; en dıştaki kapsayıcıyla gruplanır.
+- **Kopya tanıma**: konturların kutuya göre 0,01 mm'ye yuvarlanmış
+  koordinatlarından imza; ayna görüntüsü farklı imza verir.
+- Bellek: hücre bütçesi 8 milyon (iki `Integer` dizisi); iş sığmazsa
+  hassasiyet kalınlaşır, açılabilecek tabaka sayısı sınırlanır.
+
+### Pencere
+
+`tools/nest_window.ps1` tek kaynaktır; `tools/ps2vba.py` onu satır satır
+`Print #f` olarak `ac2fNSScriptA/B`'ye gömer (her çalıştırmada diske
+yazılır, iş menüsünün liste penceresi gibi). Giriş/çıkış `|` ile ayrılmış
+UTF-8 satırlardır: `K|anahtar|değer`, `S|kullan|ad|en|boy|adet|kaynak`
+(`L` liste, `D<n>` çizili artık), `R|hazır ayar|blob`, `A|NEST`. Hazır
+ayarlar `NestPresets` bölümünde, hangi düğmeyle kapanırsa kapansın geri
+yazılır. `test_corel.py` yazılan betiğin bu dosyayla birebir aynı
+olduğunu denetler.
+
+## Başlangıç noktaları (`ac2fStart`)
+
+En yakın nokta segment boyunca örneklerle bulunur, eğride altın oran
+aramasıyla, düz çizgide analitik olarak inceltilir. Tam nokta modunda
+oraya `Segment.AddNodeAt` ile düğüm eklenir. Düğümü başlangıç yapmak için
+yol o düğümde kırılır (`Node.BreakApart`) ve uçları yeniden birleştirilir
+(`StartNode.JoinWith EndNode`) — CorelDRAW kullanıcılarının elle yaptığı
+yöntem. Yön, örneklenmiş konturun işaretli alanından (y yukarı: pozitif
+= saat yönünün tersi) ve iç içe derinliğinden bulunur; ters çevirmek için
+`SubPath.ReverseDirection` denenir, sürüm desteklemiyorsa sayılıp
+raporlanır.
+
+## Sınama araçları
+
+```
+tools/vbapy.py      VBA -> Python derleyicisi (alt küme)
+tools/cdrmock.py    CorelDRAW nesne modeli taklidi
+tools/test_nest.py  ac2fNestCore, gerçek geometriyle
+tools/test_corel.py ac2fNest + ac2fStart, taklit belgede uçtan uca
+```
+
+`vbapy` VBA anlamını korumaya çalışır: `Long`/`Integer` atamada bankacı
+yuvarlaması ve taşma hatası, sınır denetimli diziler (`a(-1)` sondan
+okumaz), kısa devre yapmayan `And`/`Or`, ByRef skalerlerin geri
+yazılması, `a = b` dizi kopyası, `On Error Resume Next` / `GoTo etiket`
+(etiketler arası bölümlerle bir dağıtıcı döngü), nesnede olmayan üyeye
+erişimin hata 438 olması, `Option Explicit` (tanımsız ad derleme hatası).
+Desteklemediği bir yapı (UDT gibi) o yordamı taslağa çevirir; çağrılırsa
+`NotImplementedError` atar.
+
+`cdrmock` gerçek geometri taşır: kübik bezier yollar, kutunun merkezine
+göre dönüş/ayna, eğriden ölçülen kutu, `Duplicate`, `Group`, `Ungroup`,
+komut grubu + `Undo` (anlık görüntü), kayıt defteri, dosyalar,
+`InputBox`/`MsgBox`, `WScript.Shell` (pencere yerine sınamanın verdiği bir
+işleyici) ve `ADODB.Stream`. Sınamalar makro bittikten sonra belgedeki
+gerçek şekillere bakar: aralık, kenar payı, iç/dış, kopyalar, rapor
+modunun belgeyi değiştirmemesi, pencere protokolü, başlangıç noktaları.
+
+Taklit, CorelDRAW'ın davranışı hakkındaki varsayımları da taşır (ör.
+`BreakApart` + `JoinWith` kırılan düğümü başlangıç yapar). Bu varsayımlar
+gerçek CorelDRAW'da ilk kullanımda doğrulanmalıdır; sınamalar kodun kendi
+içinde tutarlı olduğunu gösterir.
 
 ## Müşteri işi (`ac2fJob`)
 

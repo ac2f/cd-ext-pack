@@ -16,7 +16,9 @@ alüminyum kompozit paneller için V derz çizgilerini üretir ve neon LED
 | `ac2fBoxLetter` | **Kutu harf şeridi** — bordür açınımı ve derz yerleşimi |
 | `ac2fPanel` | **ACP panel derzi** — alüminyum kompozit V derz yerleşimi |
 | `ac2fCenterline` | **Orta hat** — dolu tasarımı tek çizgiye düşürür |
-| `ac2fNest` | **Nesting** — parçaları plakalara yerleştirir |
+| `ac2fNest` | **Nesting** — parçaları gerçek konturlarıyla tabakalara yerleştirir (pencere, tabaka listesi, adetler) |
+| `ac2fNestCore` | Nesting motoru — saf hesap, CorelDRAW dışında sınanır |
+| `ac2fStart` | **Başlangıç noktaları** — yolların ilk düğümünü köşeye / kenar ortasına / merkeze taşır, yönü ayarlar |
 | `ac2fBending` | **Bükme sırası** — konturları harflere ayırır, sıraya dizer |
 | `ac2fPlot` | **Plotter** — HPGL üretip ağdan doğrudan gönderir |
 | `ac2fJob` | **Müşteri işi** — StockTrack müşterisi ve stoğuyla export ve takım yolu klasörlerini adlandırır |
@@ -45,8 +47,13 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fCenterline` | Tek çizgiye düşürür (birleşik / ayrı ayrı sorar) |
 | `ac2fCenterlineJoined` | Tüm seçimi tek bölge sayar — birleşik el yazısı |
 | `ac2fCenterlineSeparate` | Her nesneyi ayrı ayrı düşürür |
-| `ac2fNest` | Seçili parçaları plakalara yerleştirir |
-| `ac2fNestReport` | Hesaplar ve raporlar, hiçbir şeyi oynatmaz |
+| `ac2fNest` | Nesting penceresi (tabakalar, adetler, ayarlar, hazır ayarlar), sonra yerleştirir |
+| `ac2fNestReport` | Aynı pencere; hesaplar ve raporlar, hiçbir şeyi oynatmaz |
+| `ac2fNestAgain` | Pencere açmadan son ayarlarla yerleştirir |
+| `ac2fNestMarkSheets` | Seçili şekilleri çizili artık tabaka olarak adlandırır |
+| `ac2fStartPoints` | Başlangıç noktası: konum (7 8 9 / 4 5 6 / 1 2 3), kutu, tam nokta, yön |
+| `ac2fStartPointsAgain` | Son başlangıç noktası ayarıyla sormadan uygular |
+| `ac2fStartPointsShow` | Başlangıç noktalarına işaret koyar / kaldırır |
 | `ac2fBendOrder` | Seçili nesneleri bükme sırasına dizer (istif + isim) |
 | `ac2fBendPreview` | Bükme sırasını sayfada numaralandırır |
 | `ac2fBendReport` | Bükme sırasını listeler, hiçbir şeyi değiştirmez |
@@ -210,49 +217,65 @@ Uç konumu hatası 1,8 mm (uç uzatma olmadan 12,1 mm).
 
 ## Nesting
 
-Parçaları seçin, `ac2fNest` çalıştırın. **Her kenardan ayrı boşluk**,
-**parçalar arası boşluk** ve **döndürme adımı** ayarlanabilir (ayar
-sayfası, `#5` NEST).
+Parçaları seçin, `ac2fNest` çalıştırın. Parçalar **gerçek konturlarıyla**
+yerleşir, sınırlayıcı kutularıyla değil: içbükey parçalar birbirine
+geçer, istenirse küçük parçalar büyüklerin deliklerine girer, çizili bir
+artık (her şekilde) tabaka olarak kullanılır.
 
-| Ayar | Varsayılan | Ne yapar |
-|---|---|---|
-| Marg left / right / top / bottom | 10 mm | Her kenardan ayrı pay |
-| Part gap | 3 mm | Parçalar arası boşluk |
-| Rot step | 90° | Denenecek dönüş adımı. `0` = olduğu gibi |
-| Sheet W / H | 0 | Plaka ölçüsü. `0` = sayfa ölçüsü |
-| Sheet gap | 20 mm | Birden çok plaka çizilirken arası |
+Açılan pencerede:
 
-`Rot step`: `0` hiç döndürmez, `90` dört yönü dener, `180` yalnız yarım
-tur (desenli/hasırlı malzeme için), `15` en ince adım.
+- **Tabaka listesi** — her satır kullan/kullanma, ad, en, boy, **adet**
+  (`0` = gerektiği kadar). Yukarıdan aşağı sırayla kullanılır; `Qty for all`
+  hepsine aynı adedi yazar. Müşteri işinin stoktan aldığı tabaka listede
+  yoksa en üste eklenir; parçalarla birlikte seçilen `offcut ...` adlı
+  şekiller olduğu yerde, kendi şekliyle tabaka olur.
+- **Ayarlar** — parça aralığı, dört kenar payı, artık kenar payı, dönüş
+  adımı, ayna, kopya adedi, *iç şekiller dıştakiyle gitsin*, *küçük
+  parçalar deliklere girsin*, başlangıç köşesi, satır/sütun yönü,
+  yerleştirme stratejisi, hassasiyet, optimizasyon süresi, sonuçtaki
+  gruplama (yok / parça / tabaka / hepsi), tabaka çerçevesi, ardından
+  başlangıç noktası. Her ayarın üzerine gelince açıklaması çıkar.
+- **Hazır ayarlar** — `Laser 3mm`, `CNC 6mm` gibi adlarla kaydet / yükle.
 
-### Algoritma ve bir uyarı
+`Report only` (ya da `ac2fNestReport`) aynı hesabı yapar, hiçbir şeyi
+oynatmaz. `ac2fNestAgain` pencere açmadan son ayarlarla çalışır.
 
-Sınırlayıcı kutular üzerinde **skyline bottom-left**. Parçalar en uzun
-kenara göre sıralanır; her parça için tüm açılar ve tüm skyline
-basamakları denenir ve **skyline'ı en alçak bırakan** yerleşim seçilir.
+### Algoritma
 
-Bu skor seçimi kritik. Bariz görünen "en düşük y" seçimi döndürmeyi
-**zararlı** hâle getiriyor — beş parça setinde ölçtüm, ikisinde %8 ve
-%18 malzeme kaybettirdi. Skyline yüksekliğine göre skorlayınca aynı
-setler %8, %7, %18, %5 ve %13 kazandı, hiçbiri gerilemedi:
+Her parça kare ızgaraya dökülür; bir kare, parçanın **yarım boşluk kadar
+büyütülmüş** hâlinin herhangi bir noktası oraya düşebiliyorsa dolu
+sayılır. Karesi çakışmayan iki parça arasında bu yüzden en az bir boşluk
+vardır — şekil ne olursa olsun. Tabaka satırları "buradan itibaren kaç
+kare boş / dolu" diye tutulur, böylece bir aralığın boş olup olmadığı tek
+okumayla, dolu çıkarsa nereye atlanacağı da aynı okumayla bulunur.
 
-| Set | En düşük y | **Skyline yüksekliği** |
-|---|---|---|
-| Eşit kutular | −%8,3 | **+%8,1** |
-| Karışık | +%1,6 | **+%7,2** |
-| Uzun şeritler | +%5,8 | **+%17,6** |
-| Dar-uzun | −%18,5 | **+%5,0** |
-| 450×160 | +%7,6 | **+%13,5** |
+Her parça, izin verilen her dönüşte en alçak (sonra en soldaki) boş yere
+konur ve üst kenarı en alçakta kalan dönüş seçilir. Birkaç sabit sıra ve
+iki strateji denendikten sonra, süre dolana kadar en iyi sıra rastgele
+değiştirilip tekrar denenir; **en az parça dışarıda, sonra en az
+malzeme** olan yerleşim kalır.
 
-Testlerin kapsamadığı bir parça karışımında yine de ters tepebilir, o
-yüzden döndürme açıkken iş **iki kez** yerleştirilir — döndürmeli ve
-döndürmesiz — ve iyi olan tutulur. **Döndürme asla malzeme kaybettirmez.**
+Dönüşler CorelDRAW'da gerçekten yapılıp kontur yeniden okunur ve parça
+sonunda sınırlayıcı kutusuyla taşınır; nesnenin dönme merkezi nerede
+olursa olsun sonuç aynıdır. Aynı parçanın kopyaları aynı ızgarayı
+paylaşır ve neredeyse bedavaya yerleşir.
 
-> Parçalar **sınırlayıcı kutuyla** yerleştirilir, gerçek konturla değil.
-> İçbükey parçalar birbirine geçmez.
+Motor (`ac2fNestCore`) CorelDRAW nesnesine dokunmaz. `tools/test_nest.py`
+onu Python'a çevirip gerçek geometriyle sınar (boşluk, kenar payı,
+delikler, çizili tabaka, adetler, iç içe geçen L'ler kutu yerleşimine göre
+%19 daha az malzeme). `tools/test_corel.py` ise `ac2fNest` ve `ac2fStart`'ı
+bir CorelDRAW taklidi üzerinde uçtan uca çalıştırır.
 
-Sığmayan parçalar yerinde bırakılır ve raporda belirtilir. `Ctrl+Z`
-her şeyi geri alır.
+## Başlangıç noktaları
+
+Lazer ya da router'ın her parçaya nereden girdiğini ayarlar. Seçin,
+`ac2fStartPoints` çalıştırın; konum sayısal tuş takımı gibidir
+(`7` sol üst, `8` üst orta, `9` sağ üst, `4` / `6` kenar ortaları, `5`
+merkez, `1` / `2` / `3` alt). Konum her konturun kendi kutusuna (`E`),
+nesnenin kutusuna (`O`) ya da bütün seçime (`S`) göre ölçülür; `X` ile
+tam noktaya düğüm eklenir (şekil değişmez), `N` en yakın düğümü kullanır.
+Yön: `W` dış saat yönünde + delikler ters, `C` tersi, `A` / `Z` hepsi bir
+yöne, `K` olduğu gibi. `M` işaret çizer. Örnek: `8 S W`.
 
 ## Bükme sırası (`ac2fBending`)
 
@@ -269,7 +292,7 @@ gibi alınırsa `NOBOBOXB` sekiz kurulumdur; sıraya konunca dörttür.
 sırayla**, en üstteki önce gönderir ve yolda hiçbir şeyi yeniden
 sıralamaz. Bükme sırasıyla kesmek için önce `12` ile sırayı uygulayın —
 Object Manager yeniden dizilir — sonra gönderin. Ya da `Send order`
-(ayar 47) = `2` ile plotter sırayı kendisi hesaplasın.
+(ayar 66) = `2` ile plotter sırayı kendisi hesaplasın.
 
 **Algoritma her çalıştırmada sorulur.** `12`, `13` ve `14` önce 1/2/3
 seçimini ister; son seçtiğiniz varsayılan gelir ve hatırlanır.
@@ -290,7 +313,7 @@ budur.
 **3. Önce aynılar.** Bir harfe gelindiğinde ondan sonraki **aynı
 şekilli** bütün harfler hemen arkasına çekilir.
 
-### Dört algoritma — `Order` (ayar 49)
+### Dört algoritma — `Order` (ayar 68)
 
 | | Sıra |
 |---|---|
@@ -318,7 +341,7 @@ S3 = B ×3, S4 = X.**
 ### `ac2fBendOrder` nesnelere ne yapar
 
 - **İstif sırası.** İlk bükülecek nesne en üste alınır (`Stack order`,
-  ayar 54 ile alta da alınabilir). Çoğu program dışarı yazarken istif
+  ayar 73 ile alta da alınabilir). Çoğu program dışarı yazarken istif
   sırasını kullanır, ama hangi uçtan başladıkları değişir; iş ters
   çıkarsa bu ayarı çevirin.
 - **İsim.** Nesne `[007 S03] eski adı` olur: **yedinci bükülecek, üçüncü
@@ -345,7 +368,7 @@ işareti bunu yakalar.
 bozulabilir; zaten amacı budur. Sayfadaki sıra kurulum sayısından daha
 önemliyse `0` yapın.
 
-### Ayarlar (49-55)
+### Ayarlar (68-74)
 
 | # | Ayar | Varsayılan | Ne işe yarar |
 |---|---|---|---|
@@ -387,12 +410,12 @@ kenar payı sonradan uygulandığı için iş yine köşeye oturur.
 ### Kesim sırası ve bitiş
 
 Nesneler **Object Manager'daki sırayla**, en üstteki önce gider; yolda
-hiçbir şey yeniden sıralanmaz (`Send order`, ayar 47). Bükme sırasıyla
+hiçbir şey yeniden sıralanmaz (`Send order`, ayar 66). Bükme sırasıyla
 kesmek için önce [Bükme sırası](#bükme-sırası-ac2fbending) ile Object
 Manager'ı dizin, sonra gönderin.
 
 İş bitince bıçak kalkar ve kafa **işin en üst noktasında** bekler
-(`Park`, ayar 48; `0` orijin, `2` olduğu yer).
+(`Park`, ayar 67; `0` orijin, `2` olduğu yer).
 
 ### Hâlâ 90 derece dönük geliyorsa
 
@@ -623,9 +646,12 @@ Ayrıntı ve sınırlar: **[docs/kullanim.md](docs/kullanim.md)**
 ## Geliştirme
 
 ```bash
-python3 tools/lint.py     # içe aktarmadan önce statik denetim
-python3 tools/skeleton.py # büyük düzenlemelerden sonra kontrol akışı karşılaştırması
-sh tools/build.sh         # build/ altına CRLF kopya üret (isteğe bağlı)
+python3 tools/lint.py        # içe aktarmadan önce statik denetim
+python3 tools/test_nest.py   # nesting motoru, gerçek geometriyle
+python3 tools/test_corel.py  # nesting + başlangıç noktası, CorelDRAW taklidinde uçtan uca
+python3 tools/ps2vba.py      # nest_window.ps1 değişince ac2fNest.bas'a gömer
+python3 tools/skeleton.py    # büyük düzenlemelerden sonra kontrol akışı karşılaştırması
+sh tools/build.sh            # build/ altına CRLF kopya üret (isteğe bağlı)
 ```
 
 Kaynak **saf ASCII**'dir; hiçbir Türkçe karakter içermez. Bu yüzden
@@ -640,4 +666,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.17.1 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.19.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

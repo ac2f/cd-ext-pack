@@ -20,7 +20,7 @@ Yine de satır sonlarını CRLF yapmak için betiği çalıştırabilirsiniz:
 powershell -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
-`build\` klasöründe on beş dosya oluşur:
+`build\` klasöründe on yedi dosya oluşur:
 
 ```
 ac2fCore.bas
@@ -31,7 +31,9 @@ ac2fPanel.bas
 ac2fCenterline.bas
 ac2fBending.bas
 ac2fPlot.bas
+ac2fNestCore.bas
 ac2fNest.bas
+ac2fStart.bas
 ac2fJob.bas
 ac2fCheck.bas
 ac2fCutTime.bas
@@ -60,7 +62,7 @@ ac2fMenu.bas
 
 ## 3. Modülleri içe aktar
 
-`ac2fPack` projesi seçiliyken, on beş dosyanın **her biri** için:
+`ac2fPack` projesi seçiliyken, on yedi dosyanın **her biri** için:
 
 `File > Import File...` → `build\ac2*.bas` → **Open**
 
@@ -77,7 +79,9 @@ ac2fPack
     ├── ac2fCenterline
     ├── ac2fBending
     ├── ac2fPlot
+    ├── ac2fNestCore
     ├── ac2fNest
+    ├── ac2fStart
     ├── ac2fJob
     ├── ac2fCheck
     ├── ac2fCutTime
@@ -136,6 +140,27 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
+
+### Sürüm 1.18.0'dan 1.19.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fNestCore.bas` | **Yeni** — doğrudan içe aktarın |
+| `ac2fStart.bas` | **Yeni** — doğrudan içe aktarın |
+| `ac2fNest.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fSettings.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fMenu.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fJob.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fCore.bas` | **Değişti** (sürüm) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Yeni makrolar: `ac2fNestAgain`, `ac2fNestMarkSheets`, `ac2fStartPoints`,
+`ac2fStartPointsAgain`, `ac2fStartPointsShow` (ana menü `22`-`26`).
+Nesting ayarlarınız korunur; ayar sayfasında NEST grubundan sonra yeni
+START grubu geldiği için PLOT, BEND ve JOB ayarlarının **numaraları 19
+kaydı** (ör. `Send order` 47 → 66). Nesting penceresi iş menüsündeki
+liste penceresi gibi PowerShell ile açılır; o kapalıysa (`List window`
+ayarı 0) kısa metin sorusu çıkar.
 
 ### Sürüm 1.15.0'dan 1.16.0'a
 

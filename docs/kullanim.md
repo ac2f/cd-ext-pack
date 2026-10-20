@@ -17,7 +17,7 @@
   7  -  Box letter report (no drawing)
   8  -  ACP panel V-grooves
   9  -  Centerline (reduce to a single line)
- 10  -  Nesting (pack parts onto sheets)
+ 10  -  Nesting (true shape, sheets window)
  11  -  Nesting report (nothing moves)
  12  -  Bending order: apply it to the objects
  13  -  Bending order: number them on the page
@@ -29,6 +29,9 @@
  19  -  Settings and profiles
  20  -  About
  21  -  Customer job: export, folders, price  (J)
+ 22  -  Nesting again, last settings
+ 23  -  Start points   24 - again   25 - markers
+ 26  -  Mark selection as offcut sheets
 ```
 
 Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
@@ -440,92 +443,130 @@ Uç konumu hatası 1,8 mm.
 
 ## 7. Nesting
 
-Parçaları seçin, `ac2fNest` çalıştırın. Parçalar plakaya yerleşir,
-plaka sınırları gri çizilir.
+Parçaları seçin, `ac2fNest` (menü `10`) çalıştırın. Bir pencere açılır:
+solda **tabaka listesi**, sağda **ayarlar**. `Nest` yerleştirir,
+`Report only` aynı hesabı yapıp hiçbir şeyi oynatmaz (`ac2fNestReport`,
+menü `11`). `ac2fNestAgain` (menü `22`) pencere açmadan son ayarlarla
+çalışır.
 
-`ac2fNestReport` aynı hesabı yapar ama **hiçbir şeyi oynatmaz** — ayar
-denemek için.
+Parçalar **gerçek konturlarıyla** yerleşir, sınırlayıcı kutularıyla
+değil: içbükey parçalar birbirine geçer (L, T, harfler), istenirse küçük
+parçalar büyüklerin deliklerine girer, çizili bir artık tabaka olarak
+kullanılabilir.
 
-### Üç ayar kümesi
+### Tabaka listesi
 
-Ayar sayfasında `#5` (NEST):
+| Sütun | Anlamı |
+|---|---|
+| Use | İşaretli tabakalar kullanılır; işaretini kaldırdığınız dışarıda kalır |
+| Sheet | Ad (raporda görünür) |
+| Width / Height | mm |
+| Qty | Adet. **`0` = gerektiği kadar** |
+
+- Tabakalar **yukarıdan aşağı** sırayla kullanılır (`Up` / `Down`). Artıkları
+  üste koyarsanız önce onlar dolar.
+- `Qty for all` + `Apply` bütün liste tabakalarına aynı adedi yazar.
+- Liste kaydedilir; bir sonraki işte aynen gelir.
+- Müşteri işinde stoktan seçilen tabaka (iş menüsü) listede yoksa en üste
+  eklenir. Liste boşsa sayfa ölçüsü kullanılır.
+- **Çizili artık**: adı `offcut`, `sheet`, `artik`, `plaka`, `tabaka` ya
+  da `levha` ile başlayan (veya böyle adlı bir katmanda duran) kapalı bir
+  şekli parçalarla birlikte seçin. Mavi satır olarak listede görünür,
+  **olduğu yerde** ve **kendi şeklinde** kullanılır (içindeki delikler
+  dahil). Menü `26` seçili şekilleri `offcut 1`, `offcut 2` ... diye
+  adlandırır.
+- Önceki çalıştırmanın çizdiği tabaka çerçeveleri (`ac2f sheet N`) ne
+  parça ne tabaka sayılır; her şeyi seçip yeniden nest edebilirsiniz.
+
+### Ayarlar
+
+Penceredeki her ayarın üzerine gelince açıklaması çıkar. Aynı ayarlar ayar
+sayfasında `#5` (NEST) altındadır.
 
 | Ayar | Varsayılan | Ne yapar |
 |---|---|---|
-| Marg left | 10 mm | Sol kenardan pay |
-| Marg right | 10 mm | Sağ kenardan pay |
-| Marg top | 10 mm | Üst kenardan pay |
-| Marg bottom | 10 mm | Alt kenardan pay |
-| Part gap | 3 mm | Parçalar arası boşluk |
-| Rot step | 90° | Denenecek dönüş adımı |
-| Sheet W | 0 | Plaka eni. `0` = sayfa eni |
-| Sheet H | 0 | Plaka boyu. `0` = sayfa boyu |
-| Sheet gap | 20 mm | Birden çok plaka çizilirken arası |
+| Part gap | 3 mm | Parçaların **gerçek konturları** arasındaki en az boşluk |
+| Margin L / R / T / B | 10 mm | Tabakanın her kenarından ayrı pay |
+| Offcut edge | 5 mm | Çizili artığın kenarından pay |
+| Rotation | 90° | `0` olduğu gibi, `180` yalnız yarım tur, `90`, `45`, `30`, `15` |
+| Parts may be mirrored | kapalı | Ayna görüntüsü de denenir (baskılı/filmli malzemede kapalı tutun) |
+| Copies of each part | 1 | Her parça bu kadar kez yerleşir; kopyalar yer bulursa oluşur |
+| Shapes inside a shape move with it | açık | Bir şeklin içindeki şekil onunla tek parça olur (gruplamaya gerek yok) |
+| Small parts may go into holes | kapalı | İç konturlar kesilip düşüyorsa (harf içleri, çerçeveler) küçük parçalar oraya girer |
+| Start corner | sol alt | Yerleşimin başladığı köşe (makinenin sıfırına göre seçin) |
+| Fill direction | satır | Satır: kullanılan yükseklik kısa kalır; sütun: kullanılan genişlik |
+| Placement | otomatik | En alçak üst kenar / sol-alt; otomatik ikisini de dener |
+| Precision | 1 mm | Izgara kare boyu. İnce = sıkı ama yavaş. Boşluk her durumda korunur |
+| Optimise for | 10 s | Bu süre boyunca başka sıralar denenir, en iyisi kalır. `0` = tek hızlı geçiş |
+| Group the result | each part | Yok / her parça / her tabaka / hepsi |
+| Draw sheet outlines | açık | Kullanılan her tabakaya gri çerçeve |
+| Set start points afterwards | kapalı | Yerleşen parçalara başlangıç noktası ayarlarını uygular (bölüm 17) |
+| Space between sheets | 20 mm | Sayfadaki tabakaların arası (yalnız görünüm) |
 
-**Dört kenar bağımsızdır** — kıskaçların veya besleme makaralarının
-olduğu kenara geniş, diğer üçüne dar pay verebilirsiniz.
+**Hazır ayarlar**: alttaki `Preset` kutusuna bir ad yazıp `Save` — o anki
+bütün ayarlar o adla saklanır (`Laser 3mm`, `CNC 6mm` ...). `Load` geri
+yükler, `Delete` siler.
 
-**Part gap** kesiciye yer açar: bıçak için kerf + biraz, freze için en az
-uç çapı kadar, yoksa komşu parçayı keser. Boşluk her parçanın sağına ve
-üstüne eklenir; son sütun ve satır bu payı kullanabildiği için uç
-kenarlarda malzeme boşa gitmez.
+**İç / dış**: `Shapes inside a shape move with it` açıkken, ayrı ayrı
+çizilmiş bir "O"nun iki halkası, bir çerçeve ile içindeki yazı ya da bir
+panel ile delikleri tek parça gibi taşınır. `Small parts may go into
+holes` iç konturun **kesilip düştüğü** durumlar içindir; iç şekiller kazıma
+veya baskıysa kapalı tutun, çünkü oradaki alan hâlâ malzemedir.
 
-**Rot step**:
+### Nasıl yerleştirir
 
-| Değer | Denenen açılar |
-|---|---|
-| `0` | Yok — parçalar çizildiği gibi kalır |
-| `90` | 0, 90, 180, 270 |
-| `180` | 0, 180 — desenli/hasırlı malzeme için |
-| `45` | Sekiz açı |
-| `15` | En ince adım |
-
-Çeyrek turlar bedavadır (kutu kenarları takas olur). Başka bir açı için
-her parçanın gerçekten döndürülüp ölçülmesi gerekir; büyük işte küçük
-adım belirgin şekilde yavaşlar.
+1. Her parça kare ızgaraya dökülür. Bir kare, parçanın yarım boşluk kadar
+   büyütülmüş hâlinin herhangi bir noktası oraya düşebiliyorsa dolu
+   sayılır, yani karesi çakışmayan iki parça arasında **en az bir boşluk**
+   vardır.
+2. İzin verilen her dönüş (ve ayna) CorelDRAW'da gerçekten yapılıp kontur
+   yeniden okunur; aynı parçanın kopyaları aynı ızgarayı paylaşır.
+3. Her parça için en alçak (sonra en soldaki) boş yer aranır. Delikler ve
+   girintiler de bu aramada bulunur.
+4. Birkaç sabit sıra (büyükten küçüğe, uzun kenar, yükseklik, genişlik,
+   döndürmesiz) ve iki strateji denenir, sonra süre dolana kadar en iyi
+   sıra rastgele değiştirilerek tekrar denenir. **En az parça dışarıda,
+   sonra en az malzeme** olan yerleşim kalır (son tabaka yalnız en üstteki
+   parçaya kadar sayılır).
 
 ### Sonuç
 
 ```
 NESTED
-   Parts               : 40 of 40
-   Sheets              : 2
-   Material length     : 2240 mm
-   Rotated             : 7 part(s)
-   Fill                : 68,4 %
-   Rotation            : 8,1 % less material than without rotation
+   Parts             : 46 of 48 placed
+   Did not fit       : 2  (left where they were)
+   Sheets used       : 3
+      1  3050 x 2050                31 parts   fill 78.4 %
+      2  3050 x 2050                12 parts   fill 64.0 %
+      3  Offcut 1: offcut 1 (850... 3 parts   fill 55.1 %   used 1210 mm of the height
+   Fill (all sheets) : 72.3 %  (the last sheet up to its highest part)
+   Layouts tried     : 57 in 10.1 s; best: lowest top edge
 
 SETTINGS USED
-   Sheet               : 1220 x 2440 mm
-   Margins L R T B     : 10  10  10  10 mm
-   Usable              : 1200 x 2420 mm
-   Part gap            : 3,00 mm
-   Rotation step       : 90 deg
+   Gap 4.00 mm, margins L R T B 10 10 10 10 mm
+   Rotation 90 deg, mirror off, precision 1.00 mm
+   Inner shapes with outer on, holes used off, from the bottom left in rows
 ```
 
-**Material length** asıl para ölçüsüdür: her plakada gerçekten kullanılan
-yükseklik. Rulo işinde doğrudan tüketilen metreye karşılık gelir.
-
-### Döndürme neden asla zarar vermez
-
-Yerleştirici, her parça için skyline'ı **en alçak bırakan** yeri seçer.
-Bariz görünen "en düşük y" seçimi döndürmeyi zararlı hâle getiriyordu —
-ölçüldü, iki sette %8 ve %18 malzeme kaybı. Skyline yüksekliğine göre
-skorlayınca beş setin beşi de kazandı.
-
-Yine de kapsanmayan bir parça karışımında ters tepebilir, o yüzden
-döndürme açıkken iş **iki kez** yerleştirilir (döndürmeli ve döndürmesiz)
-ve iyi olan tutulur. Rapor hangisinin kazandığını yazar.
+**Fill** gerçek parça alanının kullanılabilir alana oranıdır. **used**
+son tabakada gerçekten harcanan boydur; artığın ne kadar kaldığını
+söyler.
 
 ### Bilinmesi gerekenler
 
-- **Sınırlayıcı kutuyla yerleştirilir**, gerçek konturla değil. İçbükey
-  parçalar birbirine geçmez; bir "C" harfinin boşluğuna küçük parça
-  konmaz.
-- Gruplar tek parça sayılır — bir grubu bozmaz.
 - Sığmayan parça **yerinde bırakılır** ve raporda sayılır.
-- `Ctrl+Z` her şeyi geri alır (tek komut grubu).
-- Sınırlar: 500 parça, 60 plaka.
+- `Ctrl+Z` her şeyi geri alır (tek komut grubu). Rapor modu belgeyi
+  hiç değiştirmez.
+- Çok büyük bir iş belleğe sığsın diye hassasiyet kendiliğinden
+  kalınlaşabilir; rapor bunu yazar.
+- Konturlar eğri boyunca noktalarla okunur. Bu okuma olmayan çok eski bir
+  CorelDRAW'da her eğri parçası, o boydaki **her** eğriyi içine alan bir
+  kutuyla kaplanır: parçalar biraz gevşek yerleşir ama asla çakışmaz
+  (rapor söyler).
+- Pencere PowerShell ile açılır (iş menüsündeki liste penceresi gibi).
+  Açılamazsa kısa bir metin sorusu çıkar: `Enter` nest, `R` rapor,
+  `S` ayarlar, `T 3050x2050x0; 2440x1220x2` tabakaları yazar.
+- Sınırlar: 2000 parça, 200 satır tabaka, aynı anda 60 tabaka.
 
 ---
 
@@ -552,7 +593,7 @@ Yine de dönük çıkıyorsa sebep dosya değil **makinedir**: çoğu kesicide X
 ekseni malzeme besleme yönünde uzar, bu yüzden geniş bir iş ruloya enine
 düşer.
 
-| `Rotate` (ayar 42) | Sonuç |
+| `Rotate` (ayar 61) | Sonuç |
 |---|---|
 | `0` *(varsayılan)* | Ekranda gördüğünüz gibi |
 | `90` | Saat yönünün tersine çeyrek tur |
@@ -583,7 +624,7 @@ garanti etmediği için her seçili nesne sayfa yığınında kimliğiyle
 sayfa yığınında yoktur; geri kalanların ardından, seçim sırasıyla
 gider ve rapor kaç tane olduğunu söyler.
 
-| `Send order` (ayar 47) | Sıra |
+| `Send order` (ayar 66) | Sıra |
 |---|---|
 | `0` *(varsayılan)* | Object Manager, üstten başlayarak |
 | `1` | Object Manager, alttan başlayarak |
@@ -594,7 +635,7 @@ nesnelere uygular, Object Manager'ı yeniden dizer), sonra gönder.
 
 ### İş bitince kafa nerede bekler
 
-| `Park` (ayar 48) | Sonuç |
+| `Park` (ayar 67) | Sonuç |
 |---|---|
 | `1` *(varsayılan)* | Bıçak kalkar, kafa **işin en üst noktasına** gider |
 | `0` | Orijine döner (`PU0,0;`) |
@@ -736,7 +777,7 @@ Ortadaki satır önemli: çizim tamamen pozitifse min 0,0 çıkar,
 normalizasyon sabit bir kaydırmaya döner, iş kenara oturmaz ve malzeme
 boşa gider.
 
-### Ayarlar (40-48)
+### Ayarlar (59-67)
 
 | # | Ayar | Varsayılan | Ne yapar |
 |---|---|---|---|
@@ -760,7 +801,7 @@ hatırlanır. Bir makine adresi, geometri parametresi değil.
 - Tek kalem kullanılır (`SP1`). Renk/katman başına kalem ataması yok.
 - Sayfa sonu (`PG;`) gönderilmez — beklemediğiniz bir malzeme ilerlemesi
   olmaz. Gerekiyorsa plotter panelinden verin.
-- Yol sırası **Object Manager sırasıdır** (ayar 47). Kalem yolunu
+- Yol sırası **Object Manager sırasıdır** (ayar 66). Kalem yolunu
   kısaltan bir optimizasyon yapılmaz.
 - Bitmap ve yol taşımayan nesneler atlanır.
 - Gönderim başarısız olsa bile **dosya yazılmıştır**; raporda yolu
@@ -783,7 +824,7 @@ gibi alınırsa `NOBOBOXB` sekiz kurulumdur; sıraya konunca dörttür.
 sırayla**, en üstteki önce gönderir ve yolda hiçbir şeyi yeniden
 sıralamaz. Bükme sırasıyla kesmek için önce `12` ile sırayı uygulayın —
 Object Manager yeniden dizilir — sonra gönderin. Ya da `Send order`
-(ayar 47) = `2` ile plotter sırayı kendisi hesaplasın.
+(ayar 66) = `2` ile plotter sırayı kendisi hesaplasın.
 
 **Algoritma her çalıştırmada sorulur.** `12`, `13` ve `14` önce 1/2/3
 seçimini ister; son seçtiğiniz varsayılan gelir ve hatırlanır.
@@ -804,7 +845,7 @@ budur.
 **3. Önce aynılar.** Bir harfe gelindiğinde ondan sonraki **aynı
 şekilli** bütün harfler hemen arkasına çekilir.
 
-### Dört algoritma — `Order` (ayar 49)
+### Dört algoritma — `Order` (ayar 68)
 
 | | Sıra |
 |---|---|
@@ -832,7 +873,7 @@ S3 = B ×3, S4 = X.**
 ### `ac2fBendOrder` nesnelere ne yapar
 
 - **İstif sırası.** İlk bükülecek nesne en üste alınır (`Stack order`,
-  ayar 54 ile alta da alınabilir). Çoğu program dışarı yazarken istif
+  ayar 73 ile alta da alınabilir). Çoğu program dışarı yazarken istif
   sırasını kullanır, ama hangi uçtan başladıkları değişir; iş ters
   çıkarsa bu ayarı çevirin.
 - **İsim.** Nesne `[007 S03] eski adı` olur: **yedinci bükülecek, üçüncü
@@ -859,7 +900,7 @@ işareti bunu yakalar.
 bozulabilir; zaten amacı budur. Sayfadaki sıra kurulum sayısından daha
 önemliyse `0` yapın.
 
-### Ayarlar (49-55)
+### Ayarlar (68-74)
 
 | # | Ayar | Varsayılan | Ne işe yarar |
 |---|---|---|---|
@@ -1310,7 +1351,7 @@ StockTrack'e ulaşılamazsa eklenti çalışmayı sürdürür:
   önerilmez.
 - Hiçbiri yoksa müşteri adını ve plakayı yazarak devam edersiniz.
 
-### Ayarlar (56-61)
+### Ayarlar (75-81)
 
 | # | Ayar | Varsayılan | Ne işe yarar |
 |---|---|---|---|
@@ -1354,7 +1395,7 @@ sorunlu nesneleri istersen seçer.
 | Kırıntı | 0,5 mm'den küçük nesne, kaçak nokta |
 | PowerClip | İçerik göründüğü gibi export edilmeyebilir |
 
-**Export DXF her seferinde kontrol eder** (`Check first`, ayar 61).
+**Export DXF her seferinde kontrol eder** (`Check first`, ayar 80).
 Yalnız *kesimi bozan* bir şey varsa durur:
 
 ```
@@ -1432,6 +1473,54 @@ Price     1,027 m2 x 450,00 TRY = 462,15 TRY
 Sayfada nest çerçevesi varsa `3`, yoksa `1` seçili gelir; rakam yazınca
 değişir. **Fiyat** = max(alan × adet, asgari m²) × m² ücreti. O iş için:
 `a=450` (m² ücreti), `m=0.5` (asgari m²), `x=4` (adet).
+
+## 17. Başlangıç noktaları
+
+Lazer ya da router'ın her parçaya **nereden** girdiğini ayarlar: her
+yolun ilk düğümü seçilen köşeye, kenar ortasına ya da merkeze taşınır.
+İstenirse kesim yönü de düzenlenir.
+
+Seçin, `ac2fStartPoints` (menü `23`) çalıştırın. Konum sayısal tuş
+takımı düzenindedir:
+
+```
+        7 ----- 8 ----- 9
+        |               |
+        4       5       6
+        |               |
+        1 ----- 2 ----- 3
+```
+
+Sayıdan sonra harflerle seçenek değişir (hatırlanır):
+
+| Harf | Anlamı |
+|---|---|
+| `E` | Her konturun **kendi** kutusu (delik kendi köşesinden başlar) |
+| `O` | Her nesnenin kutusu |
+| `S` | Bütün seçimin kutusu |
+| `X` | Tam nokta: gerekirse oraya düğüm eklenir (şekil değişmez) |
+| `N` | En yakın mevcut düğüm, ekleme yok |
+| `K` | Yön olduğu gibi |
+| `W` | Dış saat yönünde, delikler ters |
+| `C` | Dış saat yönünün tersine, delikler saat yönünde |
+| `A` / `Z` | Hepsi saat yönünde / hepsi tersine |
+| `M` / `Q` | Sonra işaret çiz / çizme |
+
+Örnek: `8 S W` = seçimin üst ortası, dış saat yönünde. `7` tek başına =
+her konturun sol üstü.
+
+- `ac2fStartPointsAgain` (menü `24`) son ayarla sormadan uygular.
+- `ac2fStartPointsShow` (menü `25`) her başlangıca küçük kırmızı bir
+  daire ve yönü gösteren kısa bir çizgi koyar (`ac2f start points`
+  katmanı); tekrar çalıştırınca siler.
+- Dörtgen, elips ve çokgenler önce eğriye çevrilir (düğümleri yoktur);
+  metin atlanır. Rapor kaç yolun değiştiğini söyler.
+- Açık yollar (çizgiler) diğer ucu konuma daha yakınsa ters çevrilir.
+- Yön değiştirmeyi desteklemeyen bir CorelDRAW sürümünde başlangıç yine
+  taşınır, rapor yönün değişmediğini yazar.
+- Nesting penceresindeki `Set start points afterwards` bu ayarları
+  yerleşen parçalara uygular.
+- Ayarlar sayfada `#6` (START) altındadır. `Ctrl+Z` geri alır.
 
 ## Bilinmesi gerekenler
 

@@ -2,6 +2,65 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.19.0] - 2026-10-21
+
+### Değişti: nesting artık gerçek şekille (`ac2fNest`, yeni `ac2fNestCore`)
+
+Parçalar sınırlayıcı kutularıyla değil **gerçek konturlarıyla**
+yerleşiyor. Her parça kare ızgaraya dökülüyor; bir kare, parçanın yarım
+boşluk kadar büyütülmüş hâli oraya düşebiliyorsa dolu sayılıyor, böylece
+karesi çakışmayan iki parça arasında boşluk her şekilde korunuyor.
+İçbükey parçalar birbirine geçiyor (on L parçada kutu yerleşimine göre
+%19 daha az malzeme), istenirse küçük parçalar büyüklerin deliklerine
+giriyor, çizili artık her şekliyle tabaka oluyor.
+
+- **Pencere** (PowerShell): tabaka listesi (kullan / ad / en / boy /
+  adet, `0` = gerektiği kadar, sıra = kullanım sırası, hepsine aynı
+  adet), bütün ayarlar açıklamalı, **hazır ayarlar** (kaydet / yükle /
+  sil). Açılamazsa kısa metin sorusu.
+- **Yeni ayarlar**: hassasiyet, optimizasyon süresi, iç şekiller
+  dıştakiyle gitsin, küçük parçalar deliklere girsin, sonuç gruplaması
+  (yok / parça / tabaka / hepsi), ayna, başlangıç köşesi, satır/sütun
+  yönü, strateji, kopya adedi, tabaka çerçevesi, artık kenar payı,
+  ardından başlangıç noktası.
+- **Optimizasyon**: birkaç sabit sıra ve iki strateji, sonra süre
+  dolana kadar rastgele iyileştirme; en az parça dışarıda, sonra en az
+  malzeme olan yerleşim kalır.
+- Dönüşler CorelDRAW'da gerçekten yapılıp kontur yeniden okunuyor, parça
+  sınırlayıcı kutusuyla taşınıyor; dönme merkezi nerede olursa olsun
+  sonuç doğru. Aynı parçalar tanınıp ızgarayı paylaşıyor.
+- Eğri boyunca nokta okuması olmayan bir sürümde her eğri parçası, o
+  boydaki her eğriyi içine alan bir kutuyla kaplanıyor (gevşek ama asla
+  çakışmaz).
+- `ac2fNestAgain` (menü 22): pencere açmadan son ayarlarla.
+  `ac2fNestMarkSheets` (menü 26): seçimi çizili artık olarak adlandırır.
+- Tabaka çerçeveleri parça gruplarına girmiyor, eskisi gibi
+  `ac2f sheets` grubunda; müşteri işi "hepsi" grubunun içindeki parçaları
+  da görüyor.
+
+### Eklendi: başlangıç noktaları (`ac2fStart`, menü 23-25)
+
+Her yolun ilk düğümü sayısal tuş takımı düzeninde seçilen yere taşınıyor
+(`7 8 9 / 4 5 6 / 1 2 3`): her konturun kendi kutusuna, nesnenin
+kutusuna ya da bütün seçime göre. Tam nokta modunda gerekirse oraya
+düğüm ekleniyor (şekil değişmez). Kesim yönü: dış saat yönünde + delikler
+ters, tersi, hepsi bir yöne ya da olduğu gibi. Açık yollar yakın uçtan
+başlıyor. İşaretler (`ac2f start points` katmanı) çizilip kaldırılabiliyor.
+Nesting sonrası otomatik uygulanabiliyor.
+
+### Düzeltildi
+
+- **Hakkında** kutusu MsgBox'ın ~1024 karakter sınırını aşıp kesiliyordu;
+  her özellik tek satıra indi.
+
+### Geliştirme
+
+- `tools/vbapy.py`: VBA'yı Python'a çeviren küçük derleyici (tür
+  dönüşümleri, sınır denetimli diziler, ByRef, `On Error`, nesne üyeleri).
+- `tools/cdrmock.py`: CorelDRAW nesne modelinin sınama taklidi.
+- `tools/test_nest.py`, `tools/test_corel.py`: motor ve uçtan uca sınamalar.
+- `tools/nest_window.ps1` + `tools/ps2vba.py`: pencere betiği tek kaynakta.
+
 ## [1.18.0] - 2026-10-20
 
 ### Eklendi: işin gün klasörünü değiştirme (`ac2fJobDay`, iş menüsü 12)
