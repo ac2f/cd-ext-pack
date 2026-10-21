@@ -1331,14 +1331,26 @@ sorar).
 1=http://192.168.1.50/api/v1          (dükkândaki sunucu)
 1=https://stok.ornek.com/api/v1       (uzak sunucu)
 2=<anahtar>
+5=192.168.1.9                         (dükkândaki YEREL sunucu, isteğe bağlı)
 T          bağlantıyı dener
+L          yalnız yerel sunucuyu dener
 ```
 
 3. Gün klasörü CDR Auto Renamer'dan gelir. O program yoksa ya da başka
    bir yer istiyorsanız `3=D:\Isler` yazın; `3=` (boş) geri alır.
 4. Ayraç varsayılan `--`; `4=` ile değişir.
 
-StockTrack'e ulaşılamazsa eklenti çalışmayı sürdürür:
+**Yerel sunucu (5):** dükkânda StockTrack'in yerel kopyası (replika) çalışıyorsa
+adresini `5=` ile yazın. Ana sunucu cevap vermezse (internet yok, sunucu
+kapalı, önündeki ağ geçidi 502/503/504 diyor) eklenti yerel sunucuya sorar;
+başlıkta `(local server)` yazar. Geçişten sonra 5 dakika boyunca önce yerel
+sunucuya sorulur (her listede ana sunucunun zaman aşımı beklenmez), sonra
+yine ana sunucu denenir. Ana sunucu gerçek bir hata verirse (anahtar
+geçersiz, sürüm eski) bu yerel sunucuyla örtülmez. Anahtar aynıdır: yerel
+sunucu dükkânın ayarlarını merkezden alır. `5=` (boş) yerel sunucuyu kaldırır.
+Runner da bu adresi kullanır.
+
+StockTrack'e (yerel sunucu dahil) ulaşılamazsa eklenti çalışmayı sürdürür:
 
 - StockTrack'ten gelen her liste bilgisayarda saklanır
   (`%LOCALAPPDATA%\ac2f\stocktrack`, sunucu ve anahtar başına ayrı). Sunucu

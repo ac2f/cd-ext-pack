@@ -141,6 +141,18 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.19.0'dan 1.20.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fJob.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fCore.bas` | **Değişti** (sürüm) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Job setup'ta (iş menüsü `7`) yeni `5` satırı: dükkândaki yerel StockTrack
+sunucusunun adresi. Ana sunucu cevap vermezse listeler oradan gelir. Ayar
+numaraları değişmedi.
+
 ### Sürüm 1.18.0'dan 1.19.0'a
 
 | Dosya | Ne yapmalı |

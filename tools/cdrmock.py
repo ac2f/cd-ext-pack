@@ -670,6 +670,38 @@ class ADODBStream(object):
         pass
 
 
+class ServerXMLHTTP(object):
+    """MSXML2.ServerXMLHTTP: host.http_routes[url] -> (status, body), bir
+    istisna ya da callable(url, headers). Yol yoksa sunucu yanit vermez."""
+
+    def __init__(self, host):
+        self.host = host
+        self.status = 0
+        self.responsetext = ''
+        self._url = ''
+        self.headers = {}
+
+    def settimeouts(self, *a):
+        pass
+
+    def open(self, method, url, async_=False):
+        self._url = V(url)
+
+    def setrequestheader(self, k, v):
+        self.headers[V(k).lower()] = V(v)
+
+    def send(self, body=None):
+        self.host.http_log.append(self._url)
+        r = self.host.http_routes.get(self._url)
+        if callable(r):
+            r = r(self._url, self.headers)
+        if r is None:
+            raise VBError('The server name or address could not be resolved', -2147012889)
+        if isinstance(r, Exception):
+            raise r
+        self.status, self.responsetext = r
+
+
 class WScriptShell(object):
     def __init__(self, host):
         self.host = host
@@ -695,6 +727,8 @@ class Host(object):
         self.commands = []
         self.files = {}
         self.window_handler = None
+        self.http_routes = {}
+        self.http_log = []
         self.sampling_supported = True
         self.reverse_supported = True
         self.err = ErrObj()
@@ -786,6 +820,8 @@ class Host(object):
             return ADODBStream(self)
         if prog.lower() == 'wscript.shell':
             return WScriptShell(self)
+        if prog.lower() in ('msxml2.serverxmlhttp.6.0', 'msxml2.serverxmlhttp'):
+            return ServerXMLHTTP(self)
         raise VBError('ActiveX component cannot create object: %s' % prog, 429)
 
     def freefile(self):

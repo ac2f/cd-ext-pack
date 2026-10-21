@@ -145,13 +145,18 @@ def conv_object(x):
     return x
 
 
+def conv_date(x):
+    # VBA Date: gun sayisi (double)
+    return conv_double(x)
+
+
 CONV = {'long': conv_long, 'integer': conv_integer, 'byte': conv_byte,
         'double': conv_double, 'single': conv_double, 'boolean': conv_boolean,
         'string': conv_string, 'variant': conv_variant, 'currency': conv_double,
-        'object': conv_object}
+        'object': conv_object, 'date': conv_date}
 DEFAULT = {'long': 0, 'integer': 0, 'byte': 0, 'double': 0.0, 'single': 0.0,
            'boolean': False, 'string': '', 'variant': None, 'currency': 0.0,
-           'object': None}
+           'object': None, 'date': 0.0}
 SCALAR_TYPES = set(CONV)
 
 
@@ -377,6 +382,44 @@ def vb_sqr(x):
 
 def vb_iif(c, a, b):
     return a if conv_boolean(c) else b
+
+
+# VBA Date: gun sayisi (OLE: 1899-12-30 = 0). Testler saati H.clock ile kaydirabilir.
+CLOCK = {'offset': 0.0}
+
+
+def vb_now():
+    return (time.time() + CLOCK['offset']) / 86400.0 + 25569.0
+
+
+def vb_timeserial(h, m, s):
+    return (_num(h) * 3600.0 + _num(m) * 60.0 + _num(s)) / 86400.0
+
+
+def vb_date():
+    return float(math.floor(vb_now()))
+
+
+def _pydate(d):
+    import datetime
+    return datetime.date(1899, 12, 30) + datetime.timedelta(days=int(math.floor(_num(d))))
+
+
+def vb_dateserial(y, m, d):
+    import datetime
+    return float((datetime.date(int(_num(y)), int(_num(m)), 1) - datetime.date(1899, 12, 30)).days + int(_num(d)) - 1)
+
+
+def vb_weekday(d, first=1):
+    # VBA: 1 = ilk gun (vbSunday=1 varsayilan, vbMonday=2)
+    iso = _pydate(d).isoweekday()  # pazartesi=1 ... pazar=7
+    sunday_based = iso % 7 + 1      # pazar=1 ... cumartesi=7
+    return (sunday_based - int(_num(first))) % 7 + 1
+
+
+def vb_choose(i, *opts):
+    i = int(_num(i))
+    return opts[i - 1] if 1 <= i <= len(opts) else None
 
 
 def vb_timer():
@@ -609,9 +652,15 @@ BUILTINS = {
     'split': 'vb_split', 'array': 'vb_array', 'strcomp': 'vb_strcomp',
     'isnumeric': 'vb_isnumeric', 'isarray': 'vb_isarray', 'strptr': 'vb_strptr',
     'ascw': 'vb_ascw', 'string$': 'vb_string', 'space$': 'vb_space', 'str$': 'vb_str',
-    'format$': 'vb_format', 'format': 'vb_format',
+    'format$': 'vb_format', 'format': 'vb_format', 'timeserial': 'vb_timeserial',
+    'dateserial': 'vb_dateserial', 'weekday': 'vb_weekday', 'choose': 'vb_choose',
+    'day': '(lambda d: _pydate(d).day)', 'month': '(lambda d: _pydate(d).month)',
+    'year': '(lambda d: _pydate(d).year)',
+    'chrw$': '(lambda n: chr(int(_num(n))))', 'chrw': '(lambda n: chr(int(_num(n))))',
+    'chr$': '(lambda n: chr(int(_num(n))))', 'chr': '(lambda n: chr(int(_num(n))))',
 }
-BUILTIN_NOARG = {'timer': 'vb_timer()', 'true': 'True', 'false': 'False',
+BUILTIN_NOARG = {'timer': 'vb_timer()', 'now': 'vb_now()', 'date': 'vb_date()', 'true': 'True', 'false': 'False',
+                 'vbmonday': '2', 'vbsunday': '1',
                  'vbcrlf': '"\\r\\n"', 'vblf': '"\\n"', 'vbcr': '"\\r"',
                  'vbtab': '"\\t"', 'nothing': 'None', 'vbnullstring': 'NullStr("")',
                  'vbtextcompare': '1', 'vbbinarycompare': '0',

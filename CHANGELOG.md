@@ -2,6 +2,23 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.20.0] - 2026-10-21
+
+### Eklendi: yerel sunucuya geçiş (iş menüsü 7, `5=`)
+
+Dükkânda StockTrack'in yerel kopyası (replika) çalışıyorsa adresi Job
+setup'ta `5=` ile yazılır. Ana sunucu cevap vermezse (ya da önündeki ağ
+geçidi 502/503/504 derse) müşteri, malzeme ve teklif listeleri yerel
+sunucudan gelir; başlıkta `(local server)` yazar. Geçişten sonra 5 dakika
+önce yerel sunucuya sorulur. Gerçek hatalar (anahtar geçersiz ...) yerel
+sunucuyla örtülmez; ikisi de yoksa eski çevrimdışı kopya kullanılır. `L`
+yalnız yerel sunucuyu dener. Runner aynı ayarı okur.
+
+- Test derleyicisine (tools/vbapy.py) `Now`, `Date`, `TimeSerial`,
+  `DateSerial`, `Day/Month/Year`, `Weekday`, `Choose`, `ChrW$` ve `Date`
+  tipi; sahte Corel'e (tools/cdrmock.py) MSXML HTTP nesnesi eklendi.
+  tools/test_corel.py'de yeni senaryo: `t_job_local_server`.
+
 ## [1.19.0] - 2026-10-21
 
 ### Değişti: nesting artık gerçek şekille (`ac2fNest`, yeni `ac2fNestCore`)

@@ -83,6 +83,9 @@ Private Const CAPTION_ As String = "Customer Job"
 '---------------------------------------------------------------------
 Public Const AC2F_K_JB_SERVER As String = "JBSunucuAdresi"      ' string
 Public Const AC2F_K_JB_KEY    As String = "JBAnahtar"           ' string
+' Second StockTrack address: the shop's local server (replica). Asked when
+' the main server does not answer; empty = none. The runner reads it too.
+Public Const AC2F_K_JB_SERVER2 As String = "JBYerelSunucu"      ' string
 Public Const AC2F_K_JB_BASE   As String = "JBGunlukKlasorKoku"  ' string, empty = CDR Auto Renamer
 Public Const AC2F_K_JB_SEP    As String = "JBAyrac"             ' string
 Public Const AC2F_K_JB_RCUST  As String = "JBSonMusteriler"     ' string
@@ -112,6 +115,8 @@ Private Const REC_VER     As String = "j1"
 Private Const MAX_RECENT  As Long = 9
 Private Const HISTORY_DAYS As Long = 365
 Private Const HTTP_HEAD   As String = "#ac2f-corel "
+' Minutes the local server is asked first after the main one failed.
+Private Const LOCAL_FIRST_MIN As Long = 5
 Private Const PROMPT_MAX  As Long = 880             ' InputBox stops near 1024
 Private Const CACHE_LINES As Long = 1000            ' customers / sheets kept for offline search
 
@@ -138,6 +143,11 @@ End Type
 ' When the last StockTrack reply came from the offline copy: the copy's
 ' date, else empty. Lists say so in their heading.
 Private mJBSaved As String
+' "local server" when the last reply came from the second address.
+Private mJBVia As String
+' After a fail-over the local server is asked first until this time, so
+' every list does not wait for the main server's time-out again.
+Private mJBLocalUntil As Date
 
 '=====================================================================
 ' MACROS
@@ -471,14 +481,18 @@ Attribute ac2fJobSetup.VB_Description = "ac2f pack: StockTrack server, key, day 
         m = m & "2  Key        " & ac2fJBMask(ac2fGetStr(AC2F_K_JB_KEY, "")) & vbCrLf
         m = m & "3  Day base   " & ac2fJBOr(ovr, "<from CDR Auto Renamer>") & vbCrLf
         m = m & "   today  ->  " & ac2fJBClip(today, 64) & vbCrLf
-        m = m & "4  Separator  " & ac2fJBSep() & vbCrLf & vbCrLf
+        m = m & "4  Separator  " & ac2fJBSep() & vbCrLf
+        m = m & "5  Local srv  " & ac2fJBOr(ac2fJBServer2(), "<none>") & vbCrLf & vbCrLf
         m = m & "Server and key are on StockTrack's Settings page," & vbCrLf
         m = m & "under Corel integration. Paste them as:" & vbCrLf
         m = m & "   1=http://192.168.1.50/api/v1" & vbCrLf
         m = m & "   2=<key>" & vbCrLf
         m = m & "3=  with nothing after it goes back to CDR Auto" & vbCrLf
-        m = m & "Renamer's daily folder." & vbCrLf & vbCrLf
-        m = m & "T  test the connection        Enter  close"
+        m = m & "Renamer's daily folder." & vbCrLf
+        m = m & "5=  the shop's local StockTrack server, asked when" & vbCrLf
+        m = m & "the main one does not answer (5= alone: none)." & vbCrLf & vbCrLf
+        m = m & "T  test the connection   L  test the local server" & vbCrLf
+        m = m & "Enter  close"
 
         answer = InputBox(m, ac2fTitle("Job Setup"), "")
         If StrPtr(answer) = 0 Then Exit Sub
@@ -492,8 +506,10 @@ Attribute ac2fJobSetup.VB_Description = "ac2f pack: StockTrack server, key, day 
             ElseIf n = 0 Then
                 ac2fWarn "The server answered with an empty list.", "Job Setup"
             Else
-                ac2fInfo "Connected to StockTrack:  " & ac2fJBTab(rows(1), 1), "Job Setup"
+                ac2fInfo "Connected to StockTrack:  " & ac2fJBTab(rows(1), 1) & ac2fJBSavedNote(), "Job Setup"
             End If
+        ElseIf UCase$(answer) = "L" Then
+            ac2fJBTestLocal
         Else
             p = InStr(answer, "=")
             If p < 2 Then
@@ -504,6 +520,9 @@ Attribute ac2fJobSetup.VB_Description = "ac2f pack: StockTrack server, key, day 
                 Select Case cmd
                     Case "1": ac2fSetStr AC2F_K_JB_SERVER, ac2fJBNormServer(arg)
                     Case "2": ac2fSetStr AC2F_K_JB_KEY, arg
+                    Case "5"
+                        ac2fSetStr AC2F_K_JB_SERVER2, ac2fJBNormServer(arg)
+                        mJBLocalUntil = 0
                     Case "3": ac2fSetStr AC2F_K_JB_BASE, ac2fJBNoSlash(arg)
                     Case "4"
                         If Len(arg) = 0 Then arg = AC2F_DEF_JB_SEP
@@ -2871,6 +2890,35 @@ Private Function ac2fJBServer() As String
     ac2fJBServer = ac2fGetStr(AC2F_K_JB_SERVER, "")
 End Function
 
+' The shop's local server (replica), same form; empty = none.
+Private Function ac2fJBServer2() As String
+    ac2fJBServer2 = ac2fGetStr(AC2F_K_JB_SERVER2, "")
+End Function
+
+' Job setup "L": asks only the local server.
+Private Sub ac2fJBTestLocal()
+    Dim srv2 As String, body As String, errText As String
+    Dim code As Long, rows() As String, n As Long
+
+    srv2 = ac2fJBServer2()
+    If Len(srv2) = 0 Then
+        ac2fWarn "No local server is set (5=<address>).", "Job Setup"
+        Exit Sub
+    End If
+    If Not ac2fJBHttpGet(srv2 & "/corel/ping", body, code, errText) Then
+        ac2fWarn "The local server did not answer at" & vbCrLf & "   " & srv2 & vbCrLf & vbCrLf & errText, "Job Setup"
+    ElseIf code <> 200 Or Left$(body, Len(HTTP_HEAD)) <> HTTP_HEAD Then
+        ac2fWarn "The local server answered " & code & ":" & vbCrLf & ac2fJBJsonMessage(body), "Job Setup"
+    Else
+        n = ac2fJBBodyRows(body, rows)
+        If n > 0 Then
+            ac2fInfo "Local server answers:  " & ac2fJBTab(rows(1), 1), "Job Setup"
+        Else
+            ac2fInfo "Local server answers.", "Job Setup"
+        End If
+    End If
+End Sub
+
 ' "192.168.1.50" -> "http://192.168.1.50/api/v1"
 Private Function ac2fJBNormServer(ByVal s As String) As String
     s = Trim$(s)
@@ -2890,30 +2938,61 @@ Private Function ac2fJBNormServer(ByVal s As String) As String
 End Function
 
 ' Data lines of a StockTrack reply, or -1 with errText when the server
-' could not be used. When the server is away (no answer, or the gateway
-' in front of it says it is down) the last good reply to the same request
-' is used instead; customer and sheet searches are then run on every
-' customer / stock sheet seen so far. `search` is that search text.
+' could not be used. When the main server is away (no answer, or the
+' gateway in front of it says it is down) the shop's local server is asked
+' (Job setup 5); when that is away too, the last good reply to the same
+' request is used instead; customer and sheet searches are then run on
+' every customer / stock sheet seen so far. `search` is that search text.
 Private Function ac2fJBGetRows(ByVal path As String, ByRef rows() As String, _
                                ByRef errText As String, _
                                Optional ByVal search As String = "") As Long
-    Dim srv As String, body As String
-    Dim code As Long, n As Long
+    Dim srv As String, srv2 As String, url As String, body As String
+    Dim first As String, second As String
+    Dim code As Long, n As Long, i As Long
     Dim answered As Boolean
 
     ac2fJBGetRows = -1
     mJBSaved = ""
+    mJBVia = ""
     srv = ac2fJBServer()
     If Len(srv) = 0 Then
         errText = "StockTrack is not set up. Enter its address and key in Job setup."
         Exit Function
     End If
-    answered = ac2fJBHttpGet(srv & path, body, code, errText)
-    If answered And code = 200 And Left$(body, Len(HTTP_HEAD)) = HTTP_HEAD Then
-        ac2fJBCacheSave path, body
-        ac2fJBGetRows = ac2fJBBodyRows(body, rows)
-        Exit Function
+    srv2 = ac2fJBServer2()
+    If srv2 = srv Then srv2 = ""
+    first = srv
+    second = srv2
+    ' After a fail-over the local server goes first for a while.
+    If Len(srv2) > 0 Then
+        If Now < mJBLocalUntil Then
+            first = srv2
+            second = srv
+        End If
     End If
+
+    For i = 1 To 2
+        If i = 1 Then
+            url = first
+        Else
+            url = second
+        End If
+        answered = ac2fJBHttpGet(url & path, body, code, errText)
+        If answered And code = 200 And Left$(body, Len(HTTP_HEAD)) = HTTP_HEAD Then
+            ac2fJBCacheSave path, body
+            If url = srv2 Then
+                mJBVia = "local server"
+                mJBLocalUntil = Now + TimeSerial(0, LOCAL_FIRST_MIN, 0)
+            Else
+                mJBLocalUntil = 0
+            End If
+            ac2fJBGetRows = ac2fJBBodyRows(body, rows)
+            Exit Function
+        End If
+        ' A real answer (wrong key, old server ...) is reported, not hidden.
+        If answered And code <> 502 And code <> 503 And code <> 504 Then Exit For
+        If Len(srv2) = 0 Then Exit For
+    Next i
 
     If Not answered Or code = 502 Or code = 503 Or code = 504 Then
         n = ac2fJBCacheRows(path, search, rows)
@@ -2924,11 +3003,11 @@ Private Function ac2fJBGetRows(ByVal path As String, ByRef rows() As String, _
     End If
 
     If Not answered Then
-        errText = "StockTrack did not answer at" & vbCrLf & "   " & srv & vbCrLf & vbCrLf & errText
+        errText = "StockTrack did not answer at" & vbCrLf & "   " & url & vbCrLf & vbCrLf & errText
     ElseIf code <> 200 Then
         errText = "StockTrack answered " & code & ":" & vbCrLf & ac2fJBJsonMessage(body)
     Else
-        errText = srv & vbCrLf & "answers, but not as StockTrack's Corel interface." & vbCrLf & _
+        errText = url & vbCrLf & "answers, but not as StockTrack's Corel interface." & vbCrLf & _
                   "Check the address (it ends in /api/v1) and update StockTrack."
     End If
 End Function
@@ -3073,7 +3152,11 @@ End Function
 ' "  (offline, saved 17.10.2026 09:30)" when the last list came from the
 ' offline copy, else empty.
 Private Function ac2fJBSavedNote() As String
-    If Len(mJBSaved) > 0 Then ac2fJBSavedNote = "  (offline, saved " & mJBSaved & ")"
+    If Len(mJBSaved) > 0 Then
+        ac2fJBSavedNote = "  (offline, saved " & mJBSaved & ")"
+    ElseIf Len(mJBVia) > 0 Then
+        ac2fJBSavedNote = "  (" & mJBVia & ")"
+    End If
 End Function
 
 ' One GET. MSXML's server object is used rather than the browser one: it

@@ -18,6 +18,7 @@ import math, os, shutil, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import vbapy
 from vbapy import Project
 import cdrmock as cm
 from test_nest import seg_dist, pip
@@ -485,6 +486,95 @@ def t_nest_then_start():
     e.close()
 
 
+PING = '#ac2f-corel 1\r\nok\tAcme Reklam\r\n'
+
+
+class JobEnv(object):
+    """ac2fCore + ac2fJob (StockTrack baglantisi) icin ayri derleme."""
+
+    def __init__(self):
+        self.tmp = tempfile.mkdtemp(prefix='ac2f_job_')
+        self.h = cm.Host(self.tmp)
+        self.h.stubs = {'ac2fsettings': lambda: None}
+        self.p = Project([os.path.join(HERE, '..', 'src', n) for n in ('ac2fCore.bas', 'ac2fJob.bas')], self.h)
+        # Gun klasoru (CDR Auto Renamer ayari) bu senaryonun konusu degil.
+        self.p.m.ac2fjob.f_ac2fjbdaydir = lambda *a, **k: 'D:\\Isler\\21-10-2026'
+        # Cevrimdisi kopya (diske yazma) de konusu degil: yok sayilir.
+        self.p.m.ac2fjob.f_ac2fjbcachesave = lambda *a, **k: None
+        self.p.m.ac2fjob.f_ac2fjbcacherows = lambda *a, **k: -1
+
+    def set(self, key, v):
+        self.h.registry[(REG[0], REG[1], key.lower())] = str(v)
+
+    def get(self, key):
+        return self.h.registry.get((REG[0], REG[1], key.lower()))
+
+    def close(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+def t_job_local_server():
+    scenario('Job: ana sunucu yoksa yerel sunucu (5), bir sure once yerel, gercek hata gizlenmez')
+    env = JobEnv()
+    try:
+        env.set('JBSunucuAdresi', 'http://main/api/v1')
+        env.set('JBAnahtar', 'k')
+        env.set('JBGunlukKlasorKoku', env.tmp)
+        h = env.h
+        job = env.p.m.ac2fjob
+        main, local = 'http://main/api/v1/corel/ping', 'http://192.168.1.9/api/v1/corel/ping'
+
+        def setup(*answers):
+            h.messages[:] = []
+            h.inputs[:] = list(answers) + ['']
+            job.f_ac2fjobsetup()
+            return [m for k, m in h.messages if k == 'msg']
+
+        setup('5=192.168.1.9')
+        expect(env.get('JBYerelSunucu') == 'http://192.168.1.9/api/v1',
+               '5= adresi tamamlar: %s' % env.get('JBYerelSunucu'))
+        h.http_routes = {local: (200, PING)}
+        msgs = setup('T')
+        expect(any('Acme Reklam' in m and '(local server)' in m for m in msgs),
+               'ana sunucu yanit vermeyince yerel sunucu: %s' % msgs[-1:])
+        expect(h.http_log == [main, local], 'once ana, sonra yerel: %s' % h.http_log)
+        h.http_log[:] = []
+        setup('T')
+        expect(h.http_log == [local], 'gecisten sonra once yerel sorulur: %s' % h.http_log)
+
+        vbapy.CLOCK['offset'] = 6 * 60
+        h.http_log[:] = []
+        h.http_routes = {main: (200, PING), local: (200, PING)}
+        msgs = setup('T')
+        expect(h.http_log == [main] and not any('(local server)' in m for m in msgs),
+               'sure dolunca yine ana sunucu: %s' % h.http_log)
+
+        h.http_log[:] = []
+        h.http_routes = {main: (401, '{"message":"Corel anahtari gecersiz"}'), local: (200, PING)}
+        msgs = setup('T')
+        expect(h.http_log == [main] and any('401' in m and 'gecersiz' in m for m in msgs),
+               'gercek hata (401) yerel sunucuyla ortulmez: %s' % msgs[-1:])
+
+        h.http_log[:] = []
+        h.http_routes = {main: (503, 'down'), local: (200, PING)}
+        msgs = setup('T')
+        expect(h.http_log == [main, local] and any('(local server)' in m for m in msgs),
+               '503 (gecit: sunucu kapali) yerel sunucuya gecer')
+
+        h.http_routes = {}
+        msgs = setup('L')
+        expect(any('local server did not answer' in m for m in msgs), 'L: yalniz yereli dener')
+        h.http_routes = {local: (200, PING)}
+        msgs = setup('L')
+        expect(any('Local server answers:  Acme Reklam' in m for m in msgs), 'L: yerel yanit')
+
+        setup('5=')
+        expect((env.get('JBYerelSunucu') or '') == '', '5= bos: yerel sunucu yok')
+    finally:
+        vbapy.CLOCK['offset'] = 0.0
+        env.close()
+
+
 def main():
     t0 = time.time()
     only = [a for a in sys.argv[1:] if a.startswith('t_')]
@@ -506,6 +596,7 @@ def main():
     t_start_points()
     t_start_markers()
     t_nest_then_start()
+    t_job_local_server()
     print('\n%s (%.1f s)' % ('HATA: %d' % len(FAILS) if FAILS else 'Hepsi gecti', time.time() - t0))
     sys.exit(1 if FAILS else 0)
 
