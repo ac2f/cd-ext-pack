@@ -154,6 +154,8 @@ Private m_steps As Long
 Private m_elapsed As Double
 Private m_resUsed As Double
 Private m_noMeasure As Long
+Private m_nLocked As Long           ' locked objects left alone
+Private m_x0 As Double, m_y0 As Double   ' lower left of the parts: sheet 1 goes there
 
 '=====================================================================
 ' MACROS
@@ -209,10 +211,9 @@ End Sub
 Private Sub ac2fNSRun(ByVal apply As Boolean, ByVal ask As Boolean)
     Dim sr As ShapeRange
     Dim oldUnit As cdrUnit, unitChanged As Boolean
-    Dim oldOpt As Boolean, inCmd As Boolean
-    Dim i As Long, rc As Long, used As Long
-    Dim x0 As Double, y0 As Double, x1 As Double, y1 As Double
-    Dim bx As Double, by As Double, bw As Double, bh As Double
+    Dim oldOpt As Boolean, optOn As Boolean, inCmd As Boolean
+    Dim i As Long, rc As Long, used As Long, choice As Long
+    Dim preview As Boolean, shown As Boolean
     Dim msg As String
 
     If ActiveDocument Is Nothing Then
@@ -229,60 +230,140 @@ Private Sub ac2fNSRun(ByVal apply As Boolean, ByVal ask As Boolean)
         Exit Sub
     End If
 
-    ac2fNSLoad
-    ac2fNSLoadSheets
-    If Not ac2fNSClassify(sr) Then Exit Sub
-    If m_np = 0 Then
-        ac2fWarn "Only sheets are selected. Select the parts as well.", CAPTION_
-        Exit Sub
-    End If
-    If m_np > MAX_PARTS Then
-        ac2fWarn "That is " & m_np & " parts; the limit is " & MAX_PARTS & ".", CAPTION_
-        Exit Sub
-    End If
-
-    If ask Then
-        rc = ac2fNSDialog(apply)
-        If rc = -2 Then
-            If Not ac2fNSAskText(apply) Then Exit Sub
-        ElseIf rc = 0 Then
-            Exit Sub
-        End If
-        ac2fNSLoad
-    End If
-
-    For i = 0 To m_shN - 1
-        If m_shUse(i) Then used = used + 1
-    Next i
-    If used = 0 Then
-        ac2fWarn "No sheet is ticked to use.", CAPTION_
-        Exit Sub
-    End If
-
     On Error GoTo Fail
-    oldOpt = Application.Optimization
-    Application.Optimization = True
+    ' every size is read in millimetres: the page, the offcuts, the parts
     oldUnit = ActiveDocument.Unit
     If oldUnit <> cdrMillimeter Then
         ActiveDocument.Unit = cdrMillimeter
         unitChanged = True
     End If
-    ActiveDocument.BeginCommandGroup ac2fTitle("nesting")
-    inCmd = True
+
+    ac2fNSLoad
+    ac2fNSLoadSheets
+    ac2fNSClassify sr, True
+    msg = ac2fNSPartsProblem()
+    If Len(msg) > 0 Then GoTo Warn
+
+    Do
+        preview = False
+        If ask Then
+            rc = ac2fNSDialog(apply, preview)
+            If rc = -2 Then
+                If Not ac2fNSAskText(apply) Then GoTo Quit
+            ElseIf rc = 0 Then
+                GoTo Quit
+            End If
+            ac2fNSLoad
+        End If
+
+        used = 0
+        For i = 0 To m_shN - 1
+            If m_shUse(i) Then used = used + 1
+        Next i
+        If used = 0 Then
+            msg = "No sheet is ticked to use."
+            GoTo Warn
+        End If
+
+        oldOpt = Application.Optimization
+        Application.Optimization = True
+        optOn = True
+        ActiveDocument.BeginCommandGroup ac2fTitle("nesting")
+        inCmd = True
+
+        choice = 0
+        msg = ""
+        If Not ac2fNSCompute() Then
+            msg = "None of the ticked sheets leaves room inside its margins."
+        ElseIf preview Then
+            choice = ac2fNSPreview()
+            If choice = -2 Then
+                ' no preview window: do what the button said
+                If apply Then choice = 1 Else choice = 0
+            Else
+                shown = True
+            End If
+        ElseIf apply Then
+            choice = 1
+        End If
+        If choice = 1 Then ac2fNSApply
+        If Len(msg) = 0 Then
+            If choice = 1 Then msg = ac2fNSReport(1) Else msg = ac2fNSReport(0)
+        End If
+
+        ActiveDocument.EndCommandGroup
+        inCmd = False
+        ' anything but applying leaves the document exactly as it was
+        If choice <> 1 And m_changed Then ActiveDocument.Undo
+        Application.Optimization = oldOpt
+        optOn = False
+        Application.Refresh
+
+        If choice <> 2 Then Exit Do
+        ' back to the settings, with the parts as they were
+        shown = False
+        ac2fNSClassify sr, False
+    Loop
+
+    On Error Resume Next
+    If unitChanged Then ActiveDocument.Unit = oldUnit
+    On Error GoTo 0
+    ' after the preview window the report has been seen already
+    If Not shown Then ac2fInfo msg, CAPTION_
+    Exit Sub
+
+Quit:
+    On Error Resume Next
+    If unitChanged Then ActiveDocument.Unit = oldUnit
+    Exit Sub
+
+Warn:
+    On Error Resume Next
+    If unitChanged Then ActiveDocument.Unit = oldUnit
+    On Error GoTo 0
+    ac2fWarn msg, CAPTION_
+    Exit Sub
+
+Fail:
+    msg = Err.Description
+    On Error Resume Next
+    If inCmd Then ActiveDocument.EndCommandGroup
+    If optOn Then Application.Optimization = oldOpt
+    If unitChanged Then ActiveDocument.Unit = oldUnit
+    Application.Refresh
+    ac2fWarn "The operation failed: " & msg & vbCrLf & vbCrLf & _
+             "Ctrl+Z undoes whatever was done before the failure.", CAPTION_
+End Sub
+
+' Why the selection cannot be nested, or "".
+Private Function ac2fNSPartsProblem() As String
+    If m_np = 0 And m_nLocked > 0 Then
+        ac2fNSPartsProblem = "The selected parts are locked. Unlock them (Arrange > Unlock) " & _
+                             "and run Nesting again."
+    ElseIf m_np = 0 Then
+        ac2fNSPartsProblem = "Only sheets are selected. Select the parts as well."
+    ElseIf m_np > MAX_PARTS Then
+        ac2fNSPartsProblem = "That is " & m_np & " parts; the limit is " & MAX_PARTS & "."
+    End If
+End Function
+
+' Works the layout out: inner shapes join their outer one, identical
+' parts and their turns, the sheets, then the optimiser for the time
+' allowed. False when no ticked sheet has room inside its margins.
+Private Function ac2fNSCompute() As Boolean
+    Dim i As Long
+    Dim bx As Double, by As Double, bw As Double, bh As Double
+
     m_changed = False
     m_flat = 0
-    m_step = m_res
-
     ' where the parts are now: the first sheet goes there
     For i = 0 To m_np - 1
         m_shp(i).GetBoundingBox bx, by, bw, bh
         If i = 0 Then
-            x0 = bx: y0 = by: x1 = bx + bw: y1 = by + bh
+            m_x0 = bx: m_y0 = by
         Else
-            If bx < x0 Then x0 = bx
-            If by < y0 Then y0 = by
-            If bx + bw > x1 Then x1 = bx + bw
-            If by + bh > y1 Then y1 = by + bh
+            If bx < m_x0 Then m_x0 = bx
+            If by < m_y0 Then m_y0 = by
         End If
     Next i
 
@@ -296,40 +377,12 @@ Private Sub ac2fNSRun(ByVal apply As Boolean, ByVal ask As Boolean)
 
     ac2fNSBuildClasses
     ac2fNSBuildParts
-    If Not ac2fNSBuildSheets() Then
-        msg = "None of the ticked sheets leaves room inside its margins."
-        GoTo Done
-    End If
+    If Not ac2fNSBuildSheets() Then Exit Function
     ac2fNCPrepare ac2fNSMaxInst()
     ac2fNSOptimise
-
-    If apply Then ac2fNSApply x0, y0
-    msg = ac2fNSReport(apply)
-
-Done:
-    ActiveDocument.EndCommandGroup
-    inCmd = False
-    ' a report must leave the document exactly as it was
-    If Not apply And m_changed Then ActiveDocument.Undo
-
-    On Error Resume Next
-    If unitChanged Then ActiveDocument.Unit = oldUnit
-    Application.Optimization = oldOpt
-    Application.Refresh
-    On Error GoTo 0
-    ac2fInfo msg, CAPTION_
-    Exit Sub
-
-Fail:
-    msg = Err.Description
-    On Error Resume Next
-    If inCmd Then ActiveDocument.EndCommandGroup
-    If unitChanged Then ActiveDocument.Unit = oldUnit
-    Application.Optimization = oldOpt
-    Application.Refresh
-    ac2fWarn "The operation failed: " & msg & vbCrLf & vbCrLf & _
-             "Ctrl+Z undoes whatever was done before the failure.", CAPTION_
-End Sub
+    ac2fNSLayout
+    ac2fNSCompute = True
+End Function
 
 '---------------------------------------------------------------------
 ' Settings
@@ -479,12 +532,15 @@ End Function
 '---------------------------------------------------------------------
 ' Parts and drawn sheets out of the selection
 '---------------------------------------------------------------------
-Private Function ac2fNSClassify(ByVal sr As ShapeRange) As Boolean
+' withSheets False collects only the parts again: the sheet rows, drawn
+' offcuts included, stay as the window left them.
+Private Sub ac2fNSClassify(ByVal sr As ShapeRange, ByVal withSheets As Boolean)
     Dim i As Long
     Dim s As Shape
     Dim x As Double, y As Double, w As Double, h As Double
 
     m_np = 0
+    m_nLocked = 0
     ReDim m_shp(0 To sr.Count)
     ReDim m_own(0 To sr.Count)
     For i = 1 To sr.Count
@@ -492,19 +548,28 @@ Private Function ac2fNSClassify(ByVal sr As ShapeRange) As Boolean
         If ac2fNSIsOwnOutline(s) Then
             ' an outline drawn by an earlier run: neither part nor sheet
         ElseIf ac2fNSIsSheetShape(s) Then
-            On Error Resume Next
-            s.GetBoundingBox x, y, w, h
-            On Error GoTo 0
-            m_nDrawn = m_nDrawn + 1
-            ac2fNSAddSheet True, "Offcut " & m_nDrawn & ": " & ac2fNSShapeName(s) & " (" & _
-                           ac2fNSDims(w, h) & ")", w, h, 1, s
+            If withSheets Then
+                On Error Resume Next
+                s.GetBoundingBox x, y, w, h
+                On Error GoTo 0
+                m_nDrawn = m_nDrawn + 1
+                ac2fNSAddSheet True, "Offcut " & m_nDrawn & ": " & ac2fNSShapeName(s) & " (" & _
+                               ac2fNSDims(w, h) & ")", w, h, 1, s
+            End If
+        ElseIf ac2fNSIsLocked(s) Then
+            ' CorelDRAW will not move it: left where it is, and said so
+            m_nLocked = m_nLocked + 1
         Else
             Set m_shp(m_np) = s
             m_own(m_np) = False
             m_np = m_np + 1
         End If
     Next i
-    ac2fNSClassify = True
+End Sub
+
+Private Function ac2fNSIsLocked(ByVal s As Shape) As Boolean
+    On Error Resume Next
+    ac2fNSIsLocked = s.Locked
 End Function
 
 Private Function ac2fNSShapeName(ByVal s As Shape) As String
@@ -584,6 +649,7 @@ Private Sub ac2fNSMerge()
     Dim par() As Long
     Dim nshp() As Shape, nown() As Boolean
     Dim g As Shape
+    Dim rng As ShapeRange
 
     ac2fNCPoolClear
     For i = 0 To m_np - 1
@@ -608,12 +674,14 @@ Private Sub ac2fNSMerge()
                 Set nshp(n) = m_shp(i)
                 nown(n) = m_own(i)
             Else
-                ActiveDocument.ClearSelection
-                m_shp(i).AddToSelection
+                ' a range, not the selection: CorelDRAW does not always keep
+                ' the selection up to date while Optimization is on
+                Set rng = New ShapeRange
+                rng.Add m_shp(i)
                 For j = 0 To m_np - 1
-                    If par(j) = i Then m_shp(j).AddToSelection
+                    If par(j) = i Then rng.Add m_shp(j)
                 Next j
-                Set g = ActiveSelectionRange.Group()
+                Set g = rng.Group()
                 m_changed = True
                 Set nshp(n) = g
                 nown(n) = True
@@ -621,7 +689,6 @@ Private Sub ac2fNSMerge()
             n = n + 1
         End If
     Next i
-    ActiveDocument.ClearSelection
     m_np = n
     m_shp = nshp
     m_own = nown
@@ -1077,32 +1144,22 @@ End Sub
 ' APPLY
 '=====================================================================
 
-Private Sub ac2fNSApply(ByVal x0 As Double, ByVal y0 As Double)
-    Dim nk As Long, k As Long, t As Long, row As Long, p As Long
+' Where each used sheet goes on the page: list sheets left to right from
+' where the parts were, drawn offcuts stay where they lie. Also the grid
+' origin of every sheet in the engine frame.
+Private Sub ac2fNSLayout()
+    Dim nk As Long, k As Long, t As Long, row As Long
     Dim parts As Long, rows As Long, cells As Long, seq As Long
-    Dim cursor As Double, d As Double, res As Double
+    Dim cursor As Double, d As Double
     Dim sw As Long, sh As Long, fc As Long
     Dim tox As Double, toy As Double, ux As Double, uy As Double
-    Dim v As Long, cx As Long, cy As Long, tag As Long
-    Dim vw As Long, vh As Long, vcells As Long
-    Dim vox As Double, voy As Double
-    Dim bx As Double, by As Double, bw As Double, bh As Double
-    Dim dbx As Double, dby As Double, curX As Double, curY As Double
-    Dim mx As Double, my As Double
-    Dim s As Shape
-    Dim outl() As Shape
 
     nk = ac2fNCInstanceCount()
-    If nk = 0 Then Exit Sub
     ReDim m_kCX(0 To nk): ReDim m_kCY(0 To nk)
     ReDim m_kSX(0 To nk): ReDim m_kSY(0 To nk)
-    ReDim outl(0 To nk)
+    If nk = 0 Then Exit Sub
     d = ac2fNCGrow()
-    res = ac2fNCRes()
-
-    ' where each used sheet goes: list sheets left to right from where the
-    ' parts were, offcuts stay where they lie
-    cursor = x0
+    cursor = m_x0
     For k = 0 To nk - 1
         ac2fNCInstanceUse k, parts, rows, cells, seq
         If parts > 0 Then
@@ -1110,7 +1167,7 @@ Private Sub ac2fNSApply(ByVal x0 As Double, ByVal y0 As Double)
             row = m_typeRow(t)
             If m_shDrawn(row) Is Nothing Then
                 m_kSX(k) = cursor
-                m_kSY(k) = y0
+                m_kSY(k) = m_y0
                 cursor = cursor + m_shW(row) + m_sgap
                 ac2fNSFrameMin m_kSX(k) + m_mL, m_kSY(k) + m_mB, _
                                m_kSX(k) + m_shW(row) - m_mR, m_kSY(k) + m_shH(row) - m_mT, ux, uy
@@ -1123,6 +1180,25 @@ Private Sub ac2fNSApply(ByVal x0 As Double, ByVal y0 As Double)
             End If
         End If
     Next k
+End Sub
+
+Private Sub ac2fNSApply()
+    Dim nk As Long, k As Long, row As Long, p As Long
+    Dim parts As Long, rows As Long, cells As Long, seq As Long
+    Dim res As Double
+    Dim v As Long, cx As Long, cy As Long, tag As Long
+    Dim vw As Long, vh As Long, vcells As Long
+    Dim vox As Double, voy As Double
+    Dim bx As Double, by As Double, bw As Double, bh As Double
+    Dim dbx As Double, dby As Double, curX As Double, curY As Double
+    Dim mx As Double, my As Double
+    Dim s As Shape
+    Dim outl() As Shape
+
+    nk = ac2fNCInstanceCount()
+    If nk = 0 Then Exit Sub
+    ReDim outl(0 To nk)
+    res = ac2fNCRes()
 
     ' copies first, from the parts as they still are
     For p = 0 To m_npi - 1
@@ -1192,29 +1268,27 @@ End Sub
 ' Outlines stay out of the part groups, in one group "ac2f sheets" as
 ' before: the customer job, the check and the area price find them there.
 Private Sub ac2fNSGroupOutlines(ByVal nk As Long, ByRef outl() As Shape)
-    Dim k As Long, n As Long
+    Dim k As Long
     Dim g As Shape
+    Dim rng As ShapeRange
 
     On Error Resume Next
-    ActiveDocument.ClearSelection
+    Set rng = New ShapeRange
     For k = 0 To nk - 1
-        If Not outl(k) Is Nothing Then
-            outl(k).AddToSelection
-            n = n + 1
-        End If
+        If Not outl(k) Is Nothing Then rng.Add outl(k)
     Next k
-    If n > 1 Then
-        Set g = ActiveSelectionRange.Group()
+    If rng.Count > 1 Then
+        Set g = rng.Group()
         g.Name = "ac2f sheets"
     End If
-    ActiveDocument.ClearSelection
     On Error GoTo 0
 End Sub
 
 ' Groups the result the way the setting asks.
 Private Sub ac2fNSGroupResult(ByVal nk As Long)
-    Dim p As Long, k As Long, n As Long, v As Long, cx As Long, cy As Long
+    Dim p As Long, k As Long, v As Long, cx As Long, cy As Long
     Dim g As Shape
+    Dim rng As ShapeRange
 
     On Error Resume Next
     Select Case m_group
@@ -1230,33 +1304,25 @@ Private Sub ac2fNSGroupResult(ByVal nk As Long)
             Next p
         Case 2
             For k = 0 To nk - 1
-                n = 0
-                ActiveDocument.ClearSelection
+                Set rng = New ShapeRange
                 For p = 0 To m_npi - 1
-                    If ac2fNCResult(p, v, cx, cy) = k Then
-                        m_piShp(p).AddToSelection
-                        n = n + 1
-                    End If
+                    If ac2fNCResult(p, v, cx, cy) = k Then rng.Add m_piShp(p)
                 Next p
-                If n > 0 Then
-                    Set g = ActiveSelectionRange.Group()
+                If rng.Count > 1 Then
+                    Set g = rng.Group()
                     g.Name = "ac2f nest sheet " & (k + 1)
                 End If
             Next k
         Case 3
-            ActiveDocument.ClearSelection
+            Set rng = New ShapeRange
             For p = 0 To m_npi - 1
-                If Not m_piShp(p) Is Nothing Then
-                    m_piShp(p).AddToSelection
-                    n = n + 1
-                End If
+                If Not m_piShp(p) Is Nothing Then rng.Add m_piShp(p)
             Next p
-            If n > 0 Then
-                Set g = ActiveSelectionRange.Group()
+            If rng.Count > 1 Then
+                Set g = rng.Group()
                 g.Name = "ac2f nesting"
             End If
     End Select
-    ActiveDocument.ClearSelection
     On Error GoTo 0
 End Sub
 
@@ -1296,7 +1362,8 @@ End Sub
 ' REPORT
 '=====================================================================
 
-Private Function ac2fNSReport(ByVal applied As Boolean) As String
+' mode: 0 report only, 1 nested, 2 preview (nothing moved yet)
+Private Function ac2fNSReport(ByVal mode As Long) As String
     Dim s As String
     Dim p As Long, k As Long, nk As Long, t As Long, row As Long
     Dim v As Long, cx As Long, cy As Long
@@ -1325,7 +1392,11 @@ Private Function ac2fNSReport(ByVal applied As Boolean) As String
         End If
     Next k
 
-    s = IIf(applied, "NESTED", "REPORT ONLY - nothing moved") & vbCrLf
+    Select Case mode
+        Case 1: s = "NESTED" & vbCrLf
+        Case 2: s = "PREVIEW - nothing has moved yet" & vbCrLf
+        Case Else: s = "REPORT ONLY - nothing moved" & vbCrLf
+    End Select
     s = s & "   Parts             : " & placed & " of " & total & " placed"
     If m_copies > 1 Then s = s & "  (" & m_copies & " of each)"
     s = s & vbCrLf
@@ -1334,6 +1405,9 @@ Private Function ac2fNSReport(ByVal applied As Boolean) As String
     End If
     If m_noMeasure > 0 Then
         s = s & "   Nothing to measure: " & m_noMeasure & " object(s), left alone" & vbCrLf
+    End If
+    If m_nLocked > 0 Then
+        s = s & "   Locked            : " & m_nLocked & " object(s), left alone" & vbCrLf
     End If
     s = s & "   Sheets used       : " & sheetsUsed & vbCrLf
 
@@ -1397,7 +1471,7 @@ Private Function ac2fNSReport(ByVal applied As Boolean) As String
         s = s & "   Curves were read with the safe model (this CorelDRAW does not report" & vbCrLf & _
                 "   points along a curve), so parts sit a little looser." & vbCrLf
     End If
-    If applied Then s = s & vbCrLf & "Ctrl+Z puts everything back."
+    If mode = 1 Then s = s & vbCrLf & "Ctrl+Z puts everything back."
     ac2fNSReport = s
 End Function
 
@@ -1406,13 +1480,12 @@ End Function
 '=====================================================================
 
 ' Returns 1 to go on, 0 when cancelled, -2 when the window could not be
-' shown (the caller falls back to the text prompt). apply turns False when
-' the user picks Report only.
-Private Function ac2fNSDialog(ByRef apply As Boolean) As Long
-    Dim ps As String, inf As String, outf As String, body As String, cmd As String
+' shown (the caller falls back to the text prompt). apply turns True for
+' Nest, preview for Preview; both stay False for the old Report only.
+Private Function ac2fNSDialog(ByRef apply As Boolean, ByRef preview As Boolean) As Long
+    Dim inf As String, body As String
     Dim lines() As String, f() As String
-    Dim i As Long, rc As Long, n As Long, idx As Long, ff As Integer
-    Dim sh As Object
+    Dim i As Long, n As Long, idx As Long
     Dim act As String, tag As String
     Dim nName() As String, nW() As Double, nH() As Double, nQ() As Long
     Dim nUse() As Boolean, nDr() As Shape
@@ -1420,17 +1493,14 @@ Private Function ac2fNSDialog(ByRef apply As Boolean) As Long
 
     ac2fNSDialog = -2
     If ac2fGetLng(AC2F_K_JB_LIST, AC2F_DEF_JB_LIST) = 0 Then Exit Function
-    ps = ac2fNSTemp("ac2f_nest.ps1")
     inf = ac2fNSTemp("ac2f_nest_in.txt")
-    outf = ac2fNSTemp("ac2f_nest_out.txt")
-    On Error Resume Next
-    Kill outf
-    On Error GoTo 0
 
     body = "T|" & ac2fTitle(CAPTION_) & vbCrLf
     body = body & "P|" & m_np & " part(s) selected" & _
            IIf(m_nDrawn > 0, ", " & m_nDrawn & " drawn offcut sheet(s)", "") & _
-           ". Hover over a setting for what it does." & vbCrLf
+           IIf(m_nLocked > 0, ", " & m_nLocked & " locked (left alone)", "") & _
+           ". Preview shows the layout before anything moves; hover over a setting for what it does." & vbCrLf
+    body = body & "G|" & ac2fNumStr(ActivePage.SizeWidth) & "|" & ac2fNumStr(ActivePage.SizeHeight) & vbCrLf
     body = body & ac2fNSKV("gap", m_gap) & ac2fNSKV("mL", m_mL) & ac2fNSKV("mR", m_mR) & _
            ac2fNSKV("mT", m_mT) & ac2fNSKV("mB", m_mB) & ac2fNSKV("om", m_om) & _
            ac2fNSKV("rot", m_rot) & ac2fNSKV("mirror", IIf(m_mirror, 1, 0)) & _
@@ -1458,29 +1528,9 @@ Private Function ac2fNSDialog(ByRef apply As Boolean) As Long
     End If
     On Error GoTo Fail
 
-    ff = FreeFile
-    Open ps For Output As #ff
-    If Not ac2fNSScriptA(ff) Then
-        Close #ff
-        Exit Function
-    End If
-    If Not ac2fNSScriptB(ff) Then
-        Close #ff
-        Exit Function
-    End If
-    Close #ff
     If Not ac2fNSWriteUtf8(inf, body) Then Exit Function
-
-    Set sh = CreateObject("WScript.Shell")
-    cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden" & _
-          " -File """ & ps & """ -In """ & inf & """ -Out """ & outf & """"
-    rc = sh.Run(cmd, 0, True)
-    If rc <> 0 Or Len(Dir$(outf)) = 0 Then Exit Function
-
-    body = ac2fNSReadUtf8(outf)
+    body = ac2fNSShowWindow(1, inf)
     If Len(body) = 0 Then Exit Function
-    If AscW(Left$(body, 1)) = &HFEFF Then body = Mid$(body, 2)
-    body = Replace$(body, vbCrLf, vbLf)
     lines = Split(body, vbLf)
 
     ' presets come back whatever the button, so a saved one is kept
@@ -1492,11 +1542,12 @@ Private Function ac2fNSDialog(ByRef apply As Boolean) As Long
         If f(0) = "R" And Len(f(1)) > 0 Then SaveSetting AC2F_REG_APP, PRESET_SEC, f(1), f(2)
         If f(0) = "A" Then act = f(1)
     Next i
-    If act <> "NEST" And act <> "REPORT" Then
+    If act <> "NEST" And act <> "PREVIEW" And act <> "REPORT" Then
         ac2fNSDialog = 0
         Exit Function
     End If
     apply = (act = "NEST")
+    preview = (act = "PREVIEW")
 
     ' settings, then the sheet rows in their new order
     ReDim nName(0 To m_shN + 64): ReDim nW(0 To m_shN + 64): ReDim nH(0 To m_shN + 64)
@@ -1531,6 +1582,174 @@ Private Function ac2fNSDialog(ByRef apply As Boolean) As Long
 
 Fail:
     ac2fNSDialog = -2
+End Function
+
+' Runs window script which (1 settings, 2 preview) on an input file that
+' is already written; returns what the window wrote back (lines split by
+' vbLf), or "" when it could not be shown.
+Private Function ac2fNSShowWindow(ByVal which As Long, ByVal inf As String) As String
+    Dim ps As String, outf As String, cmd As String, body As String
+    Dim rc As Long, ff As Integer
+    Dim ok As Boolean
+    Dim sh As Object
+
+    On Error GoTo Fail
+    If which = 2 Then
+        ps = ac2fNSTemp("ac2f_nest_preview.ps1")
+        outf = ac2fNSTemp("ac2f_nest_preview_out.txt")
+    Else
+        ps = ac2fNSTemp("ac2f_nest.ps1")
+        outf = ac2fNSTemp("ac2f_nest_out.txt")
+    End If
+    If Len(Dir$(outf)) > 0 Then Kill outf
+
+    ff = FreeFile
+    Open ps For Output As #ff
+    ok = ac2fNSWriteScript(which, ff)
+    Close #ff
+    ff = 0
+    If Not ok Then Exit Function
+
+    Set sh = CreateObject("WScript.Shell")
+    cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden" & _
+          " -File """ & ps & """ -In """ & inf & """ -Out """ & outf & """"
+    rc = sh.Run(cmd, 0, True)
+    If rc <> 0 Then Exit Function
+    If Len(Dir$(outf)) = 0 Then Exit Function
+    body = ac2fNSReadUtf8(outf)
+    If Len(body) > 0 Then
+        If AscW(Left$(body, 1)) = &HFEFF Then body = Mid$(body, 2)
+    End If
+    ac2fNSShowWindow = Replace$(body, vbCrLf, vbLf)
+    Exit Function
+
+Fail:
+    On Error Resume Next
+    If ff <> 0 Then Close #ff
+End Function
+
+'---------------------------------------------------------------------
+' Preview: the layout drawn in a window before anything moves
+'---------------------------------------------------------------------
+
+' 1 apply, 2 back to the settings, 0 cancel, -2 no window.
+Private Function ac2fNSPreview() As Long
+    Dim inf As String, body As String
+    Dim lines() As String
+    Dim i As Long
+
+    ac2fNSPreview = -2
+    If ac2fGetLng(AC2F_K_JB_LIST, AC2F_DEF_JB_LIST) = 0 Then Exit Function
+    inf = ac2fNSTemp("ac2f_nest_preview_in.txt")
+    If Not ac2fNSPreviewWrite(inf) Then Exit Function
+    body = ac2fNSShowWindow(2, inf)
+    If Len(body) = 0 Then Exit Function
+    lines = Split(body, vbLf)
+    ac2fNSPreview = 0
+    For i = 0 To UBound(lines)
+        If lines(i) = "A|APPLY" Then ac2fNSPreview = 1
+        If lines(i) = "A|SETTINGS" Then ac2fNSPreview = 2
+    Next i
+End Function
+
+' Input of the preview window, written straight to the file (it can run to
+' megabytes; building it as one string would be slow in VBA). Coordinates
+' are on the page in tenths of a millimetre, whole numbers, so nothing
+' depends on the decimal separator. ANSI like every Print #; the window
+' reads it with the same code page.
+'   T|title            R|report line
+'   S|n|name|parts|x0|y0|x1|y1|ux0|uy0|ux1|uy1     a sheet and its usable box
+'   O|n|kind|x y x y ...                           outline of a drawn offcut
+'   P|n|part|class|kind|x y x y ...                one contour of a placed part
+Private Function ac2fNSPreviewWrite(ByVal path As String) As Boolean
+    Dim ff As Integer
+    Dim rep As String, ln As String
+    Dim lines() As String, xs() As Double, ys() As Double
+    Dim nk As Long, k As Long, t As Long, row As Long, p As Long, c As Long, i As Long
+    Dim parts As Long, rows As Long, cells As Long, seq As Long
+    Dim v As Long, cx As Long, cy As Long, vw As Long, vh As Long, vcells As Long, tag As Long
+    Dim n As Long, kind As Long, s0 As Long, stp As Long
+    Dim vox As Double, voy As Double, tx As Double, ty As Double, ex As Double, ey As Double
+    Dim x0 As Double, y0 As Double, w As Double, h As Double, res As Double
+
+    On Error GoTo Fail
+    ff = FreeFile
+    Open path For Output As #ff
+    Print #ff, "T|" & ac2fTitle(CAPTION_) & " - preview"
+    rep = ac2fNSReport(2)
+    lines = Split(Replace$(rep, vbCrLf, vbLf), vbLf)
+    For i = 0 To UBound(lines)
+        Print #ff, "R|" & ac2fNSClean(lines(i))
+    Next i
+
+    nk = ac2fNCInstanceCount()
+    res = ac2fNCRes()
+    For k = 0 To nk - 1
+        ac2fNCInstanceUse k, parts, rows, cells, seq
+        If parts > 0 Then
+            t = ac2fNCInstanceType(k)
+            row = m_typeRow(t)
+            If m_shDrawn(row) Is Nothing Then
+                x0 = m_kSX(k): y0 = m_kSY(k): w = m_shW(row): h = m_shH(row)
+                Print #ff, "S|" & (k + 1) & "|" & ac2fNSClean(m_shName(row)) & "|" & parts & "|" & _
+                    ac2fNSI(x0) & "|" & ac2fNSI(y0) & "|" & ac2fNSI(x0 + w) & "|" & ac2fNSI(y0 + h) & "|" & _
+                    ac2fNSI(x0 + m_mL) & "|" & ac2fNSI(y0 + m_mB) & "|" & _
+                    ac2fNSI(x0 + w - m_mR) & "|" & ac2fNSI(y0 + h - m_mT)
+            Else
+                m_shDrawn(row).GetBoundingBox x0, y0, w, h
+                Print #ff, "S|" & (k + 1) & "|" & ac2fNSClean(m_shName(row)) & "|" & parts & "|" & _
+                    ac2fNSI(x0) & "|" & ac2fNSI(y0) & "|" & ac2fNSI(x0 + w) & "|" & ac2fNSI(y0 + h) & "|" & _
+                    ac2fNSI(x0) & "|" & ac2fNSI(y0) & "|" & ac2fNSI(x0 + w) & "|" & ac2fNSI(y0 + h)
+                ac2fNCGeoClear
+                ac2fNSFlatten m_shDrawn(row)
+                For c = 0 To ac2fNCGeoContours() - 1
+                    ac2fNCGeoContourInfo c, s0, n, kind
+                    stp = (n + 199) \ 200
+                    If stp < 1 Then stp = 1
+                    ln = "O|" & (k + 1) & "|" & kind & "|"
+                    For i = s0 To s0 + n - 1 Step stp
+                        If i > s0 Then ln = ln & " "
+                        ln = ln & ac2fNSI(ac2fNCGeoX(i)) & " " & ac2fNSI(ac2fNCGeoY(i))
+                    Next i
+                    Print #ff, ln
+                Next c
+            End If
+        End If
+    Next k
+
+    ' every placed part: its variant's outline, moved to where the raster
+    ' went (engine frame), then back to the page frame
+    For p = 0 To m_npi - 1
+        k = ac2fNCResult(p, v, cx, cy)
+        If k >= 0 Then
+            ac2fNCVariantInfo v, vw, vh, vox, voy, vcells, tag
+            tx = m_kCX(k) + cx * res - vox
+            ty = m_kCY(k) + cy * res - voy
+            For c = 0 To ac2fNCVariantContourCount(v) - 1
+                n = ac2fNCVariantContour(v, c, xs, ys, kind)
+                ln = "P|" & (k + 1) & "|" & p & "|" & m_cls(m_piPart(p)) & "|" & kind & "|"
+                For i = 0 To n - 1
+                    ex = xs(i) + tx
+                    ey = ys(i) + ty
+                    If i > 0 Then ln = ln & " "
+                    ln = ln & ac2fNSI(m_ta * ex + m_tc * ey) & " " & ac2fNSI(m_tb * ex + m_te * ey)
+                Next i
+                Print #ff, ln
+            Next c
+        End If
+    Next p
+    Close #ff
+    ac2fNSPreviewWrite = True
+    Exit Function
+
+Fail:
+    On Error Resume Next
+    Close #ff
+End Function
+
+' Tenths of a millimetre as a whole number.
+Private Function ac2fNSI(ByVal x As Double) As String
+    ac2fNSI = CStr(CLng(x * 10#))
 End Function
 
 Private Function ac2fNSKV(ByVal k As String, ByVal v As Double) As String
@@ -1609,7 +1828,7 @@ Private Function ac2fNSAskText(ByRef apply As Boolean) As Boolean
             ac2fNSAskText = True
             Exit Function
         ElseIf t = "S" And Len(cmd) = 1 Then
-            ac2fSettings
+            ac2fSettings.ac2fSettings
             ac2fNSLoad
         ElseIf t = "T" Then
             ac2fNSTypedSheets Mid$(cmd, 2)
@@ -1694,10 +1913,24 @@ Fail:
 End Function
 
 '---------------------------------------------------------------------
-' The window script, written out each run so it always matches this
-' module. Generated from tools/nest_window.ps1 by tools/ps2vba.py.
+' The window scripts, written out each run so they always match this
+' module (1 settings, 2 preview). Generated from tools/nest_window.ps1
+' and tools/nest_preview.ps1 by tools/ps2vba.py.
 '---------------------------------------------------------------------
-Private Function ac2fNSScriptA(ByVal f As Integer) As Boolean
+Private Function ac2fNSWriteScript(ByVal which As Long, ByVal f As Integer) As Boolean
+    Dim ok As Boolean
+    If which = 1 Then
+        ok = ac2fNSPsSet1(f)
+        If ok Then ok = ac2fNSPsSet2(f)
+        If ok Then ok = ac2fNSPsSet3(f)
+    ElseIf which = 2 Then
+        ok = ac2fNSPsPrev1(f)
+        If ok Then ok = ac2fNSPsPrev2(f)
+    End If
+    ac2fNSWriteScript = ok
+End Function
+
+Private Function ac2fNSPsSet1(ByVal f As Integer) As Boolean
     On Error GoTo Fail
     Print #f, "param([string]$In, [string]$Out)"
     Print #f, "$ErrorActionPreference = 'Stop'"
@@ -1711,46 +1944,49 @@ Private Function ac2fNSScriptA(ByVal f As Integer) As Boolean
     Print #f, "$presets = New-Object System.Collections.Specialized.OrderedDictionary"
     Print #f, "$title = 'Nesting'"
     Print #f, "$summary = ''"
+    Print #f, "$pageW = ''"
+    Print #f, "$pageH = ''"
     Print #f, "foreach ($ln in $all) {"
     Print #f, "  $p = $ln.Split('|')"
     Print #f, "  switch ($p[0]) {"
     Print #f, "    'T' { $title = $p[1] }"
-    Print #f, "    'P' { $summary = $p[1].Replace('~n', [Environment]::NewLine) }"
+    Print #f, "    'P' { $summary = $p[1] }"
+    Print #f, "    'G' { if ($p.Length -ge 3) { $pageW = $p[1]; $pageH = $p[2] } }"
     Print #f, "    'K' { $vals[$p[1]] = $p[2] }"
     Print #f, "    'S' { if ($p.Length -ge 7) { $sheets.Add(@($p[1], $p[2], $p[3], $p[4], $p[5], $p[6])) } }"
     Print #f, "    'R' { if ($p.Length -ge 3) { $presets[$p[1]] = $p[2] } }"
     Print #f, "  }"
     Print #f, "}"
     Print #f, ""
-    Print #f, "# key, label, kind, options, help"
+    Print #f, "# key, label, kind, options, tab, help"
     Print #f, "$fields = @("
-    Print #f, "  @('gap', 'Part gap (mm)', 'num', '', 'Clear space between neighbouring parts. A router needs at least its bit diameter, a laser its kerf plus a little.'),"
-    Print #f, "  @('mL', 'Margin left (mm)', 'num', '', 'Clear strip along the left edge of every sheet.'),"
-    Print #f, "  @('mR', 'Margin right (mm)', 'num', '', 'Clear strip along the right edge of every sheet.'),"
-    Print #f, "  @('mT', 'Margin top (mm)', 'num', '', 'Clear strip along the top edge of every sheet.'),"
-    Print #f, "  @('mB', 'Margin bottom (mm)', 'num', '', 'Clear strip along the bottom edge of every sheet.'),"
-    Print #f, "  @('om', 'Offcut edge (mm)', 'num', '', 'Clear space kept from the edge of a drawn offcut sheet.'),"
-    Print #f, "  @('rot', 'Rotation', 'combo', '0=Keep as drawn|180=Half turn only|90=Every 90 degrees|45=Every 45 degrees|30=Every 30 degrees|15=Every 15 degrees', 'The turns parts may take. Finer steps nest tighter but take longer.'),"
-    Print #f, "  @('mirror', 'Parts may be mirrored', 'chk', '', 'Allows mirrored copies. Leave off for printed, coated or filmed material.'),"
-    Print #f, "  @('copies', 'Copies of each part', 'int', '', 'Every selected part is nested this many times. Copies are only created when they find room.'),"
-    Print #f, "  @('inner', 'Shapes inside a shape move with it', 'chk', '', 'A shape lying inside another (a counter, a hole, an engraving) is kept with the outer shape as one part.'),"
-    Print #f, "  @('holes', 'Small parts may go into holes', 'chk', '', 'Inner contours are cut out, so other parts may be nested inside them. Leave off when inner shapes are engravings.'),"
-    Print #f, "  @('corner', 'Start corner', 'combo', '1=Bottom left|2=Bottom right|3=Top left|4=Top right', 'The corner of the sheet the packing starts from.'),"
-    Print #f, "  @('dir', 'Fill direction', 'combo', '0=Rows (fill along the width)|1=Columns (fill along the height)', 'Rows keep the used material short in height; columns keep it short in width.'),"
-    Print #f, "  @('strat', 'Placement', 'combo', '0=Automatic (tries both)|1=Lowest top edge|2=Bottom-left', 'How each part chooses its place. Automatic tries both and keeps the better layout.'),"
-    Print #f, "  @('res', 'Precision (mm)', 'combo', '0.5=0.5 mm (finest, slowest)|1=1 mm|2=2 mm|3=3 mm|5=5 mm (fastest)', 'Grid size used to test shapes. Finer is tighter and slower. The gap is always kept.'),"
-    Print #f, "  @('time', 'Optimise for (seconds)', 'num', '', 'Keeps trying other orders and strategies this long and keeps the best layout. 0 = a single quick pass.'),"
-    Print #f, "  @('group', 'Group the result', 'combo', '0=No grouping|1=Each part|2=Each sheet|3=Everything', 'How placed parts are grouped once nesting is done.'),"
-    Print #f, "  @('outline', 'Draw sheet outlines', 'chk', '', 'Draws a grey outline for every sheet used.'),"
-    Print #f, "  @('start', 'Set start points afterwards', 'chk', '', 'Applies the saved start point settings (main menu) to every placed part.'),"
-    Print #f, "  @('sgap', 'Space between sheets (mm)', 'num', '', 'Gap between the sheets drawn on the page. Layout only.')"
+    Print #f, "  @('gap', 'Part gap (mm)', 'num', '', 0, 'Clear space between neighbouring parts. A router needs at least its bit diameter, a laser its kerf plus a little.'),"
+    Print #f, "  @('mL', 'Margin left (mm)', 'num', '', 0, 'Clear strip along the left edge of every sheet.'),"
+    Print #f, "  @('mR', 'Margin right (mm)', 'num', '', 0, 'Clear strip along the right edge of every sheet.'),"
+    Print #f, "  @('mT', 'Margin top (mm)', 'num', '', 0, 'Clear strip along the top edge of every sheet.'),"
+    Print #f, "  @('mB', 'Margin bottom (mm)', 'num', '', 0, 'Clear strip along the bottom edge of every sheet.'),"
+    Print #f, "  @('rot', 'Rotation', 'combo', '0=Keep as drawn|180=Half turn only|90=Every 90 degrees|45=Every 45 degrees|30=Every 30 degrees|15=Every 15 degrees', 0, 'The turns parts may take. Finer steps nest tighter but take longer.'),"
+    Print #f, "  @('copies', 'Copies of each part', 'int', '', 0, 'Every selected part is nested this many times. Copies are only created when they find room.'),"
+    Print #f, "  @('time', 'Optimise for (seconds)', 'num', '', 0, 'Keeps trying other orders and strategies this long and keeps the best layout. 0 = a single quick pass.'),"
+    Print #f, "  @('inner', 'Shapes inside a shape move with it', 'chk', '', 0, 'A shape lying inside another (a counter, a hole, an engraving) is kept with the outer shape as one part.'),"
+    Print #f, "  @('holes', 'Small parts may go into holes', 'chk', '', 0, 'Inner contours are cut out, so other parts may be nested inside them. Leave off when inner shapes are engravings.'),"
+    Print #f, "  @('om', 'Offcut edge (mm)', 'num', '', 1, 'Clear space kept from the edge of a drawn offcut sheet.'),"
+    Print #f, "  @('mirror', 'Parts may be mirrored', 'chk', '', 1, 'Allows mirrored copies. Leave off for printed, coated or filmed material.'),"
+    Print #f, "  @('corner', 'Start corner', 'combo', '1=Bottom left|2=Bottom right|3=Top left|4=Top right', 1, 'The corner of the sheet the packing starts from.'),"
+    Print #f, "  @('dir', 'Fill direction', 'combo', '0=Rows (fill along the width)|1=Columns (fill along the height)', 1, 'Rows keep the used material short in height; columns keep it short in width.'),"
+    Print #f, "  @('strat', 'Placement', 'combo', '0=Automatic (tries both)|1=Lowest top edge|2=Bottom-left', 1, 'How each part chooses its place. Automatic tries both and keeps the better layout.'),"
+    Print #f, "  @('res', 'Precision (mm)', 'combo', '0.5=0.5 mm (finest, slowest)|1=1 mm|2=2 mm|3=3 mm|5=5 mm (fastest)', 1, 'Grid size used to test shapes. Finer is tighter and slower. The gap is always kept.'),"
+    Print #f, "  @('group', 'Group the result', 'combo', '0=No grouping|1=Each part|2=Each sheet|3=Everything', 1, 'How placed parts are grouped once nesting is done.'),"
+    Print #f, "  @('outline', 'Draw sheet outlines', 'chk', '', 1, 'Draws a grey outline for every sheet used.'),"
+    Print #f, "  @('start', 'Set start points afterwards', 'chk', '', 1, 'Applies the saved start point settings (main menu) to every placed part.'),"
+    Print #f, "  @('sgap', 'Space between sheets (mm)', 'num', '', 1, 'Gap between the sheets drawn on the page. Layout only.')"
     Print #f, ")"
     Print #f, ""
     Print #f, "$f = New-Object System.Windows.Forms.Form"
     Print #f, "$f.Text = $title"
     Print #f, "$f.StartPosition = 'CenterScreen'"
-    Print #f, "$f.Size = New-Object System.Drawing.Size(1040, 700)"
-    Print #f, "$f.MinimumSize = New-Object System.Drawing.Size(860, 560)"
+    Print #f, "$f.Size = New-Object System.Drawing.Size(1060, 680)"
+    Print #f, "$f.MinimumSize = New-Object System.Drawing.Size(880, 560)"
     Print #f, "$f.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)"
     Print #f, "$f.TopMost = $true"
     Print #f, "$f.KeyPreview = $true"
@@ -1762,8 +1998,8 @@ Private Function ac2fNSScriptA(ByVal f As Integer) As Boolean
     Print #f, "$root.ColumnCount = 2"
     Print #f, "$root.RowCount = 3"
     Print #f, "$root.Padding = New-Object System.Windows.Forms.Padding(10)"
-    Print #f, "[void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 56)))"
-    Print #f, "[void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 44)))"
+    Print #f, "[void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 57)))"
+    Print #f, "[void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 43)))"
     Print #f, "[void]$root.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))"
     Print #f, "[void]$root.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))"
     Print #f, "[void]$root.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))"
@@ -1771,6 +2007,7 @@ Private Function ac2fNSScriptA(ByVal f As Integer) As Boolean
     Print #f, "$head = New-Object System.Windows.Forms.Label"
     Print #f, "$head.Text = $summary"
     Print #f, "$head.AutoSize = $true"
+    Print #f, "$head.MaximumSize = New-Object System.Drawing.Size(1000, 0)"
     Print #f, "$head.Margin = New-Object System.Windows.Forms.Padding(2, 0, 2, 8)"
     Print #f, "$root.Controls.Add($head, 0, 0)"
     Print #f, "$root.SetColumnSpan($head, 2)"
@@ -1782,8 +2019,9 @@ Private Function ac2fNSScriptA(ByVal f As Integer) As Boolean
     Print #f, "$sl = New-Object System.Windows.Forms.TableLayoutPanel"
     Print #f, "$sl.Dock = 'Fill'"
     Print #f, "$sl.ColumnCount = 1"
-    Print #f, "$sl.RowCount = 3"
+    Print #f, "$sl.RowCount = 4"
     Print #f, "[void]$sl.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))"
+    Print #f, "[void]$sl.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))"
     Print #f, "[void]$sl.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))"
     Print #f, "[void]$sl.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))"
     Print #f, "$gs.Controls.Add($sl)"
@@ -1816,6 +2054,12 @@ Private Function ac2fNSScriptA(ByVal f As Integer) As Boolean
     Print #f, "[void]$grid.Columns.AddRange(@($cUse, $cName, $cW, $cH, $cQ))"
     Print #f, "$sl.Controls.Add($grid, 0, 0)"
     Print #f, ""
+    ac2fNSPsSet1 = True
+Fail:
+End Function
+
+Private Function ac2fNSPsSet2(ByVal f As Integer) As Boolean
+    On Error GoTo Fail
     Print #f, "function AddRow($use, $name, $w, $h, $q, $src) {"
     Print #f, "  $i = $grid.Rows.Add(@(($use -eq '1'), $name, $w, $h, $q))"
     Print #f, "  $r = $grid.Rows[$i]"
@@ -1826,13 +2070,10 @@ Private Function ac2fNSScriptA(ByVal f As Integer) As Boolean
     Print #f, "    $r.Cells[4].ReadOnly = $true"
     Print #f, "    $r.DefaultCellStyle.ForeColor = [System.Drawing.Color]::DarkSlateBlue"
     Print #f, "  }"
+    Print #f, "  return $i"
     Print #f, "}"
-    Print #f, "foreach ($s in $sheets) { AddRow $s[0] $s[1] $s[2] $s[3] $s[4] $s[5] }"
+    Print #f, "foreach ($s in $sheets) { [void](AddRow $s[0] $s[1] $s[2] $s[3] $s[4] $s[5]) }"
     Print #f, ""
-    Print #f, "$sb = New-Object System.Windows.Forms.FlowLayoutPanel"
-    Print #f, "$sb.Dock = 'Fill'"
-    Print #f, "$sb.AutoSize = $true"
-    Print #f, "$sb.WrapContents = $true"
     Print #f, "function Btn([string]$t, $panel) {"
     Print #f, "  $b = New-Object System.Windows.Forms.Button"
     Print #f, "  $b.Text = $t"
@@ -1841,36 +2082,74 @@ Private Function ac2fNSScriptA(ByVal f As Integer) As Boolean
     Print #f, "  $panel.Controls.Add($b)"
     Print #f, "  return $b"
     Print #f, "}"
-    Print #f, "$bAdd = Btn 'Add' $sb"
+    Print #f, "function Lbl([string]$t, $panel) {"
+    Print #f, "  $l = New-Object System.Windows.Forms.Label"
+    Print #f, "  $l.Text = $t"
+    Print #f, "  $l.AutoSize = $true"
+    Print #f, "  $l.Margin = New-Object System.Windows.Forms.Padding(0, 9, 4, 0)"
+    Print #f, "  $panel.Controls.Add($l)"
+    Print #f, "  return $l"
+    Print #f, "}"
+    Print #f, ""
+    Print #f, "# a common size in one click"
+    Print #f, "$sa = New-Object System.Windows.Forms.FlowLayoutPanel"
+    Print #f, "$sa.Dock = 'Fill'"
+    Print #f, "$sa.AutoSize = $true"
+    Print #f, "$sa.WrapContents = $true"
+    Print #f, "[void](Lbl 'Add a sheet:' $sa)"
+    Print #f, "$cSize = New-Object System.Windows.Forms.ComboBox"
+    Print #f, "$cSize.DropDownStyle = 'DropDownList'"
+    Print #f, "$cSize.Width = 150"
+    Print #f, "$cSize.Margin = New-Object System.Windows.Forms.Padding(0, 6, 4, 0)"
+    Print #f, "foreach ($z in @('3050 x 2050', '3050 x 1500', '3000 x 1500', '2440 x 1220', '2500 x 1250', '2000 x 1000', '1220 x 2440')) { [void]$cSize.Items.Add($z) }"
+    Print #f, "if ($pageW -ne '' -and $pageH -ne '') {"
+    Print #f, "  $pw = 0.0; $ph = 0.0"
+    Print #f, "  if ([double]::TryParse($pageW, [System.Globalization.NumberStyles]::Float, $inv, [ref]$pw) -and"
+    Print #f, "      [double]::TryParse($pageH, [System.Globalization.NumberStyles]::Float, $inv, [ref]$ph)) {"
+    Print #f, "    [void]$cSize.Items.Add(('Page ' + [Math]::Round($pw).ToString($inv) + ' x ' + [Math]::Round($ph).ToString($inv)))"
+    Print #f, "  }"
+    Print #f, "}"
+    Print #f, "$cSize.SelectedIndex = 0"
+    Print #f, "$sa.Controls.Add($cSize)"
+    Print #f, "$bAdd = Btn 'Add' $sa"
+    Print #f, "$tip.SetToolTip($cSize, 'Pick a common sheet size and press Add. The size can be edited in the list afterwards.')"
+    Print #f, "$sl.Controls.Add($sa, 0, 1)"
+    Print #f, ""
+    Print #f, "$sb = New-Object System.Windows.Forms.FlowLayoutPanel"
+    Print #f, "$sb.Dock = 'Fill'"
+    Print #f, "$sb.AutoSize = $true"
+    Print #f, "$sb.WrapContents = $true"
     Print #f, "$bDel = Btn 'Remove' $sb"
     Print #f, "$bUp = Btn 'Up' $sb"
     Print #f, "$bDown = Btn 'Down' $sb"
     Print #f, "$bAllOn = Btn 'Use all' $sb"
     Print #f, "$bAllOff = Btn 'Use none' $sb"
-    Print #f, "$lq = New-Object System.Windows.Forms.Label"
-    Print #f, "$lq.Text = 'Qty for all:'"
-    Print #f, "$lq.AutoSize = $true"
-    Print #f, "$lq.Margin = New-Object System.Windows.Forms.Padding(8, 9, 2, 0)"
-    Print #f, "$sb.Controls.Add($lq)"
+    Print #f, "[void](Lbl 'Qty for all:' $sb)"
     Print #f, "$tq = New-Object System.Windows.Forms.TextBox"
     Print #f, "$tq.Width = 50"
     Print #f, "$tq.Margin = New-Object System.Windows.Forms.Padding(0, 5, 4, 0)"
     Print #f, "$sb.Controls.Add($tq)"
     Print #f, "$bQ = Btn 'Apply' $sb"
-    Print #f, "$sl.Controls.Add($sb, 0, 1)"
+    Print #f, "$sl.Controls.Add($sb, 0, 2)"
     Print #f, ""
     Print #f, "$hint = New-Object System.Windows.Forms.Label"
     Print #f, "$hint.AutoSize = $true"
-    Print #f, "$hint.MaximumSize = New-Object System.Drawing.Size(540, 0)"
+    Print #f, "$hint.MaximumSize = New-Object System.Drawing.Size(560, 0)"
     Print #f, "$hint.ForeColor = [System.Drawing.Color]::DimGray"
     Print #f, "$hint.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 0)"
     Print #f, "$hint.Text = 'Qty 0 = as many as needed. Drawn offcuts (blue) are shapes named ""offcut"" or ""sheet"" selected with the parts; the main menu can mark them. Untick a sheet to leave it out.'"
-    Print #f, "$sl.Controls.Add($hint, 0, 2)"
+    Print #f, "$sl.Controls.Add($hint, 0, 3)"
     Print #f, "$root.Controls.Add($gs, 0, 1)"
     Print #f, ""
     Print #f, "$bAdd.Add_Click({"
-    Print #f, "  AddRow '1' 'Sheet' '3050' '2050' '0' 'L'"
-    Print #f, "  $grid.CurrentCell = $grid.Rows[$grid.Rows.Count - 1].Cells[1]"
+    Print #f, "  $t = [string]$cSize.SelectedItem"
+    Print #f, "  $m = [regex]::Match($t, '(\d+) x (\d+)')"
+    Print #f, "  if ($m.Success) {"
+    Print #f, "    $w = $m.Groups[1].Value"
+    Print #f, "    $h = $m.Groups[2].Value"
+    Print #f, "    $i = AddRow '1' ('Sheet ' + $w + ' x ' + $h) $w $h '0' 'L'"
+    Print #f, "    $grid.CurrentCell = $grid.Rows[$i].Cells[1]"
+    Print #f, "  }"
     Print #f, "})"
     Print #f, "$bDel.Add_Click({"
     Print #f, "  if ($grid.CurrentRow -ne $null) { $grid.Rows.RemoveAt($grid.CurrentRow.Index) }"
@@ -1897,25 +2176,31 @@ Private Function ac2fNSScriptA(ByVal f As Integer) As Boolean
     Print #f, "  } else { [void]$tq.Focus() }"
     Print #f, "})"
     Print #f, ""
-    Print #f, "# ---------------- settings ----------------"
-    Print #f, "$gset = New-Object System.Windows.Forms.GroupBox"
-    Print #f, "$gset.Text = 'Settings'"
-    Print #f, "$gset.Dock = 'Fill'"
-    Print #f, "$pan = New-Object System.Windows.Forms.Panel"
-    Print #f, "$pan.Dock = 'Fill'"
-    Print #f, "$pan.AutoScroll = $true"
-    Print #f, "$gset.Controls.Add($pan)"
-    Print #f, "$tl = New-Object System.Windows.Forms.TableLayoutPanel"
-    Print #f, "$tl.ColumnCount = 2"
-    Print #f, "$tl.AutoSize = $true"
-    Print #f, "$tl.Dock = 'Top'"
-    Print #f, "[void]$tl.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 55)))"
-    Print #f, "[void]$tl.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 45)))"
-    Print #f, "$pan.Controls.Add($tl)"
+    Print #f, "# ---------------- settings: two tabs ----------------"
+    Print #f, "$tabs = New-Object System.Windows.Forms.TabControl"
+    Print #f, "$tabs.Dock = 'Fill'"
+    Print #f, "$tls = @()"
+    Print #f, "foreach ($tn in @('Main', 'More')) {"
+    Print #f, "  $tp = New-Object System.Windows.Forms.TabPage"
+    Print #f, "  $tp.Text = $tn"
+    Print #f, "  $tp.Padding = New-Object System.Windows.Forms.Padding(6)"
+    Print #f, "  $tp.AutoScroll = $true"
+    Print #f, "  $tl = New-Object System.Windows.Forms.TableLayoutPanel"
+    Print #f, "  $tl.ColumnCount = 2"
+    Print #f, "  $tl.AutoSize = $true"
+    Print #f, "  $tl.Dock = 'Top'"
+    Print #f, "  [void]$tl.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 55)))"
+    Print #f, "  [void]$tl.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 45)))"
+    Print #f, "  $tp.Controls.Add($tl)"
+    Print #f, "  $tabs.TabPages.Add($tp)"
+    Print #f, "  $tls += $tl"
+    Print #f, "}"
     Print #f, "$ctl = @{}"
-    Print #f, "$row = 0"
+    Print #f, "$rows = @(0, 0)"
     Print #f, "foreach ($fd in $fields) {"
     Print #f, "  $key = $fd[0]"
+    Print #f, "  $tl = $tls[$fd[4]]"
+    Print #f, "  $row = $rows[$fd[4]]"
     Print #f, "  $v = ''"
     Print #f, "  if ($vals.ContainsKey($key)) { $v = $vals[$key] }"
     Print #f, "  if ($fd[2] -eq 'chk') {"
@@ -1926,14 +2211,14 @@ Private Function ac2fNSScriptA(ByVal f As Integer) As Boolean
     Print #f, "    $c.Margin = New-Object System.Windows.Forms.Padding(3, 4, 3, 2)"
     Print #f, "    $tl.Controls.Add($c, 0, $row)"
     Print #f, "    $tl.SetColumnSpan($c, 2)"
-    Print #f, "    $tip.SetToolTip($c, $fd[4])"
+    Print #f, "    $tip.SetToolTip($c, $fd[5])"
     Print #f, "  } else {"
     Print #f, "    $l = New-Object System.Windows.Forms.Label"
     Print #f, "    $l.Text = $fd[1]"
     Print #f, "    $l.AutoSize = $true"
     Print #f, "    $l.Margin = New-Object System.Windows.Forms.Padding(3, 7, 3, 2)"
     Print #f, "    $tl.Controls.Add($l, 0, $row)"
-    Print #f, "    $tip.SetToolTip($l, $fd[4])"
+    Print #f, "    $tip.SetToolTip($l, $fd[5])"
     Print #f, "    if ($fd[2] -eq 'combo') {"
     Print #f, "      $c = New-Object System.Windows.Forms.ComboBox"
     Print #f, "      $c.DropDownStyle = 'DropDownList'"
@@ -1961,20 +2246,21 @@ Private Function ac2fNSScriptA(ByVal f As Integer) As Boolean
     Print #f, "    }"
     Print #f, "    $c.Margin = New-Object System.Windows.Forms.Padding(3, 3, 3, 2)"
     Print #f, "    $tl.Controls.Add($c, 1, $row)"
-    Print #f, "    $tip.SetToolTip($c, $fd[4])"
+    Print #f, "    $tip.SetToolTip($c, $fd[5])"
     Print #f, "  }"
     Print #f, "  $ctl[$key] = $c"
-    Print #f, "  $row++"
+    Print #f, "  $rows[$fd[4]] = $row + 1"
     Print #f, "}"
-    Print #f, "$tl.RowCount = $row"
-    Print #f, "$root.Controls.Add($gset, 1, 1)"
-    ac2fNSScriptA = True
+    Print #f, "$tls[0].RowCount = $rows[0]"
+    Print #f, "$tls[1].RowCount = $rows[1]"
+    Print #f, "$root.Controls.Add($tabs, 1, 1)"
+    Print #f, ""
+    ac2fNSPsSet2 = True
 Fail:
 End Function
 
-Private Function ac2fNSScriptB(ByVal f As Integer) As Boolean
+Private Function ac2fNSPsSet3(ByVal f As Integer) As Boolean
     On Error GoTo Fail
-    Print #f, ""
     Print #f, "function GetVal([string]$key) {"
     Print #f, "  $c = $ctl[$key]"
     Print #f, "  if ($c -is [System.Windows.Forms.CheckBox]) { if ($c.Checked) { return '1' } else { return '0' } }"
@@ -2007,11 +2293,7 @@ Private Function ac2fNSScriptB(ByVal f As Integer) As Boolean
     Print #f, "$left = New-Object System.Windows.Forms.FlowLayoutPanel"
     Print #f, "$left.AutoSize = $true"
     Print #f, "$left.Dock = 'Fill'"
-    Print #f, "$lp = New-Object System.Windows.Forms.Label"
-    Print #f, "$lp.Text = 'Preset:'"
-    Print #f, "$lp.AutoSize = $true"
-    Print #f, "$lp.Margin = New-Object System.Windows.Forms.Padding(0, 10, 4, 0)"
-    Print #f, "$left.Controls.Add($lp)"
+    Print #f, "[void](Lbl 'Preset:' $left)"
     Print #f, "$cp = New-Object System.Windows.Forms.ComboBox"
     Print #f, "$cp.Width = 170"
     Print #f, "$cp.Margin = New-Object System.Windows.Forms.Padding(0, 6, 4, 0)"
@@ -2020,20 +2302,23 @@ Private Function ac2fNSScriptB(ByVal f As Integer) As Boolean
     Print #f, "$bLoad = Btn 'Load' $left"
     Print #f, "$bSave = Btn 'Save' $left"
     Print #f, "$bPDel = Btn 'Delete' $left"
+    Print #f, "$tip.SetToolTip($cp, 'Type a name and press Save to keep every setting under it, e.g. Laser 3mm or CNC 6mm.')"
     Print #f, "$right = New-Object System.Windows.Forms.FlowLayoutPanel"
     Print #f, "$right.AutoSize = $true"
     Print #f, "$right.Dock = 'Fill'"
     Print #f, "$right.FlowDirection = 'RightToLeft'"
     Print #f, "$bCancel = Btn 'Cancel' $right"
-    Print #f, "$bReport = Btn 'Report only' $right"
-    Print #f, "$bNest = Btn 'Nest' $right"
-    Print #f, "$bNest.Font = New-Object System.Drawing.Font('Segoe UI', 9.5, [System.Drawing.FontStyle]::Bold)"
+    Print #f, "$bNest = Btn 'Nest now' $right"
+    Print #f, "$bPreview = Btn 'Preview' $right"
+    Print #f, "$bPreview.Font = New-Object System.Drawing.Font('Segoe UI', 9.5, [System.Drawing.FontStyle]::Bold)"
+    Print #f, "$tip.SetToolTip($bPreview, 'Works the layout out and shows it before anything moves. Apply it there, or come back and change a setting.')"
+    Print #f, "$tip.SetToolTip($bNest, 'Works the layout out and places the parts straight away. Ctrl+Z undoes it.')"
     Print #f, "$bar.Controls.Add($left, 0, 0)"
     Print #f, "$bar.Controls.Add($right, 1, 0)"
     Print #f, "$root.Controls.Add($bar, 0, 2)"
     Print #f, "$root.SetColumnSpan($bar, 2)"
     Print #f, "$f.Controls.Add($root)"
-    Print #f, "$f.AcceptButton = $bNest"
+    Print #f, "$f.AcceptButton = $bPreview"
     Print #f, "$f.CancelButton = $bCancel"
     Print #f, ""
     Print #f, "$bLoad.Add_Click({"
@@ -2065,6 +2350,7 @@ Private Function ac2fNSScriptB(ByVal f As Integer) As Boolean
     Print #f, "      $t = GetVal $fd[0]"
     Print #f, "      $x = 0.0"
     Print #f, "      if (-not [double]::TryParse($t, [System.Globalization.NumberStyles]::Float, $inv, [ref]$x) -or $x -lt 0) {"
+    Print #f, "        $tabs.SelectedIndex = $fd[4]"
     Print #f, "        [void][System.Windows.Forms.MessageBox]::Show($f, ($fd[1] + ': enter a number of 0 or more.'), $title)"
     Print #f, "        [void]$ctl[$fd[0]].Focus()"
     Print #f, "        return $false"
@@ -2091,8 +2377,8 @@ Private Function ac2fNSScriptB(ByVal f As Integer) As Boolean
     Print #f, "  }"
     Print #f, "  return $true"
     Print #f, "}"
+    Print #f, "$bPreview.Add_Click({ if (Check) { $script:act = 'PREVIEW'; $f.Close() } })"
     Print #f, "$bNest.Add_Click({ if (Check) { $script:act = 'NEST'; $f.Close() } })"
-    Print #f, "$bReport.Add_Click({ if (Check) { $script:act = 'REPORT'; $f.Close() } })"
     Print #f, "$bCancel.Add_Click({ $script:act = 'CANCEL'; $f.Close() })"
     Print #f, ""
     Print #f, "[void]$f.ShowDialog()"
@@ -2111,6 +2397,297 @@ Private Function ac2fNSScriptB(ByVal f As Integer) As Boolean
     Print #f, "}"
     Print #f, "foreach ($k in $presets.Keys) { $o.Add('R|' + $k + '|' + $presets[$k]) }"
     Print #f, "[System.IO.File]::WriteAllLines($Out, $o, (New-Object System.Text.UTF8Encoding($true)))"
-    ac2fNSScriptB = True
+    ac2fNSPsSet3 = True
+Fail:
+End Function
+
+Private Function ac2fNSPsPrev1(ByVal f As Integer) As Boolean
+    On Error GoTo Fail
+    Print #f, "param([string]$In, [string]$Out)"
+    Print #f, "$ErrorActionPreference = 'Stop'"
+    Print #f, "Add-Type -AssemblyName System.Windows.Forms"
+    Print #f, "Add-Type -AssemblyName System.Drawing"
+    Print #f, "[System.Windows.Forms.Application]::EnableVisualStyles()"
+    Print #f, "# written by VBA Print #, so in the code page of this machine"
+    Print #f, "$all = [System.IO.File]::ReadAllLines($In, [System.Text.Encoding]::Default)"
+    Print #f, "$title = 'Nesting - preview'"
+    Print #f, "$report = New-Object System.Collections.Generic.List[string]"
+    Print #f, "$sheets = New-Object System.Collections.Generic.List[object]"
+    Print #f, "$byNo = @{}"
+    Print #f, "$byPart = @{}"
+    Print #f, ""
+    Print #f, "# ""x y x y ..."" in tenths of a millimetre -> PointF[] in millimetres"
+    Print #f, "function Pts([string]$s) {"
+    Print #f, "  $a = $s.Split(' ')"
+    Print #f, "  $n = [int][Math]::Floor($a.Length / 2)"
+    Print #f, "  $r = New-Object 'System.Drawing.PointF[]' $n"
+    Print #f, "  for ($i = 0; $i -lt $n; $i++) {"
+    Print #f, "    $r[$i] = [System.Drawing.PointF]::new(([single]([int]$a[2 * $i]) / 10), ([single]([int]$a[2 * $i + 1]) / 10))"
+    Print #f, "  }"
+    Print #f, "  return ,$r"
+    Print #f, "}"
+    Print #f, ""
+    Print #f, "foreach ($ln in $all) {"
+    Print #f, "  $p = $ln.Split('|')"
+    Print #f, "  switch ($p[0]) {"
+    Print #f, "    'T' { $title = $p[1] }"
+    Print #f, "    'R' { $report.Add($p[1]) }"
+    Print #f, "    'S' {"
+    Print #f, "      if ($p.Length -ge 12) {"
+    Print #f, "        $s = New-Object PSObject -Property @{"
+    Print #f, "          No = [int]$p[1]; Name = $p[2]; Parts = [int]$p[3]"
+    Print #f, "          X0 = [int]$p[4] / 10; Y0 = [int]$p[5] / 10; X1 = [int]$p[6] / 10; Y1 = [int]$p[7] / 10"
+    Print #f, "          UX0 = [int]$p[8] / 10; UY0 = [int]$p[9] / 10; UX1 = [int]$p[10] / 10; UY1 = [int]$p[11] / 10"
+    Print #f, "          Outl = (New-Object System.Collections.Generic.List[object])"
+    Print #f, "          Items = (New-Object System.Collections.Generic.List[object])"
+    Print #f, "        }"
+    Print #f, "        $sheets.Add($s)"
+    Print #f, "        $byNo[$s.No] = $s"
+    Print #f, "      }"
+    Print #f, "    }"
+    Print #f, "    'O' {"
+    Print #f, "      if ($p.Length -ge 4 -and $byNo.ContainsKey([int]$p[1])) {"
+    Print #f, "        $pts = Pts $p[3]"
+    Print #f, "        if ($pts.Length -ge 3) { $byNo[[int]$p[1]].Outl.Add($pts) }"
+    Print #f, "      }"
+    Print #f, "    }"
+    Print #f, "    'P' {"
+    Print #f, "      if ($p.Length -ge 6 -and $byNo.ContainsKey([int]$p[1])) {"
+    Print #f, "        $pk = [int]$p[2]"
+    Print #f, "        $it = $byPart[$pk]"
+    Print #f, "        if ($it -eq $null) {"
+    Print #f, "          $it = New-Object PSObject -Property @{"
+    Print #f, "            Cls = [int]$p[3]"
+    Print #f, "            Closed = (New-Object System.Collections.Generic.List[object])"
+    Print #f, "            Open = (New-Object System.Collections.Generic.List[object])"
+    Print #f, "          }"
+    Print #f, "          $byPart[$pk] = $it"
+    Print #f, "          $byNo[[int]$p[1]].Items.Add($it)"
+    Print #f, "        }"
+    Print #f, "        $pts = Pts $p[5]"
+    Print #f, "        if ($p[4] -eq '1') {"
+    Print #f, "          if ($pts.Length -ge 2) { $it.Open.Add($pts) }"
+    Print #f, "        } elseif ($pts.Length -ge 3) {"
+    Print #f, "          $it.Closed.Add($pts)"
+    Print #f, "        }"
+    Print #f, "      }"
+    Print #f, "    }"
+    Print #f, "  }"
+    Print #f, "}"
+    Print #f, ""
+    Print #f, "$f = New-Object System.Windows.Forms.Form"
+    Print #f, "$f.Text = $title"
+    Print #f, "$f.StartPosition = 'CenterScreen'"
+    Print #f, "$f.Size = New-Object System.Drawing.Size(1180, 760)"
+    Print #f, "$f.MinimumSize = New-Object System.Drawing.Size(820, 520)"
+    Print #f, "$f.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)"
+    Print #f, "$f.TopMost = $true"
+    Print #f, "$f.KeyPreview = $true"
+    Print #f, ""
+    Print #f, "$root = New-Object System.Windows.Forms.TableLayoutPanel"
+    Print #f, "$root.Dock = 'Fill'"
+    Print #f, "$root.ColumnCount = 2"
+    Print #f, "$root.RowCount = 2"
+    Print #f, "$root.Padding = New-Object System.Windows.Forms.Padding(10)"
+    Print #f, "[void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 68)))"
+    Print #f, "[void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 32)))"
+    Print #f, "[void]$root.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))"
+    Print #f, "[void]$root.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))"
+    Print #f, ""
+    Print #f, "$pb = New-Object System.Windows.Forms.PictureBox"
+    Print #f, "$pb.Dock = 'Fill'"
+    Print #f, "$pb.BorderStyle = 'FixedSingle'"
+    Print #f, "$pb.BackColor = [System.Drawing.Color]::White"
+    Print #f, "$root.Controls.Add($pb, 0, 0)"
+    Print #f, ""
+    Print #f, "$side = New-Object System.Windows.Forms.TableLayoutPanel"
+    Print #f, "$side.Dock = 'Fill'"
+    Print #f, "$side.ColumnCount = 1"
+    Print #f, "$side.RowCount = 4"
+    Print #f, "[void]$side.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))"
+    Print #f, "[void]$side.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 35)))"
+    Print #f, "[void]$side.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))"
+    Print #f, "[void]$side.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 65)))"
+    Print #f, "$l1 = New-Object System.Windows.Forms.Label"
+    Print #f, "$l1.Text = 'Show'"
+    Print #f, "$l1.AutoSize = $true"
+    Print #f, "$l1.Margin = New-Object System.Windows.Forms.Padding(3, 0, 3, 3)"
+    Print #f, "$side.Controls.Add($l1, 0, 0)"
+    Print #f, "$lst = New-Object System.Windows.Forms.ListBox"
+    Print #f, "$lst.Dock = 'Fill'"
+    Print #f, "$lst.IntegralHeight = $false"
+    Print #f, "[void]$lst.Items.Add('All sheets')"
+    Print #f, "foreach ($s in $sheets) { [void]$lst.Items.Add(('Sheet ' + $s.No + ': ' + $s.Name + ' (' + $s.Parts + ' parts)')) }"
+    Print #f, "$side.Controls.Add($lst, 0, 1)"
+    Print #f, "$l2 = New-Object System.Windows.Forms.Label"
+    Print #f, "$l2.Text = 'Report'"
+    Print #f, "$l2.AutoSize = $true"
+    Print #f, "$l2.Margin = New-Object System.Windows.Forms.Padding(3, 8, 3, 3)"
+    Print #f, "$side.Controls.Add($l2, 0, 2)"
+    Print #f, "$txt = New-Object System.Windows.Forms.TextBox"
+    Print #f, "$txt.Multiline = $true"
+    Print #f, "$txt.ReadOnly = $true"
+    Print #f, "$txt.ScrollBars = 'Both'"
+    Print #f, "$txt.WordWrap = $false"
+    Print #f, "$txt.Dock = 'Fill'"
+    Print #f, "$txt.Font = New-Object System.Drawing.Font('Consolas', 9)"
+    Print #f, "$txt.Text = [string]::Join([Environment]::NewLine, $report.ToArray())"
+    Print #f, "$side.Controls.Add($txt, 0, 3)"
+    Print #f, "$root.Controls.Add($side, 1, 0)"
+    Print #f, ""
+    Print #f, "$bar = New-Object System.Windows.Forms.TableLayoutPanel"
+    Print #f, "$bar.Dock = 'Fill'"
+    Print #f, "$bar.AutoSize = $true"
+    Print #f, "$bar.ColumnCount = 2"
+    Print #f, "[void]$bar.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 50)))"
+    Print #f, "[void]$bar.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 50)))"
+    Print #f, "$note = New-Object System.Windows.Forms.Label"
+    Print #f, "$note.AutoSize = $true"
+    Print #f, "$note.ForeColor = [System.Drawing.Color]::DimGray"
+    Print #f, "$note.Margin = New-Object System.Windows.Forms.Padding(2, 10, 2, 0)"
+    Print #f, "$note.Text = 'Nothing has moved yet. Apply places the parts as shown (Ctrl+Z undoes it).'"
+    Print #f, "$bar.Controls.Add($note, 0, 0)"
+    Print #f, "$right = New-Object System.Windows.Forms.FlowLayoutPanel"
+    Print #f, "$right.AutoSize = $true"
+    Print #f, "$right.Dock = 'Fill'"
+    Print #f, "$right.FlowDirection = 'RightToLeft'"
+    Print #f, "function Btn([string]$t) {"
+    Print #f, "  $b = New-Object System.Windows.Forms.Button"
+    Print #f, "  $b.Text = $t"
+    Print #f, "  $b.AutoSize = $true"
+    Print #f, "  $b.Margin = New-Object System.Windows.Forms.Padding(0, 4, 6, 0)"
+    Print #f, "  $right.Controls.Add($b)"
+    Print #f, "  return $b"
+    Print #f, "}"
+    Print #f, "$bCancel = Btn 'Cancel'"
+    Print #f, "$bBack = Btn 'Change settings'"
+    Print #f, "$bApply = Btn 'Apply'"
+    Print #f, "$bApply.Font = New-Object System.Drawing.Font('Segoe UI', 9.5, [System.Drawing.FontStyle]::Bold)"
+    Print #f, "$bar.Controls.Add($right, 1, 0)"
+    Print #f, "$root.Controls.Add($bar, 0, 1)"
+    Print #f, "$root.SetColumnSpan($bar, 2)"
+    Print #f, "$f.Controls.Add($root)"
+    Print #f, "$f.AcceptButton = $bApply"
+    Print #f, "$f.CancelButton = $bCancel"
+    Print #f, ""
+    ac2fNSPsPrev1 = True
+Fail:
+End Function
+
+Private Function ac2fNSPsPrev2(ByVal f As Integer) As Boolean
+    On Error GoTo Fail
+    Print #f, "# ---------------- drawing ----------------"
+    Print #f, "$colors = @("
+    Print #f, "  @(166, 206, 227), @(178, 223, 138), @(251, 180, 174), @(253, 205, 172),"
+    Print #f, "  @(203, 213, 232), @(244, 202, 228), @(230, 245, 201), @(255, 242, 174),"
+    Print #f, "  @(204, 235, 197), @(222, 203, 228)"
+    Print #f, ")"
+    Print #f, "$brushes = @()"
+    Print #f, "foreach ($c in $colors) { $brushes += (New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, $c[0], $c[1], $c[2]))) }"
+    Print #f, "$brSheet = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 236, 238, 241))"
+    Print #f, "$brUse = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 250, 250, 250))"
+    Print #f, "$brText = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 40, 40, 40))"
+    Print #f, "$penSheet = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(255, 120, 120, 120), 1)"
+    Print #f, "$penUse = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(255, 150, 180, 220), 1)"
+    Print #f, "$penPart = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(255, 45, 60, 85), 1)"
+    Print #f, "$fLabel = New-Object System.Drawing.Font('Segoe UI', 9)"
+    Print #f, ""
+    Print #f, "function Render {"
+    Print #f, "  try {"
+    Print #f, "    $w = $pb.ClientSize.Width"
+    Print #f, "    $h = $pb.ClientSize.Height"
+    Print #f, "    if ($w -lt 40 -or $h -lt 40) { return }"
+    Print #f, "    $bmp = New-Object System.Drawing.Bitmap($w, $h)"
+    Print #f, "    $g = [System.Drawing.Graphics]::FromImage($bmp)"
+    Print #f, "    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias"
+    Print #f, "    $g.Clear([System.Drawing.Color]::White)"
+    Print #f, "    $show = New-Object System.Collections.Generic.List[object]"
+    Print #f, "    if ($lst.SelectedIndex -le 0) {"
+    Print #f, "      foreach ($s in $sheets) { $show.Add($s) }"
+    Print #f, "    } else {"
+    Print #f, "      $show.Add($sheets[$lst.SelectedIndex - 1])"
+    Print #f, "    }"
+    Print #f, "    if ($show.Count -eq 0) {"
+    Print #f, "      $g.DrawString('Nothing was placed.', $fLabel, $brText, [single]12, [single]12)"
+    Print #f, "    } else {"
+    Print #f, "      $minx = $show[0].X0; $miny = $show[0].Y0; $maxx = $show[0].X1; $maxy = $show[0].Y1"
+    Print #f, "      foreach ($s in $show) {"
+    Print #f, "        if ($s.X0 -lt $minx) { $minx = $s.X0 }"
+    Print #f, "        if ($s.Y0 -lt $miny) { $miny = $s.Y0 }"
+    Print #f, "        if ($s.X1 -gt $maxx) { $maxx = $s.X1 }"
+    Print #f, "        if ($s.Y1 -gt $maxy) { $maxy = $s.Y1 }"
+    Print #f, "      }"
+    Print #f, "      $bw = [Math]::Max(1.0, $maxx - $minx)"
+    Print #f, "      $bh = [Math]::Max(1.0, $maxy - $miny)"
+    Print #f, "      $sc = [Math]::Min(($w - 30) / $bw, ($h - 50) / $bh)"
+    Print #f, "      $ox = ($w - $bw * $sc) / 2 - $minx * $sc"
+    Print #f, "      $oy = ($h + $bh * $sc) / 2 + 10 + $miny * $sc"
+    Print #f, "      # page y points up, the screen down"
+    Print #f, "      $g.TranslateTransform([single]$ox, [single]$oy)"
+    Print #f, "      $g.ScaleTransform([single]$sc, [single](-$sc))"
+    Print #f, "      $thin = [single](1.0 / $sc)"
+    Print #f, "      $penSheet.Width = $thin"
+    Print #f, "      $penUse.Width = $thin"
+    Print #f, "      $penPart.Width = $thin"
+    Print #f, "      foreach ($s in $show) {"
+    Print #f, "        if ($s.Outl.Count -gt 0) {"
+    Print #f, "          $gp = New-Object System.Drawing.Drawing2D.GraphicsPath"
+    Print #f, "          $gp.FillMode = [System.Drawing.Drawing2D.FillMode]::Alternate"
+    Print #f, "          foreach ($o in $s.Outl) { $gp.AddPolygon($o) }"
+    Print #f, "          $g.FillPath($brUse, $gp)"
+    Print #f, "          $g.DrawPath($penSheet, $gp)"
+    Print #f, "          $gp.Dispose()"
+    Print #f, "        } else {"
+    Print #f, "          $g.FillRectangle($brSheet, [single]$s.X0, [single]$s.Y0, [single]($s.X1 - $s.X0), [single]($s.Y1 - $s.Y0))"
+    Print #f, "          $g.DrawRectangle($penSheet, [single]$s.X0, [single]$s.Y0, [single]($s.X1 - $s.X0), [single]($s.Y1 - $s.Y0))"
+    Print #f, "          if ($s.UX1 -gt $s.UX0 -and $s.UY1 -gt $s.UY0) {"
+    Print #f, "            $g.FillRectangle($brUse, [single]$s.UX0, [single]$s.UY0, [single]($s.UX1 - $s.UX0), [single]($s.UY1 - $s.UY0))"
+    Print #f, "            $g.DrawRectangle($penUse, [single]$s.UX0, [single]$s.UY0, [single]($s.UX1 - $s.UX0), [single]($s.UY1 - $s.UY0))"
+    Print #f, "          }"
+    Print #f, "        }"
+    Print #f, "        foreach ($it in $s.Items) {"
+    Print #f, "          if ($it.Closed.Count -gt 0) {"
+    Print #f, "            $gp = New-Object System.Drawing.Drawing2D.GraphicsPath"
+    Print #f, "            $gp.FillMode = [System.Drawing.Drawing2D.FillMode]::Alternate"
+    Print #f, "            foreach ($c in $it.Closed) { $gp.AddPolygon($c) }"
+    Print #f, "            $g.FillPath($brushes[$it.Cls % $brushes.Count], $gp)"
+    Print #f, "            $g.DrawPath($penPart, $gp)"
+    Print #f, "            $gp.Dispose()"
+    Print #f, "          }"
+    Print #f, "          foreach ($c in $it.Open) { $g.DrawLines($penPart, $c) }"
+    Print #f, "        }"
+    Print #f, "      }"
+    Print #f, "      $g.ResetTransform()"
+    Print #f, "      foreach ($s in $show) {"
+    Print #f, "        $tx = $ox + $s.X0 * $sc"
+    Print #f, "        $ty = $oy - $s.Y1 * $sc - 18"
+    Print #f, "        $g.DrawString(([string]$s.No + '  ' + $s.Name), $fLabel, $brText, [single]$tx, [single]$ty)"
+    Print #f, "      }"
+    Print #f, "    }"
+    Print #f, "    $g.Dispose()"
+    Print #f, "    $old = $pb.Image"
+    Print #f, "    $pb.Image = $bmp"
+    Print #f, "    if ($old -ne $null) { $old.Dispose() }"
+    Print #f, "  } catch {"
+    Print #f, "    # a drawing problem must not cost the user the window"
+    Print #f, "  }"
+    Print #f, "}"
+    Print #f, ""
+    Print #f, "$lst.Add_SelectedIndexChanged({ Render })"
+    Print #f, "$pb.Add_Resize({ Render })"
+    Print #f, "$f.Add_Shown({ Render })"
+    Print #f, "$lst.SelectedIndex = 0"
+    Print #f, ""
+    Print #f, "$script:act = 'CANCEL'"
+    Print #f, "$bApply.Add_Click({ $script:act = 'APPLY'; $f.Close() })"
+    Print #f, "$bBack.Add_Click({ $script:act = 'SETTINGS'; $f.Close() })"
+    Print #f, "$bCancel.Add_Click({ $script:act = 'CANCEL'; $f.Close() })"
+    Print #f, ""
+    Print #f, "[void]$f.ShowDialog()"
+    Print #f, ""
+    Print #f, "$o = New-Object System.Collections.Generic.List[string]"
+    Print #f, "$o.Add('A|' + $script:act)"
+    Print #f, "[System.IO.File]::WriteAllLines($Out, $o, (New-Object System.Text.UTF8Encoding($true)))"
+    ac2fNSPsPrev2 = True
 Fail:
 End Function

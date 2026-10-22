@@ -168,7 +168,8 @@ def main():
     known_syms = set()
 
     for f in files:
-        raw = open(f, encoding='utf-8').read().split('\n')
+        # CRLF on Windows checkouts (.gitattributes), LF elsewhere
+        raw = open(f, encoding='utf-8', newline='').read().replace('\r\n', '\n').split('\n')
         mod = f.split('/')[-1][:-4]
         known_syms.add(mod)
         if not raw[0].startswith('Attribute VB_Name'):
@@ -323,6 +324,18 @@ def main():
             errors.append(f'ac2fSettings en buyuk sayfasi {sheet_len} karakter '
                           f'({n_set} ayar) - InputBox siniri asilir, '
                           f'grubu bolun veya etiketleri kisaltin')
+
+    # what only the real VBA compiler would catch: ByRef types, a procedure
+    # called by the name of its module, members CorelDRAW does not have ...
+    import os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import vbacheck
+    vmods = [vbacheck.Module(f) for f in files]
+    vbacheck.Checker(vmods).check()
+    for vm in vmods:
+        for x in vm.issues:
+            if x.sev in ('ERROR', 'CHECK'):
+                errors.append('vbacheck ' + str(x))
 
     print(f'{len(files)} dosya, {len(defs)} yordam', end='')
     if sheet_len is not None:

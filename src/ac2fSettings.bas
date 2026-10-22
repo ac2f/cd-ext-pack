@@ -62,7 +62,16 @@ Private Sub ac2fBuildTable()
 
     ReDim m_set(0 To 31)
     m_setN = 0
+    ' Four parts in table order: one procedure holding every help text
+    ' came close to the 64K VBA allows a compiled procedure.
+    ac2fBuildTable1
+    ac2fBuildTable2
+    ac2fBuildTable3
+    ac2fBuildTable4
+End Sub
 
+' LED module, box letter
+Private Sub ac2fBuildTable1()
     '--- LED module ---------------------------------------------------
     ac2fAddSetting AC2F_K_SPACING, "LED", "Module spacing", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_SPACING, 0.001, 0, _
@@ -300,7 +309,10 @@ Private Sub ac2fBuildTable()
         "Purely a layout convenience with no effect on any " & _
         "calculation. Raise it if the labels above each strip run " & _
         "into the strip above."
+End Sub
 
+' ACP panel, centre line, nesting
+Private Sub ac2fBuildTable2()
     '--- ACP panel ----------------------------------------------------
     ac2fAddSetting AC2F_K_ACP_FOLD, "ACP", "Fold size", "mm", _
         AC2F_KIND_NUM, AC2F_DEF_ACP_FOLD, 0.1, 0, _
@@ -574,7 +586,10 @@ Private Sub ac2fBuildTable()
         AC2F_KIND_INT, CDbl(AC2F_DEF_NS_START), 0, 1, _
         "1 = after nesting, every placed part gets its start points set " & _
         "with the START settings (main menu 23)."
+End Sub
 
+' Start points, plotter
+Private Sub ac2fBuildTable3()
     '--- Start points ------------------------------------------------
     ac2fAddSetting AC2F_K_SP_POS, "START", "Position", "", _
         AC2F_KIND_INT, CDbl(AC2F_DEF_SP_POS), 1, 9, _
@@ -758,7 +773,10 @@ Private Sub ac2fBuildTable()
         "machine needs it turned." & vbCrLf & vbCrLf & _
         "Some machines return to their own origin after SP0 whatever " & _
         "the file says; Preamble 0 leaves SP0 out."
+End Sub
 
+' Bending, customer job
+Private Sub ac2fBuildTable4()
     '--- Bending ------------------------------------------------------
     ac2fAddSetting AC2F_K_BN_ORDER, "BEND", "Order", "", _
         AC2F_KIND_INT, CDbl(AC2F_DEF_BN_ORDER), 0, 3, _

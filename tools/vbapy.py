@@ -27,7 +27,7 @@ Kullanim:
     p = Project(['src/ac2fCore.bas', ...], host)       # coklu + ana bilgisayar
     p.m.ac2fnest.f_ac2fnest()
 """
-import math, re, time, types
+import math, os, re, time, types
 
 # =====================================================================
 # runtime
@@ -917,6 +917,9 @@ class Parser(object):
                 raise CompileError('With blocks are not supported')
             raise CompileError('unexpected operator %r' % v)
         if k == 'id':
+            if v.lower() == 'new' and self.peek()[0] == 'id':
+                cls = self.take()[1].lower()
+                return 'H.new_object(%r)' % cls
             return self.name(v)
         raise CompileError('unexpected token %r' % v)
 
@@ -1943,14 +1946,40 @@ class _NS(object):
     pass
 
 
+def unqualify_modules(src, names):
+    """Module.Procedure -> Procedure (outside string literals). VBA needs
+    the qualified form when a procedure shares its module's name; the
+    public names here are unique, so the plain name means the same."""
+    if not names:
+        return src
+    rx = re.compile(r'(?<![\w.])(?:%s)\.(?=[A-Za-z_])' % '|'.join(re.escape(n) for n in names), re.I)
+    out = []
+    for ln in src.split('\n'):
+        parts = ln.split('"')
+        for k in range(0, len(parts), 2):
+            code = parts[k]
+            c = code.find("'")
+            if c >= 0:
+                parts[k] = rx.sub('', code[:c]) + code[c:]
+                break
+            parts[k] = rx.sub('', code)
+        out.append('"'.join(parts))
+    return '\n'.join(out)
+
+
 class Project(object):
     def __init__(self, paths, host=None):
         self.host = host
         self.host_names = None if host is None else set(host.names())
         self.mods = []
-        for p in paths:
-            name = re.sub(r'\.bas$', '', p.replace('\\', '/').split('/')[-1])
-            self.mods.append(Module(open(p, encoding='utf-8').read(), name))
+        names = [re.sub(r'\.bas$', '', p.replace('\\', '/').split('/')[-1]) for p in paths]
+        # every module of the project qualifies calls, loaded here or not
+        known = set(names)
+        for d in set(os.path.dirname(os.path.abspath(p)) for p in paths):
+            known.update(f[:-4] for f in os.listdir(d) if f.lower().endswith('.bas'))
+        for p, name in zip(paths, names):
+            src = unqualify_modules(open(p, encoding='utf-8').read(), sorted(known))
+            self.mods.append(Module(src, name))
         self.publics = {}
         for md in self.mods:
             for n, pr in md.procs.items():

@@ -88,7 +88,7 @@ powershell -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
 Sonra CorelDRAW'da `Alt+F11` → `ac2fPack` projesi → `File > Import File` ile
-`build\` altındaki dört `.bas` dosyasını içe aktarın.
+`build\` altındaki on yedi `.bas` dosyasını içe aktarın.
 
 Adım adım anlatım ve ekran yolları: **[docs/kurulum.md](docs/kurulum.md)**
 
@@ -222,14 +222,21 @@ yerleşir, sınırlayıcı kutularıyla değil: içbükey parçalar birbirine
 geçer, istenirse küçük parçalar büyüklerin deliklerine girer, çizili bir
 artık (her şekilde) tabaka olarak kullanılır.
 
-Açılan pencerede:
+Önce **ayar penceresi** açılır; **Preview** yerleşimi hesaplayıp
+**önizleme penceresinde** çizer: tabakalar ve parçalar gerçek şekilleriyle,
+yanında rapor. Belgede henüz hiçbir şey taşınmamıştır. **Apply**
+yerleştirir, **Change settings** geri döner, **Cancel** hiçbir şeyi
+değiştirmez. **Nest now** önizlemesiz, hemen yerleştirir.
+
+Ayar penceresinde:
 
 - **Tabaka listesi** — her satır kullan/kullanma, ad, en, boy, **adet**
   (`0` = gerektiği kadar). Yukarıdan aşağı sırayla kullanılır; `Qty for all`
   hepsine aynı adedi yazar. Müşteri işinin stoktan aldığı tabaka listede
   yoksa en üste eklenir; parçalarla birlikte seçilen `offcut ...` adlı
-  şekiller olduğu yerde, kendi şekliyle tabaka olur.
-- **Ayarlar** — parça aralığı, dört kenar payı, artık kenar payı, dönüş
+  şekiller olduğu yerde, kendi şekliyle tabaka olur. Sık kullanılan
+  ölçüler (3050 x 2050, 2440 x 1220 ...) tek tıkla eklenir.
+- **Ayarlar** (iki sekme: *Main*, *More*) — parça aralığı, dört kenar payı, artık kenar payı, dönüş
   adımı, ayna, kopya adedi, *iç şekiller dıştakiyle gitsin*, *küçük
   parçalar deliklere girsin*, başlangıç köşesi, satır/sütun yönü,
   yerleştirme stratejisi, hassasiyet, optimizasyon süresi, sonuçtaki
@@ -237,8 +244,8 @@ Açılan pencerede:
   başlangıç noktası. Her ayarın üzerine gelince açıklaması çıkar.
 - **Hazır ayarlar** — `Laser 3mm`, `CNC 6mm` gibi adlarla kaydet / yükle.
 
-`Report only` (ya da `ac2fNestReport`) aynı hesabı yapar, hiçbir şeyi
-oynatmaz. `ac2fNestAgain` pencere açmadan son ayarlarla çalışır.
+`ac2fNestReport` aynı pencereleri açar. `ac2fNestAgain` pencere açmadan
+son ayarlarla hemen yerleştirir.
 
 ### Algoritma
 
@@ -646,18 +653,19 @@ Ayrıntı ve sınırlar: **[docs/kullanim.md](docs/kullanim.md)**
 ## Geliştirme
 
 ```bash
-python3 tools/lint.py        # içe aktarmadan önce statik denetim
-python3 tools/test_nest.py   # nesting motoru, gerçek geometriyle
-python3 tools/test_corel.py  # nesting + başlangıç noktası, CorelDRAW taklidinde uçtan uca
-python3 tools/ps2vba.py      # nest_window.ps1 değişince ac2fNest.bas'a gömer
-python3 tools/skeleton.py    # büyük düzenlemelerden sonra kontrol akışı karşılaştırması
-sh tools/build.sh            # build/ altına CRLF kopya üret (isteğe bağlı)
+python3 tools/lint.py          # içe aktarmadan önce statik denetim + VBA derleyici kuralları
+python3 tools/test_nest.py     # nesting motoru, gerçek geometriyle
+python3 tools/test_corel.py    # nesting + başlangıç noktası, CorelDRAW taklidinde uçtan uca
+python3 tools/test_windows.py  # nesting pencereleri, PowerShell 7 ile (AC2F_PWSH)
+python3 tools/ps2vba.py        # nest_window.ps1 / nest_preview.ps1 değişince ac2fNest.bas'a gömer
+python3 tools/skeleton.py      # büyük düzenlemelerden sonra kontrol akışı karşılaştırması
+sh tools/build.sh              # build/ altına CRLF kopya üret (isteğe bağlı)
 ```
 
 Kaynak **saf ASCII**'dir; hiçbir Türkçe karakter içermez. Bu yüzden
 `.bas` dosyaları her makinede kod sayfası dönüşümü olmadan doğrudan içe
-aktarılabilir. `build.sh` yalnız CRLF satır sonu üretir, artık zorunlu
-değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
+aktarılabilir; klonda ve GitHub ZIP'inde CRLF satır sonuyla gelir.
+Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Gereksinimler
 
@@ -666,4 +674,4 @@ değildir. Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.20.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.21.0 — bkz. [CHANGELOG.md](CHANGELOG.md)

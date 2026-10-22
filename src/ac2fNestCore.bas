@@ -108,8 +108,15 @@ Private m_vK1() As Long, m_vS1() As Long         ' key rows and their spans
 Private m_vK2() As Long, m_vS2() As Long
 Private m_vK3() As Long, m_vS3() As Long
 Private m_vTag() As Long, m_vClass() As Long
+Private m_vPC0() As Long, m_vPCn() As Long       ' its outline, thinned, in m_pc*
 Private m_rs() As Long, m_rsn As Long, m_rsCap As Long
 Private m_ia() As Long, m_ib() As Long, m_ivn As Long, m_ivCap As Long
+
+' outlines of the variants for the preview window: contours, then points
+Private Const NC_PREVIEW_PTS As Long = 120       ' points kept per contour
+Private m_pcFirst() As Long, m_pcLen() As Long, m_pcKind() As Long
+Private m_pcn As Long, m_pcCap As Long
+Private m_ppx() As Double, m_ppy() As Double, m_ppn As Long, m_ppCap As Long
 
 '---------------------------------------------------------------------
 ' Classes (identical parts share one) and part instances
@@ -179,6 +186,8 @@ Public Sub ac2fNCInit(ByVal res As Double, ByVal grow As Double, ByVal holes As 
     m_vn = 0: m_vCap = 0
     m_rsn = 0: m_rsCap = 0
     m_ivn = 0: m_ivCap = 0
+    m_pcn = 0: m_pcCap = 0
+    m_ppn = 0: m_ppCap = 0
     m_cn = 0: m_cCap = 0
     m_pn = 0: m_pCap = 0
     m_tyn = 0: m_tyCap = 0
@@ -309,6 +318,20 @@ End Function
 
 Public Function ac2fNCGeoPoints() As Long
     ac2fNCGeoPoints = m_gn
+End Function
+
+' First point, point count and kind of contour c of the buffer.
+Public Sub ac2fNCGeoContourInfo(ByVal c As Long, ByRef s As Long, ByRef n As Long, ByRef kind As Long)
+    If m_gOpen Then ac2fNCGeoEnd
+    s = m_gcs(c): n = m_gcc(c): kind = m_gck(c)
+End Sub
+
+Public Function ac2fNCGeoX(ByVal i As Long) As Double
+    ac2fNCGeoX = m_gx(i)
+End Function
+
+Public Function ac2fNCGeoY(ByVal i As Long) As Double
+    ac2fNCGeoY = m_gy(i)
 End Function
 
 ' Applies x' = a*x + b*y, y' = c*x + e*y to every point of the buffer.
@@ -954,6 +977,7 @@ Public Function ac2fNCAddVariant(ByVal tag As Long) As Long
         ReDim Preserve m_vK2(0 To m_vCap - 1): ReDim Preserve m_vS2(0 To m_vCap - 1)
         ReDim Preserve m_vK3(0 To m_vCap - 1): ReDim Preserve m_vS3(0 To m_vCap - 1)
         ReDim Preserve m_vTag(0 To m_vCap - 1): ReDim Preserve m_vClass(0 To m_vCap - 1)
+        ReDim Preserve m_vPC0(0 To m_vCap - 1): ReDim Preserve m_vPCn(0 To m_vCap - 1)
     End If
     v = m_vn
     m_vn = m_vn + 1
@@ -965,6 +989,7 @@ Public Function ac2fNCAddVariant(ByVal tag As Long) As Long
     m_vCells(v) = 0
     m_vK1(v) = 0: m_vS1(v) = 0: m_vK2(v) = 0: m_vS2(v) = 0: m_vK3(v) = 0: m_vS3(v) = 0
     ac2fNCAddVariant = v
+    ac2fNCKeepOutline v
 
     If Not ac2fNCGeoBBox(x0, y0, x1, y1) Then Exit Function
     ox = x0 - m_d
@@ -1029,6 +1054,65 @@ Public Function ac2fNCAddVariant(ByVal tag As Long) As Long
     m_vW(v) = w
     m_vH(v) = h
     m_vCells(v) = cells
+End Function
+
+' A thinned copy of the buffer's contours as the outline of variant v,
+' for the preview window. Every contour keeps at most NC_PREVIEW_PTS.
+Private Sub ac2fNCKeepOutline(ByVal v As Long)
+    Dim k As Long, i As Long, s As Long, n As Long, stp As Long, cnt As Long
+
+    If m_gOpen Then ac2fNCGeoEnd
+    m_vPC0(v) = m_pcn
+    m_vPCn(v) = 0
+    For k = 0 To m_gcn - 1
+        s = m_gcs(k): n = m_gcc(k)
+        If n > 0 Then
+            stp = (n + NC_PREVIEW_PTS - 1) \ NC_PREVIEW_PTS
+            If stp < 1 Then stp = 1
+            cnt = (n + stp - 1) \ stp
+            If m_pcn >= m_pcCap Then
+                If m_pcCap = 0 Then m_pcCap = 256 Else m_pcCap = m_pcCap * 2
+                ReDim Preserve m_pcFirst(0 To m_pcCap - 1)
+                ReDim Preserve m_pcLen(0 To m_pcCap - 1)
+                ReDim Preserve m_pcKind(0 To m_pcCap - 1)
+            End If
+            Do While m_ppn + cnt > m_ppCap
+                If m_ppCap = 0 Then m_ppCap = 4096 Else m_ppCap = m_ppCap * 2
+                ReDim Preserve m_ppx(0 To m_ppCap - 1)
+                ReDim Preserve m_ppy(0 To m_ppCap - 1)
+            Loop
+            m_pcFirst(m_pcn) = m_ppn
+            m_pcLen(m_pcn) = cnt
+            m_pcKind(m_pcn) = m_gck(k)
+            For i = 0 To n - 1 Step stp
+                m_ppx(m_ppn) = m_gx(s + i)
+                m_ppy(m_ppn) = m_gy(s + i)
+                m_ppn = m_ppn + 1
+            Next i
+            m_pcn = m_pcn + 1
+            m_vPCn(v) = m_vPCn(v) + 1
+        End If
+    Next k
+End Sub
+
+Public Function ac2fNCVariantContourCount(ByVal v As Long) As Long
+    ac2fNCVariantContourCount = m_vPCn(v)
+End Function
+
+' Contour c (from 0) of the outline of variant v, in the frame its raster
+' was built in. Returns the number of points written to xs/ys.
+Public Function ac2fNCVariantContour(ByVal v As Long, ByVal c As Long, ByRef xs() As Double, _
+                                     ByRef ys() As Double, ByRef kind As Long) As Long
+    Dim q As Long, i As Long, s As Long, n As Long
+    q = m_vPC0(v) + c
+    s = m_pcFirst(q): n = m_pcLen(q)
+    kind = m_pcKind(q)
+    ReDim xs(0 To n): ReDim ys(0 To n)
+    For i = 0 To n - 1
+        xs(i) = m_ppx(s + i)
+        ys(i) = m_ppy(s + i)
+    Next i
+    ac2fNCVariantContour = n
 End Function
 
 Public Function ac2fNCVariantCount() As Long

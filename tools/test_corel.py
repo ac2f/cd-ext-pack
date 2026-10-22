@@ -287,13 +287,27 @@ def snapshot(doc):
                   for s in doc.all_shapes())
 
 
-def window_handler(env, action='NEST', change=None, presets=None, record=None):
-    def h(ps, inp, out):
+def window_handler(env, action='NEST', change=None, presets=None, record=None, preview=None):
+    """Answers the two windows the way a user would. action: the settings
+    window's button; preview: the preview window's buttons in turn
+    (APPLY / SETTINGS / CANCEL); change: edits made in the settings window,
+    a list of them when the window opens more than once."""
+    state = {'n': 0, 'p': 0}
+    if record is not None:
+        record.setdefault('previews', [])
+
+    def settings(ps, inp, out):
         text = open(inp, encoding='utf-8-sig').read()
         if record is not None:
             record['in'] = text
             record['ps'] = open(ps, encoding='latin-1').read()
-        lines = ['A|' + action]
+        ch = change
+        if isinstance(change, list):
+            ch = change[min(state['n'], len(change) - 1)]
+        acts = action if isinstance(action, list) else [action]
+        act = acts[min(state['n'], len(acts) - 1)]
+        state['n'] += 1
+        lines = ['A|' + act]
         vals = {}
         sheets = []
         for ln in text.splitlines():
@@ -302,10 +316,10 @@ def window_handler(env, action='NEST', change=None, presets=None, record=None):
                 vals[f[1]] = f[2]
             elif f[0] == 'S':
                 sheets.append(f[1:])
-        if change:
-            vals.update(change.get('vals', {}))
-            if 'sheets' in change:
-                sheets = change['sheets'](sheets)
+        if ch:
+            vals.update(ch.get('vals', {}))
+            if 'sheets' in ch:
+                sheets = ch['sheets'](sheets)
         for k, v in vals.items():
             lines.append('K|%s|%s' % (k, v))
         for s in sheets:
@@ -315,6 +329,22 @@ def window_handler(env, action='NEST', change=None, presets=None, record=None):
         with open(out, 'w', encoding='utf-8-sig', newline='') as fh:
             fh.write('\r\n'.join(lines) + '\r\n')
         return 0
+
+    def prev(ps, inp, out):
+        if record is not None:
+            record['previews'].append(open(inp, encoding='latin-1').read())
+            record['pps'] = open(ps, encoding='latin-1').read()
+        acts = preview or ['CANCEL']
+        act = acts[min(state['p'], len(acts) - 1)]
+        state['p'] += 1
+        with open(out, 'w', encoding='utf-8-sig', newline='') as fh:
+            fh.write('A|%s\r\n' % act)
+        return 0
+
+    def h(ps, inp, out):
+        if os.path.basename(ps) == 'ac2f_nest_preview.ps1':
+            return prev(ps, inp, out)
+        return settings(ps, inp, out)
     return h
 
 
@@ -403,6 +433,130 @@ def t_unplaced():
     expect(abs(big.bbox()[0] - 5000) < 1e-6, 'buyuk parca yerinde kaldi')
     expect('Did not fit' in msg, 'raporda sigmayan var')
     e.close()
+
+
+def preview_polys(text):
+    """P and S lines of a preview input -> parts {id: [contours]} and sheets, in mm."""
+    out, sheets = {}, {}
+    for ln in text.splitlines():
+        f = ln.split('|')
+        if f[0] == 'P':
+            v = [int(x) / 10.0 for x in f[5].split()]
+            out.setdefault(int(f[2]), []).append(list(zip(v[0::2], v[1::2])))
+        elif f[0] == 'S':
+            sheets[int(f[1])] = [int(x) / 10.0 for x in f[4:12]]
+    return out, sheets
+
+
+def t_preview_apply():
+    scenario('Onizleme: Preview -> Apply; cizilen yerlesim belgedekiyle ayni')
+    e = Env({'JBListePenceresi': 1, 'NSBaslangicKosesi': 3, 'NSDoldurmaYonu': 1})
+    shapes = [e.rect(700 + i * 300, 500, w, h) for i, (w, h) in enumerate([(120, 80), (90, 60), (200, 50)])]
+    shapes.append(e.lshape(1000, 800, 150, 45))
+    shapes.append(e.ellipse(1300, 900, 40))
+    rec = {}
+    e.h.window_handler = window_handler(e, 'PREVIEW', preview=['APPLY'], record=rec)
+    n_msgs = len(e.h.messages)
+    e.run('ac2fnest')
+    expect(len(rec['previews']) == 1, 'onizleme bir kez acildi')
+    src = open(os.path.join(HERE, 'nest_preview.ps1'), encoding='utf-8').read().replace('\r\n', '\n')
+    expect(rec.get('pps', '').replace('\r\n', '\n') == src, 'yazilan betik nest_preview.ps1 ile birebir ayni')
+    text = rec['previews'][0] if rec['previews'] else ''
+    expect('R|PREVIEW - nothing has moved yet' in text, 'onizlemede rapor')
+    pp, sheets = preview_polys(text)
+    expect(len(pp) == 5 and len(sheets) >= 1, '5 parca, %d tabaka cizildi' % len(sheets))
+    probs = check_layout(e, top_parts(e), 4)
+    expect(not probs, 'uygulanan yerlesim gecerli' + ('' if not probs else ': ' + probs[0]))
+    real = sorted(bbox_of(polys(sh)) for sh in shapes)
+    drawn = sorted((min(x for c in v for x, _ in c), min(y for c in v for _, y in c),
+                    max(x for c in v for x, _ in c), max(y for c in v for _, y in c)) for v in pp.values())
+    worst = max([max(abs(a - b) for a, b in zip(r, d)) for r, d in zip(real, drawn)] or [99])
+    expect(len(real) == len(drawn) and worst < 1.0,
+           'cizilen parcalar gercekte gittikleri yerde (en buyuk fark %.2f mm)' % worst)
+    if sheets and outlines(e):
+        ol = outlines(e)[0].bbox()
+        expect(max(abs(a - b) for a, b in zip(ol, sheets[1][:4])) < 0.2, 'tabaka 1 onizlemedeki yerinde')
+    expect(len(e.h.messages) == n_msgs, 'onizlemeden sonra ayrica mesaj kutusu yok')
+    e.close()
+
+
+def t_preview_back_cancel():
+    scenario('Onizleme: Change settings -> yeni aralikla tekrar -> Cancel; belge degismedi')
+    e = Env({'JBListePenceresi': 1, 'NSIcDisBirlikte': 1})
+    e.rect(1000, 1000, 200, 150)
+    e.ellipse(1100, 1075, 30)
+    e.lshape(700, 700, 120, 40)
+    before = snapshot(e.doc)
+    rec = {}
+    e.h.window_handler = window_handler(e, 'PREVIEW', change=[{}, {'vals': {'gap': '9'}}],
+                                        preview=['SETTINGS', 'CANCEL'], record=rec)
+    e.run('ac2fnest')
+    expect(len(rec['previews']) == 2, 'onizleme iki kez acildi')
+    expect(e.get('NSParcaAraligiMM') == '9', 'ikinci turdaki aralik kaydedildi')
+    expect(len(rec['previews']) == 2 and 'Gap 9.00 mm' in rec['previews'][1], 'ikinci onizleme yeni aralikla')
+    expect(snapshot(e.doc) == before, 'belge birebir ayni (ic/dis grubu ve donmeler geri alindi)')
+    expect(e.doc.cmd_depth == 0, 'komut grubu kapandi')
+    e.close()
+
+
+def t_locked():
+    scenario('Kilitli nesne yerinde kalir ve raporda yazar')
+    e = Env()
+    lk = e.rect(5000, 5000, 100, 60)
+    lk.locked = True
+    e.rect(700, 700, 100, 60)
+    msg = e.run('ac2fnestagain')
+    expect(abs(lk.bbox()[0] - 5000) < 1e-6, 'kilitli nesne oynamadi')
+    expect('Locked            : 1' in msg, 'raporda kilitli satiri')
+    e.close()
+    e = Env()
+    only = e.rect(700, 700, 100, 60)
+    only.locked = True
+    msg = e.run('ac2fnestagain')
+    expect('locked' in msg.lower() and 'Unlock' in msg, 'yalniz kilitli secildiyse uyari')
+    e.close()
+
+
+def t_real_windows():
+    scenario('Gercek pencereler (PowerShell + WinForms taklidi): VBA -> Preview -> Apply')
+    import test_windows as tw
+    pwsh = tw.pwsh_path()
+    if not pwsh:
+        print('  --   pwsh bulunamadi (AC2F_PWSH), atlandi')
+        return
+    win = tw.Win(pwsh)
+    e = Env({'JBListePenceresi': 1})
+    for i, (w, h) in enumerate([(120, 80), (90, 60), (200, 50)]):
+        e.rect(700 + i * 300, 500, w, h)
+    e.lshape(1000, 800, 150, 45)
+    oc = e.rect(3000, 3000, 300, 250, name='offcut A')
+    acts = {'ac2f_nest.ps1': r"""$OnShow = { param($f)
+  $main = $f.FirstOf('TabControl').TabPages[0]
+  $main.AllOf('TextBox')[0].Text = '5'
+  Click $f 'Preview' }""",
+            'ac2f_nest_preview.ps1': r"""$OnShow = { param($f)
+  if ($f.FirstOf('PictureBox').Image -eq $null) { throw 'nothing drawn' }
+  if ($f.FirstOf('ListBox').Items.Count -lt 2) { throw 'no sheet in the list' }
+  Click $f 'Apply' }"""}
+    runs = []
+
+    def h(ps, inp, out):
+        act = os.path.join(win.tmp, 'act.ps1')
+        with open(act, 'w') as fh:
+            fh.write(acts[os.path.basename(ps)])
+        r = win.run_files(ps, inp, out, act)
+        runs.append((os.path.basename(ps), r))
+        return r['rc']
+    e.h.window_handler = h
+    e.run('ac2fnest')
+    win.close()
+    expect([n for n, _ in runs] == ['ac2f_nest.ps1', 'ac2f_nest_preview.ps1'], 'iki pencere sirayla acildi')
+    expect(runs and all(r['rc'] == 0 for _, r in runs), 'ikisi de hatasiz calisti')
+    expect(len(runs) == 2 and runs[1][1]['stats'] and runs[1][1]['stats'][1] >= 4,
+           'onizlemede parcalar cizildi: %s' % (runs[1][1]['stats'] if len(runs) == 2 else None))
+    expect(e.get('NSParcaAraligiMM') == '5', 'pencerede yazilan aralik kaydedildi')
+    probs = check_layout(e, [s for s in top_parts(e) if s is not oc], 5, offcut=(oc, 5))
+    expect(not probs, 'uygulanan yerlesim gecerli' + ('' if not probs else ': ' + probs[0]))
 
 
 def area(pts):
@@ -593,6 +747,10 @@ def main():
     t_text_fallback()
     t_safe_model()
     t_unplaced()
+    t_preview_apply()
+    t_preview_back_cancel()
+    t_locked()
+    t_real_windows()
     t_start_points()
     t_start_markers()
     t_nest_then_start()

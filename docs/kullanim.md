@@ -443,11 +443,32 @@ Uç konumu hatası 1,8 mm.
 
 ## 7. Nesting
 
-Parçaları seçin, `ac2fNest` (menü `10`) çalıştırın. Bir pencere açılır:
-solda **tabaka listesi**, sağda **ayarlar**. `Nest` yerleştirir,
-`Report only` aynı hesabı yapıp hiçbir şeyi oynatmaz (`ac2fNestReport`,
-menü `11`). `ac2fNestAgain` (menü `22`) pencere açmadan son ayarlarla
-çalışır.
+Parçaları seçin, `ac2fNest` (menü `10`) çalıştırın. Akış:
+
+```
+ayar penceresi  ->  Preview  ->  önizleme penceresi  ->  Apply
+                                     |
+                                     +-> Change settings: ayar penceresine geri
+                                     +-> Cancel: hiçbir şey değişmez
+```
+
+1. **Ayar penceresi**: solda **tabaka listesi**, sağda iki sekmede
+   **ayarlar** (*Main* sık kullanılanlar, *More* geri kalanı).
+   - **Preview** (Enter): yerleşimi hesaplar ve önizlemeyi açar.
+   - **Nest now**: önizlemesiz, hemen yerleştirir.
+   - **Cancel**: çıkar.
+2. **Önizleme penceresi**: kullanılan her tabaka ve yerleşen her parça
+   gerçek şekliyle çizilir (delikler boş, çizili artık kendi şekliyle,
+   kenar payı içi açık renk). Sağdaki listeden **tek bir tabaka** seçince
+   o tabaka büyütülür; altında rapor (parça sayısı, doluluk, kalan boy).
+   Bu sırada belgede **hiçbir şey taşınmamıştır**.
+   - **Apply**: parçaları çizildiği gibi yerleştirir (`Ctrl+Z` geri alır).
+   - **Change settings**: belgeyi olduğu gibi bırakır, ayar penceresine
+     döner; değiştirip yeniden *Preview* deyin.
+   - **Cancel**: hiçbir şey değişmez.
+
+`ac2fNestReport` (menü `11`) aynı pencereleri açar. `ac2fNestAgain` (menü
+`22`) pencere açmadan son ayarlarla hemen yerleştirir.
 
 Parçalar **gerçek konturlarıyla** yerleşir, sınırlayıcı kutularıyla
 değil: içbükey parçalar birbirine geçer (L, T, harfler), istenirse küçük
@@ -463,6 +484,9 @@ kullanılabilir.
 | Width / Height | mm |
 | Qty | Adet. **`0` = gerektiği kadar** |
 
+- **Add a sheet**: sık kullanılan ölçüler (3050 x 2050, 3050 x 1500,
+  2440 x 1220 ... ve sayfa ölçüsü) listeden seçilip `Add` ile eklenir;
+  ölçü sonra listede değiştirilebilir.
 - Tabakalar **yukarıdan aşağı** sırayla kullanılır (`Up` / `Down`). Artıkları
   üste koyarsanız önce onlar dolar.
 - `Qty for all` + `Apply` bütün liste tabakalarına aynı adedi yazar.
@@ -563,9 +587,14 @@ söyler.
   CorelDRAW'da her eğri parçası, o boydaki **her** eğriyi içine alan bir
   kutuyla kaplanır: parçalar biraz gevşek yerleşir ama asla çakışmaz
   (rapor söyler).
-- Pencere PowerShell ile açılır (iş menüsündeki liste penceresi gibi).
-  Açılamazsa kısa bir metin sorusu çıkar: `Enter` nest, `R` rapor,
-  `S` ayarlar, `T 3050x2050x0; 2440x1220x2` tabakaları yazar.
+- Pencereler Windows'la gelen PowerShell 5.1 ile açılır (iş menüsündeki
+  liste penceresi gibi; Windows 10/11'de hazırdır). İş menüsündeki *List
+  window* ayarı `0` ise ya da PowerShell engelliyse kısa bir metin sorusu
+  çıkar: `Enter` nest, `R` rapor, `S` ayarlar, `T 3050x2050x0;
+  2440x1220x2` tabakaları yazar. Önizleme açılamazsa rapor mesaj
+  kutusunda gösterilir.
+- **Kilitli** nesneler (Arrange > Lock) taşınmaz: yerinde kalır, raporda
+  `Locked` satırında sayılır.
 - Sınırlar: 2000 parça, 200 satır tabaka, aynı anda 60 tabaka.
 
 ---

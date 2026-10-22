@@ -10,46 +10,49 @@ $sheets = New-Object System.Collections.Generic.List[object]
 $presets = New-Object System.Collections.Specialized.OrderedDictionary
 $title = 'Nesting'
 $summary = ''
+$pageW = ''
+$pageH = ''
 foreach ($ln in $all) {
   $p = $ln.Split('|')
   switch ($p[0]) {
     'T' { $title = $p[1] }
-    'P' { $summary = $p[1].Replace('~n', [Environment]::NewLine) }
+    'P' { $summary = $p[1] }
+    'G' { if ($p.Length -ge 3) { $pageW = $p[1]; $pageH = $p[2] } }
     'K' { $vals[$p[1]] = $p[2] }
     'S' { if ($p.Length -ge 7) { $sheets.Add(@($p[1], $p[2], $p[3], $p[4], $p[5], $p[6])) } }
     'R' { if ($p.Length -ge 3) { $presets[$p[1]] = $p[2] } }
   }
 }
 
-# key, label, kind, options, help
+# key, label, kind, options, tab, help
 $fields = @(
-  @('gap', 'Part gap (mm)', 'num', '', 'Clear space between neighbouring parts. A router needs at least its bit diameter, a laser its kerf plus a little.'),
-  @('mL', 'Margin left (mm)', 'num', '', 'Clear strip along the left edge of every sheet.'),
-  @('mR', 'Margin right (mm)', 'num', '', 'Clear strip along the right edge of every sheet.'),
-  @('mT', 'Margin top (mm)', 'num', '', 'Clear strip along the top edge of every sheet.'),
-  @('mB', 'Margin bottom (mm)', 'num', '', 'Clear strip along the bottom edge of every sheet.'),
-  @('om', 'Offcut edge (mm)', 'num', '', 'Clear space kept from the edge of a drawn offcut sheet.'),
-  @('rot', 'Rotation', 'combo', '0=Keep as drawn|180=Half turn only|90=Every 90 degrees|45=Every 45 degrees|30=Every 30 degrees|15=Every 15 degrees', 'The turns parts may take. Finer steps nest tighter but take longer.'),
-  @('mirror', 'Parts may be mirrored', 'chk', '', 'Allows mirrored copies. Leave off for printed, coated or filmed material.'),
-  @('copies', 'Copies of each part', 'int', '', 'Every selected part is nested this many times. Copies are only created when they find room.'),
-  @('inner', 'Shapes inside a shape move with it', 'chk', '', 'A shape lying inside another (a counter, a hole, an engraving) is kept with the outer shape as one part.'),
-  @('holes', 'Small parts may go into holes', 'chk', '', 'Inner contours are cut out, so other parts may be nested inside them. Leave off when inner shapes are engravings.'),
-  @('corner', 'Start corner', 'combo', '1=Bottom left|2=Bottom right|3=Top left|4=Top right', 'The corner of the sheet the packing starts from.'),
-  @('dir', 'Fill direction', 'combo', '0=Rows (fill along the width)|1=Columns (fill along the height)', 'Rows keep the used material short in height; columns keep it short in width.'),
-  @('strat', 'Placement', 'combo', '0=Automatic (tries both)|1=Lowest top edge|2=Bottom-left', 'How each part chooses its place. Automatic tries both and keeps the better layout.'),
-  @('res', 'Precision (mm)', 'combo', '0.5=0.5 mm (finest, slowest)|1=1 mm|2=2 mm|3=3 mm|5=5 mm (fastest)', 'Grid size used to test shapes. Finer is tighter and slower. The gap is always kept.'),
-  @('time', 'Optimise for (seconds)', 'num', '', 'Keeps trying other orders and strategies this long and keeps the best layout. 0 = a single quick pass.'),
-  @('group', 'Group the result', 'combo', '0=No grouping|1=Each part|2=Each sheet|3=Everything', 'How placed parts are grouped once nesting is done.'),
-  @('outline', 'Draw sheet outlines', 'chk', '', 'Draws a grey outline for every sheet used.'),
-  @('start', 'Set start points afterwards', 'chk', '', 'Applies the saved start point settings (main menu) to every placed part.'),
-  @('sgap', 'Space between sheets (mm)', 'num', '', 'Gap between the sheets drawn on the page. Layout only.')
+  @('gap', 'Part gap (mm)', 'num', '', 0, 'Clear space between neighbouring parts. A router needs at least its bit diameter, a laser its kerf plus a little.'),
+  @('mL', 'Margin left (mm)', 'num', '', 0, 'Clear strip along the left edge of every sheet.'),
+  @('mR', 'Margin right (mm)', 'num', '', 0, 'Clear strip along the right edge of every sheet.'),
+  @('mT', 'Margin top (mm)', 'num', '', 0, 'Clear strip along the top edge of every sheet.'),
+  @('mB', 'Margin bottom (mm)', 'num', '', 0, 'Clear strip along the bottom edge of every sheet.'),
+  @('rot', 'Rotation', 'combo', '0=Keep as drawn|180=Half turn only|90=Every 90 degrees|45=Every 45 degrees|30=Every 30 degrees|15=Every 15 degrees', 0, 'The turns parts may take. Finer steps nest tighter but take longer.'),
+  @('copies', 'Copies of each part', 'int', '', 0, 'Every selected part is nested this many times. Copies are only created when they find room.'),
+  @('time', 'Optimise for (seconds)', 'num', '', 0, 'Keeps trying other orders and strategies this long and keeps the best layout. 0 = a single quick pass.'),
+  @('inner', 'Shapes inside a shape move with it', 'chk', '', 0, 'A shape lying inside another (a counter, a hole, an engraving) is kept with the outer shape as one part.'),
+  @('holes', 'Small parts may go into holes', 'chk', '', 0, 'Inner contours are cut out, so other parts may be nested inside them. Leave off when inner shapes are engravings.'),
+  @('om', 'Offcut edge (mm)', 'num', '', 1, 'Clear space kept from the edge of a drawn offcut sheet.'),
+  @('mirror', 'Parts may be mirrored', 'chk', '', 1, 'Allows mirrored copies. Leave off for printed, coated or filmed material.'),
+  @('corner', 'Start corner', 'combo', '1=Bottom left|2=Bottom right|3=Top left|4=Top right', 1, 'The corner of the sheet the packing starts from.'),
+  @('dir', 'Fill direction', 'combo', '0=Rows (fill along the width)|1=Columns (fill along the height)', 1, 'Rows keep the used material short in height; columns keep it short in width.'),
+  @('strat', 'Placement', 'combo', '0=Automatic (tries both)|1=Lowest top edge|2=Bottom-left', 1, 'How each part chooses its place. Automatic tries both and keeps the better layout.'),
+  @('res', 'Precision (mm)', 'combo', '0.5=0.5 mm (finest, slowest)|1=1 mm|2=2 mm|3=3 mm|5=5 mm (fastest)', 1, 'Grid size used to test shapes. Finer is tighter and slower. The gap is always kept.'),
+  @('group', 'Group the result', 'combo', '0=No grouping|1=Each part|2=Each sheet|3=Everything', 1, 'How placed parts are grouped once nesting is done.'),
+  @('outline', 'Draw sheet outlines', 'chk', '', 1, 'Draws a grey outline for every sheet used.'),
+  @('start', 'Set start points afterwards', 'chk', '', 1, 'Applies the saved start point settings (main menu) to every placed part.'),
+  @('sgap', 'Space between sheets (mm)', 'num', '', 1, 'Gap between the sheets drawn on the page. Layout only.')
 )
 
 $f = New-Object System.Windows.Forms.Form
 $f.Text = $title
 $f.StartPosition = 'CenterScreen'
-$f.Size = New-Object System.Drawing.Size(1040, 700)
-$f.MinimumSize = New-Object System.Drawing.Size(860, 560)
+$f.Size = New-Object System.Drawing.Size(1060, 680)
+$f.MinimumSize = New-Object System.Drawing.Size(880, 560)
 $f.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
 $f.TopMost = $true
 $f.KeyPreview = $true
@@ -61,8 +64,8 @@ $root.Dock = 'Fill'
 $root.ColumnCount = 2
 $root.RowCount = 3
 $root.Padding = New-Object System.Windows.Forms.Padding(10)
-[void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 56)))
-[void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 44)))
+[void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 57)))
+[void]$root.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 43)))
 [void]$root.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
 [void]$root.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
 [void]$root.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
@@ -70,6 +73,7 @@ $root.Padding = New-Object System.Windows.Forms.Padding(10)
 $head = New-Object System.Windows.Forms.Label
 $head.Text = $summary
 $head.AutoSize = $true
+$head.MaximumSize = New-Object System.Drawing.Size(1000, 0)
 $head.Margin = New-Object System.Windows.Forms.Padding(2, 0, 2, 8)
 $root.Controls.Add($head, 0, 0)
 $root.SetColumnSpan($head, 2)
@@ -81,8 +85,9 @@ $gs.Dock = 'Fill'
 $sl = New-Object System.Windows.Forms.TableLayoutPanel
 $sl.Dock = 'Fill'
 $sl.ColumnCount = 1
-$sl.RowCount = 3
+$sl.RowCount = 4
 [void]$sl.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+[void]$sl.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
 [void]$sl.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
 [void]$sl.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
 $gs.Controls.Add($sl)
@@ -125,13 +130,10 @@ function AddRow($use, $name, $w, $h, $q, $src) {
     $r.Cells[4].ReadOnly = $true
     $r.DefaultCellStyle.ForeColor = [System.Drawing.Color]::DarkSlateBlue
   }
+  return $i
 }
-foreach ($s in $sheets) { AddRow $s[0] $s[1] $s[2] $s[3] $s[4] $s[5] }
+foreach ($s in $sheets) { [void](AddRow $s[0] $s[1] $s[2] $s[3] $s[4] $s[5]) }
 
-$sb = New-Object System.Windows.Forms.FlowLayoutPanel
-$sb.Dock = 'Fill'
-$sb.AutoSize = $true
-$sb.WrapContents = $true
 function Btn([string]$t, $panel) {
   $b = New-Object System.Windows.Forms.Button
   $b.Text = $t
@@ -140,36 +142,74 @@ function Btn([string]$t, $panel) {
   $panel.Controls.Add($b)
   return $b
 }
-$bAdd = Btn 'Add' $sb
+function Lbl([string]$t, $panel) {
+  $l = New-Object System.Windows.Forms.Label
+  $l.Text = $t
+  $l.AutoSize = $true
+  $l.Margin = New-Object System.Windows.Forms.Padding(0, 9, 4, 0)
+  $panel.Controls.Add($l)
+  return $l
+}
+
+# a common size in one click
+$sa = New-Object System.Windows.Forms.FlowLayoutPanel
+$sa.Dock = 'Fill'
+$sa.AutoSize = $true
+$sa.WrapContents = $true
+[void](Lbl 'Add a sheet:' $sa)
+$cSize = New-Object System.Windows.Forms.ComboBox
+$cSize.DropDownStyle = 'DropDownList'
+$cSize.Width = 150
+$cSize.Margin = New-Object System.Windows.Forms.Padding(0, 6, 4, 0)
+foreach ($z in @('3050 x 2050', '3050 x 1500', '3000 x 1500', '2440 x 1220', '2500 x 1250', '2000 x 1000', '1220 x 2440')) { [void]$cSize.Items.Add($z) }
+if ($pageW -ne '' -and $pageH -ne '') {
+  $pw = 0.0; $ph = 0.0
+  if ([double]::TryParse($pageW, [System.Globalization.NumberStyles]::Float, $inv, [ref]$pw) -and
+      [double]::TryParse($pageH, [System.Globalization.NumberStyles]::Float, $inv, [ref]$ph)) {
+    [void]$cSize.Items.Add(('Page ' + [Math]::Round($pw).ToString($inv) + ' x ' + [Math]::Round($ph).ToString($inv)))
+  }
+}
+$cSize.SelectedIndex = 0
+$sa.Controls.Add($cSize)
+$bAdd = Btn 'Add' $sa
+$tip.SetToolTip($cSize, 'Pick a common sheet size and press Add. The size can be edited in the list afterwards.')
+$sl.Controls.Add($sa, 0, 1)
+
+$sb = New-Object System.Windows.Forms.FlowLayoutPanel
+$sb.Dock = 'Fill'
+$sb.AutoSize = $true
+$sb.WrapContents = $true
 $bDel = Btn 'Remove' $sb
 $bUp = Btn 'Up' $sb
 $bDown = Btn 'Down' $sb
 $bAllOn = Btn 'Use all' $sb
 $bAllOff = Btn 'Use none' $sb
-$lq = New-Object System.Windows.Forms.Label
-$lq.Text = 'Qty for all:'
-$lq.AutoSize = $true
-$lq.Margin = New-Object System.Windows.Forms.Padding(8, 9, 2, 0)
-$sb.Controls.Add($lq)
+[void](Lbl 'Qty for all:' $sb)
 $tq = New-Object System.Windows.Forms.TextBox
 $tq.Width = 50
 $tq.Margin = New-Object System.Windows.Forms.Padding(0, 5, 4, 0)
 $sb.Controls.Add($tq)
 $bQ = Btn 'Apply' $sb
-$sl.Controls.Add($sb, 0, 1)
+$sl.Controls.Add($sb, 0, 2)
 
 $hint = New-Object System.Windows.Forms.Label
 $hint.AutoSize = $true
-$hint.MaximumSize = New-Object System.Drawing.Size(540, 0)
+$hint.MaximumSize = New-Object System.Drawing.Size(560, 0)
 $hint.ForeColor = [System.Drawing.Color]::DimGray
 $hint.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 0)
 $hint.Text = 'Qty 0 = as many as needed. Drawn offcuts (blue) are shapes named "offcut" or "sheet" selected with the parts; the main menu can mark them. Untick a sheet to leave it out.'
-$sl.Controls.Add($hint, 0, 2)
+$sl.Controls.Add($hint, 0, 3)
 $root.Controls.Add($gs, 0, 1)
 
 $bAdd.Add_Click({
-  AddRow '1' 'Sheet' '3050' '2050' '0' 'L'
-  $grid.CurrentCell = $grid.Rows[$grid.Rows.Count - 1].Cells[1]
+  $t = [string]$cSize.SelectedItem
+  $m = [regex]::Match($t, '(\d+) x (\d+)')
+  if ($m.Success) {
+    $w = $m.Groups[1].Value
+    $h = $m.Groups[2].Value
+    $i = AddRow '1' ('Sheet ' + $w + ' x ' + $h) $w $h '0' 'L'
+    $grid.CurrentCell = $grid.Rows[$i].Cells[1]
+  }
 })
 $bDel.Add_Click({
   if ($grid.CurrentRow -ne $null) { $grid.Rows.RemoveAt($grid.CurrentRow.Index) }
@@ -196,25 +236,31 @@ $bQ.Add_Click({
   } else { [void]$tq.Focus() }
 })
 
-# ---------------- settings ----------------
-$gset = New-Object System.Windows.Forms.GroupBox
-$gset.Text = 'Settings'
-$gset.Dock = 'Fill'
-$pan = New-Object System.Windows.Forms.Panel
-$pan.Dock = 'Fill'
-$pan.AutoScroll = $true
-$gset.Controls.Add($pan)
-$tl = New-Object System.Windows.Forms.TableLayoutPanel
-$tl.ColumnCount = 2
-$tl.AutoSize = $true
-$tl.Dock = 'Top'
-[void]$tl.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 55)))
-[void]$tl.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 45)))
-$pan.Controls.Add($tl)
+# ---------------- settings: two tabs ----------------
+$tabs = New-Object System.Windows.Forms.TabControl
+$tabs.Dock = 'Fill'
+$tls = @()
+foreach ($tn in @('Main', 'More')) {
+  $tp = New-Object System.Windows.Forms.TabPage
+  $tp.Text = $tn
+  $tp.Padding = New-Object System.Windows.Forms.Padding(6)
+  $tp.AutoScroll = $true
+  $tl = New-Object System.Windows.Forms.TableLayoutPanel
+  $tl.ColumnCount = 2
+  $tl.AutoSize = $true
+  $tl.Dock = 'Top'
+  [void]$tl.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 55)))
+  [void]$tl.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 45)))
+  $tp.Controls.Add($tl)
+  $tabs.TabPages.Add($tp)
+  $tls += $tl
+}
 $ctl = @{}
-$row = 0
+$rows = @(0, 0)
 foreach ($fd in $fields) {
   $key = $fd[0]
+  $tl = $tls[$fd[4]]
+  $row = $rows[$fd[4]]
   $v = ''
   if ($vals.ContainsKey($key)) { $v = $vals[$key] }
   if ($fd[2] -eq 'chk') {
@@ -225,14 +271,14 @@ foreach ($fd in $fields) {
     $c.Margin = New-Object System.Windows.Forms.Padding(3, 4, 3, 2)
     $tl.Controls.Add($c, 0, $row)
     $tl.SetColumnSpan($c, 2)
-    $tip.SetToolTip($c, $fd[4])
+    $tip.SetToolTip($c, $fd[5])
   } else {
     $l = New-Object System.Windows.Forms.Label
     $l.Text = $fd[1]
     $l.AutoSize = $true
     $l.Margin = New-Object System.Windows.Forms.Padding(3, 7, 3, 2)
     $tl.Controls.Add($l, 0, $row)
-    $tip.SetToolTip($l, $fd[4])
+    $tip.SetToolTip($l, $fd[5])
     if ($fd[2] -eq 'combo') {
       $c = New-Object System.Windows.Forms.ComboBox
       $c.DropDownStyle = 'DropDownList'
@@ -260,13 +306,14 @@ foreach ($fd in $fields) {
     }
     $c.Margin = New-Object System.Windows.Forms.Padding(3, 3, 3, 2)
     $tl.Controls.Add($c, 1, $row)
-    $tip.SetToolTip($c, $fd[4])
+    $tip.SetToolTip($c, $fd[5])
   }
   $ctl[$key] = $c
-  $row++
+  $rows[$fd[4]] = $row + 1
 }
-$tl.RowCount = $row
-$root.Controls.Add($gset, 1, 1)
+$tls[0].RowCount = $rows[0]
+$tls[1].RowCount = $rows[1]
+$root.Controls.Add($tabs, 1, 1)
 
 function GetVal([string]$key) {
   $c = $ctl[$key]
@@ -300,11 +347,7 @@ $bar.ColumnCount = 2
 $left = New-Object System.Windows.Forms.FlowLayoutPanel
 $left.AutoSize = $true
 $left.Dock = 'Fill'
-$lp = New-Object System.Windows.Forms.Label
-$lp.Text = 'Preset:'
-$lp.AutoSize = $true
-$lp.Margin = New-Object System.Windows.Forms.Padding(0, 10, 4, 0)
-$left.Controls.Add($lp)
+[void](Lbl 'Preset:' $left)
 $cp = New-Object System.Windows.Forms.ComboBox
 $cp.Width = 170
 $cp.Margin = New-Object System.Windows.Forms.Padding(0, 6, 4, 0)
@@ -313,20 +356,23 @@ $left.Controls.Add($cp)
 $bLoad = Btn 'Load' $left
 $bSave = Btn 'Save' $left
 $bPDel = Btn 'Delete' $left
+$tip.SetToolTip($cp, 'Type a name and press Save to keep every setting under it, e.g. Laser 3mm or CNC 6mm.')
 $right = New-Object System.Windows.Forms.FlowLayoutPanel
 $right.AutoSize = $true
 $right.Dock = 'Fill'
 $right.FlowDirection = 'RightToLeft'
 $bCancel = Btn 'Cancel' $right
-$bReport = Btn 'Report only' $right
-$bNest = Btn 'Nest' $right
-$bNest.Font = New-Object System.Drawing.Font('Segoe UI', 9.5, [System.Drawing.FontStyle]::Bold)
+$bNest = Btn 'Nest now' $right
+$bPreview = Btn 'Preview' $right
+$bPreview.Font = New-Object System.Drawing.Font('Segoe UI', 9.5, [System.Drawing.FontStyle]::Bold)
+$tip.SetToolTip($bPreview, 'Works the layout out and shows it before anything moves. Apply it there, or come back and change a setting.')
+$tip.SetToolTip($bNest, 'Works the layout out and places the parts straight away. Ctrl+Z undoes it.')
 $bar.Controls.Add($left, 0, 0)
 $bar.Controls.Add($right, 1, 0)
 $root.Controls.Add($bar, 0, 2)
 $root.SetColumnSpan($bar, 2)
 $f.Controls.Add($root)
-$f.AcceptButton = $bNest
+$f.AcceptButton = $bPreview
 $f.CancelButton = $bCancel
 
 $bLoad.Add_Click({
@@ -358,6 +404,7 @@ function Check() {
       $t = GetVal $fd[0]
       $x = 0.0
       if (-not [double]::TryParse($t, [System.Globalization.NumberStyles]::Float, $inv, [ref]$x) -or $x -lt 0) {
+        $tabs.SelectedIndex = $fd[4]
         [void][System.Windows.Forms.MessageBox]::Show($f, ($fd[1] + ': enter a number of 0 or more.'), $title)
         [void]$ctl[$fd[0]].Focus()
         return $false
@@ -384,8 +431,8 @@ function Check() {
   }
   return $true
 }
+$bPreview.Add_Click({ if (Check) { $script:act = 'PREVIEW'; $f.Close() } })
 $bNest.Add_Click({ if (Check) { $script:act = 'NEST'; $f.Close() } })
-$bReport.Add_Click({ if (Check) { $script:act = 'REPORT'; $f.Close() } })
 $bCancel.Add_Click({ $script:act = 'CANCEL'; $f.Close() })
 
 [void]$f.ShowDialog()

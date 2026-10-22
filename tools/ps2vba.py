@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
-"""ac2f pack - nesting penceresinin PowerShell betigini VBA'ya gomer.
+"""ac2f pack - nesting pencerelerinin PowerShell betiklerini VBA'ya gomer.
 
-tools/nest_window.ps1 duzenlenir, sonra:
+tools/nest_window.ps1 (ayarlar) ya da tools/nest_preview.ps1 (onizleme)
+duzenlenir, sonra:
 
     python3 tools/ps2vba.py
 
-src/ac2fNest.bas icindeki ac2fNSScriptA / ac2fNSScriptB yordamlarini
-betigin satirlarindan yeniden uretir (her satir bir Print #f). Betik iki
-yordama bolunur ki tek yordam VBA'nin boyut sinirina yaklasmasin.
+src/ac2fNest.bas'in sonundaki uretilmis bolumu yeniden yazar: her betik
+satiri bir Print #f olur, betik ~8 KB'lik yordamlara bolunur (VBA tek
+yordamin derlenmis halini 64 KB ile sinirlar) ve ac2fNSWriteScript hangi
+pencere istendiyse onun parcalarini sirayla yazar.
 """
-import os, re, sys
+import os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PS = os.path.join(HERE, 'nest_window.ps1')
+SCRIPTS = (('Set', os.path.join(HERE, 'nest_window.ps1')),
+           ('Prev', os.path.join(HERE, 'nest_preview.ps1')))
 BAS = os.path.join(HERE, '..', 'src', 'ac2fNest.bas')
-MARK = "' module. Generated from tools/nest_window.ps1 by tools/ps2vba.py.\n'---------------------------------------------------------------------\n"
+MARK = ("'---------------------------------------------------------------------\n"
+        "' The window scripts, written out each run so they always match this\n")
+CHUNK = 8000
 
 
 def proc(name, chunk):
@@ -22,25 +27,57 @@ def proc(name, chunk):
            '    On Error GoTo Fail']
     for ln in chunk:
         if any(ord(c) > 126 for c in ln):
-            sys.exit('nest_window.ps1: ASCII disi karakter: %r' % ln)
+            sys.exit('%s: ASCII disi karakter: %r' % (name, ln))
+        if len(ln) > 900:
+            sys.exit('%s: satir VBA icin fazla uzun (%d)' % (name, len(ln)))
         out.append('    Print #f, "%s"' % ln.replace('"', '""'))
     out += ['    %s = True' % name, 'Fail:', 'End Function']
     return '\n'.join(out)
 
 
+def chunks(lines):
+    """Pieces of about CHUNK characters, cut at blank lines when possible."""
+    out, cur, size = [], [], 0
+    for ln in lines:
+        cur.append(ln)
+        size += len(ln) + 16
+        if size >= CHUNK and not ln.strip():
+            out.append(cur)
+            cur, size = [], 0
+        elif size >= CHUNK * 1.5:
+            out.append(cur)
+            cur, size = [], 0
+    if cur:
+        out.append(cur)
+    return out
+
+
 def main():
-    lines = open(PS, encoding='utf-8').read().replace('\r\n', '\n').rstrip('\n').split('\n')
-    half = len(lines) // 2
-    for k in range(half, len(lines)):
-        if not lines[k].strip():
-            half = k
-            break
-    gen = proc('ac2fNSScriptA', lines[:half]) + '\n\n' + proc('ac2fNSScriptB', lines[half:]) + '\n'
+    gen = []
+    disp = ['Private Function ac2fNSWriteScript(ByVal which As Long, ByVal f As Integer) As Boolean',
+            '    Dim ok As Boolean']
+    total = {}
+    for i, (tag, path) in enumerate(SCRIPTS, 1):
+        lines = open(path, encoding='utf-8').read().replace('\r\n', '\n').rstrip('\n').split('\n')
+        total[tag] = len(lines)
+        names = []
+        for k, ch in enumerate(chunks(lines), 1):
+            n = 'ac2fNSPs%s%d' % (tag, k)
+            names.append(n)
+            gen.append(proc(n, ch))
+        disp.append('    %s which = %d Then' % ('If' if i == 1 else 'ElseIf', i))
+        disp.append('        ok = %s(f)' % names[0])
+        for n in names[1:]:
+            disp.append('        If ok Then ok = %s(f)' % n)
+    disp += ['    End If', '    ac2fNSWriteScript = ok', 'End Function']
+    head = ("' module (1 settings, 2 preview). Generated from tools/nest_window.ps1\n"
+            "' and tools/nest_preview.ps1 by tools/ps2vba.py.\n"
+            "'---------------------------------------------------------------------\n")
     src = open(BAS, encoding='utf-8').read().replace('\r\n', '\n')
     i = src.index(MARK) + len(MARK)
-    src = src[:i] + gen
+    src = src[:i] + head + '\n'.join(disp) + '\n\n' + '\n\n'.join(gen) + '\n'
     open(BAS, 'w', encoding='utf-8', newline='\n').write(src)
-    print('ac2fNest.bas: %d betik satiri yazildi' % len(lines))
+    print('ac2fNest.bas: ayar penceresi %d, onizleme %d satir' % (total['Set'], total['Prev']))
 
 
 if __name__ == '__main__':

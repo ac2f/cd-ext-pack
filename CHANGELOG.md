@@ -2,6 +2,68 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.21.0] - 2026-10-22
+
+### Düzeltildi: nesting makroları derlenmiyordu
+
+`ac2fNest` modülü ayar ekranını `ac2fSettings` diye çağırıyordu. O yordam
+kendi modülüyle aynı adı taşıdığı için VBA bu adı **modül** sanıyor ve
+`ac2fNest` modülünün tamamı **"Compile error: Expected variable or
+procedure, not module"** ile derlenmiyordu; nesting makrolarının hiçbiri
+çalışmıyordu. Aynı hata ana menüde (`10` nesting, `9` orta hat, `19`
+ayarlar, `21` iş) ve iş menüsünde (`9` kontrol, `10` süre, `11` m²) de
+vardı. Bu çağrılar artık `Modül.Yordam` biçiminde (`ac2fSettings.ac2fSettings`).
+
+Aynı turda bulunanlar:
+
+- **Birim**: sayfa ölçüsü ve çizili artıkların ölçüsü belge birimiyle
+  okunuyordu (inç belgede "Page 8 x 11"). Artık her şey mm'ye geçildikten
+  sonra okunuyor.
+- **Kilitli nesneler** CorelDRAW taşımadığı için işi yarıda kesiyordu;
+  artık yerinde bırakılıyor ve raporda `Locked` satırında sayılıyor.
+  Yalnız kilitli nesne seçildiyse ne yapılacağı söyleniyor.
+- **Gruplama** seçim yerine `ShapeRange` ile: Optimization açıkken
+  CorelDRAW seçimi her zaman güncel tutmuyor.
+- **Ayar tablosu** (`ac2fBuildTable`, 53 KB) dört yordama bölündü; VBA
+  derlenmiş hâli 64 KB'ı aşan yordamı "Procedure too large" ile reddeder.
+- **Satır sonları**: `.bas` dosyaları çalışma kopyasına ve GitHub ZIP'ine
+  CRLF olarak çıkıyor (VBE içe aktarması bunu bekler).
+
+### Eklendi: önizleme penceresi ve daha pratik ayar penceresi
+
+`ac2fNest` artık şu akışla çalışıyor: **ayarlar → Preview → önizleme →
+Apply** (ya da *Change settings* ile geri dönüp tekrar).
+
+- **Önizleme penceresi**: kullanılan her tabaka ve yerleşen her parça
+  gerçek şekliyle çizilir (delikler boş, çizili artık kendi şekliyle).
+  Solda çizim, sağda tabaka listesi (hepsi ya da tek tabaka) ve rapor.
+  `Apply` yerleştirir; `Change settings` belgeyi olduğu gibi bırakıp ayar
+  penceresine döner; `Cancel` hiçbir şeyi değiştirmez. Çizim, uygulanınca
+  parçaların gideceği yerle birebir aynıdır.
+- **Ayar penceresi**: ayarlar iki sekmede (*Main*: aralık, kenar payları,
+  dönüş, kopya, süre, iç/dış, delikler; *More*: geri kalanı). Sık
+  kullanılan tabaka ölçüleri (3050 x 2050, 2440 x 1220 ... ve sayfa ölçüsü)
+  tek tıkla eklenir. Düğmeler: **Preview** (Enter), **Nest now** (önizlemesiz),
+  **Cancel**.
+- Önizlemeden sonra ayrıca mesaj kutusu çıkmaz; rapor penceredeydi.
+
+### Geliştirme
+
+- **tools/vbacheck.py**: gerçek VBA derleyicisinin yakalayıp test
+  derleyicisinin kaçırdığı hatalar — modül adıyla aynı yordamı çağırmak,
+  ByRef tür uyuşmazlığı, `Name(a, b)` ile Sub çağrısı, büyük/küçük harf
+  farkıyla aynı ad, CorelDRAW nesnesinde olmayan üye, Set'siz nesne
+  ataması, tanımsız etiket, 1023 karakterlik satır, 24'ten fazla satır
+  devamı. `tools/lint.py` bunu da çalıştırır.
+- **tools/test_windows.py** + **tools/winstub.cs**: iki pencere betiği
+  Linux'taki PowerShell 7'de, WinForms/GDI+ taklidiyle gerçekten
+  çalıştırılır; sınama düğmelere basar, kutulara yazar, çıkışı denetler.
+  Windows PowerShell 5.1'de olmayan yapılar ve `$PID` gibi otomatik
+  değişkenlere atama da aranır.
+- tools/test_corel.py: önizleme (Apply, Change settings + Cancel),
+  kilitli nesne ve gerçek pencerelerle uçtan uca senaryolar.
+- tools/ps2vba.py iki betiği de gömer, ~8 KB'lık yordamlara böler.
+
 ## [1.20.0] - 2026-10-21
 
 ### Eklendi: yerel sunucuya geçiş (iş menüsü 7, `5=`)

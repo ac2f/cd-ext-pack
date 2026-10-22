@@ -194,9 +194,9 @@ Attribute ac2fJob.VB_Description = "ac2f pack: Customer job menu - link, sheet, 
         Case "6": ac2fJobOpen
         Case "7": ac2fJobSetup
         Case "8": ac2fJobHistory
-        Case "9": ac2fCheck
-        Case "10": ac2fCutTime
-        Case "11": ac2fCutArea
+        Case "9": ac2fCheck.ac2fCheck
+        Case "10": ac2fCutTime.ac2fCutTime
+        Case "11": ac2fCutArea.ac2fCutArea
         Case "12": ac2fJobDay
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_

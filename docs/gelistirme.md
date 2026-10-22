@@ -58,8 +58,10 @@ Bu kuralı `tools/lint.py` denetler (yorumlar dahil); elle bakmak için:
 LC_ALL=C grep -n '[^ -~\t]' src/*.bas    # hiçbir şey dönmemeli
 ```
 
-`tools/build.ps1` ve `tools/build.sh` yalnız CRLF satır sonu üretir;
-ASCII kaynakla artık zorunlu değildir, kolaylık içindir.
+Satır sonu: VBE içe aktarması CRLF bekler. `.gitattributes` 1.21.0'dan
+beri `*.bas text eol=crlf` der; depoda LF durur, klona ve GitHub ZIP'ine
+CRLF çıkar. `tools/build.ps1` ve `tools/build.sh` aynısını elle yapar
+(tek dosya "raw" indirildiğinde gerekir). Araçlar iki satır sonunu da okur.
 
 ## Denetim
 
@@ -117,6 +119,29 @@ doğrulandı (62 yordamın tamamı birebir aynı).
 
 VBA derleyicisinin yerini **tutmaz**. Asıl doğrulama CorelDRAW'da
 `Debug > Compile ac2fPack` ile yapılır.
+
+### Derleyici kuralları (`tools/vbacheck.py`)
+
+`tools/lint.py` bunu da çalıştırır. `vbapy` kodu Python'a çevirip çalıştırır
+ama gerçek VBA derleyicisi daha katıdır ve CorelDRAW'ın tür kütüphanesine
+bağlıdır; bu kuralların her biri CorelDRAW'da **modülün tamamını**
+derlenmez yapar:
+
+| Kural | VBA'nın verdiği hata |
+|---|---|
+| Kendi modülüyle aynı adı taşıyan yordamı başka modülden adıyla çağırmak (`ac2fSettings`) | `Expected variable or procedure, not module` — `ac2fSettings.ac2fSettings` yazılmalı |
+| ByRef (varsayılan!) parametreye başka türden değişken | `ByRef argument type mismatch` |
+| `Ad(a, b)` ile Sub çağrısı (Call'suz) | `Expected: =` |
+| Büyük/küçük harf dışında aynı iki ad (`m_pcN` dizi, `m_pcn` sayaç) | `Duplicate declaration in current scope` |
+| Erken bağlı CorelDRAW nesnesinde olmayan üye | `Method or data member not found` |
+| Nesneye Set'siz atama, nesne olmayana Set | çalışma hatası 91 / `Object required` |
+| Tanımsız etiket, yanlış `Exit Sub/Function` | `Label not defined` ... |
+| 1023 karakteri aşan satır, 24'ten fazla satır devamı | `Line too long`, `Too many line continuations` |
+
+1.19.0–1.20.0'da ilk kural yüzünden `ac2fNest` hiç derlenmiyordu: test
+derleyicisi Python'da adları düz bir tabloda çözdüğü için bunu görmüyordu.
+CorelDRAW üyeleri için `vbacheck.py` içinde bilinen üyeler listesi vardır;
+listede olmayan bir üye `CHECK` olarak bildirilir ve belgeyle doğrulanır.
 
 ## Mimari
 
@@ -330,6 +355,11 @@ bayt düzeyinde doğru kurmayı gerektirir ve burada derlenip
 sınanamaz — bozuk bir `.frx` içe aktarmada çöker. Bu yüzden arayüz
 `MsgBox`/`InputBox` üzerine kuruludur ve açıklamalar `?N` ile tam metin
 olarak verilir.
+
+Gerçek pencere gereken yerde (nesting'in ayar ve önizleme pencereleri,
+iş menüsünün liste penceresi) VBA, Windows'la gelen PowerShell'e WinForms
+betiği yazıp çalıştırır ve bitmesini bekler; konuşma iki dosyayladır.
+Betikler metindir, depoda durur ve `tools/test_windows.py` ile sınanır.
 
 Form eklenecekse VBE içinde çizilip `.frm` + `.frx` **birlikte**
 depoya konmalıdır.
@@ -670,16 +700,44 @@ atamasıyla (`m_run = m_runInit`, yerel memcpy) geri gelir.
 - Bellek: hücre bütçesi 8 milyon (iki `Integer` dizisi); iş sığmazsa
   hassasiyet kalınlaşır, açılabilecek tabaka sayısı sınırlanır.
 
-### Pencere
+### Pencereler
 
-`tools/nest_window.ps1` tek kaynaktır; `tools/ps2vba.py` onu satır satır
-`Print #f` olarak `ac2fNSScriptA/B`'ye gömer (her çalıştırmada diske
-yazılır, iş menüsünün liste penceresi gibi). Giriş/çıkış `|` ile ayrılmış
-UTF-8 satırlardır: `K|anahtar|değer`, `S|kullan|ad|en|boy|adet|kaynak`
-(`L` liste, `D<n>` çizili artık), `R|hazır ayar|blob`, `A|NEST`. Hazır
-ayarlar `NestPresets` bölümünde, hangi düğmeyle kapanırsa kapansın geri
-yazılır. `test_corel.py` yazılan betiğin bu dosyayla birebir aynı
-olduğunu denetler.
+İki betik vardır: `tools/nest_window.ps1` (ayarlar) ve
+`tools/nest_preview.ps1` (önizleme). `tools/ps2vba.py` ikisini de satır
+satır `Print #f` olarak `ac2fNest`'in sonuna gömer, ~8 KB'lık yordamlara
+böler (`ac2fNSPsSet1..`, `ac2fNSPsPrev1..`); `ac2fNSWriteScript` istenen
+betiği sırayla yazar, `ac2fNSShowWindow` çalıştırıp çıktıyı okur.
+
+**Ayar penceresi** — giriş/çıkış `|` ile ayrılmış UTF-8 satırlar:
+`K|anahtar|değer`, `S|kullan|ad|en|boy|adet|kaynak` (`L` liste, `D<n>`
+çizili artık), `G|sayfa eni|boyu`, `R|hazır ayar|blob`; çıkışta
+`A|PREVIEW`, `A|NEST` ya da `A|CANCEL`. Hazır ayarlar `NestPresets`
+bölümünde, hangi düğmeyle kapanırsa kapansın geri yazılır.
+
+**Önizleme** — giriş `Print #` ile doğrudan dosyaya yazılır (megabaytları
+bulabilir, VBA'da tek dizede biriktirmek yavaştır), ANSI; betik aynı kod
+sayfasıyla okur. Koordinatlar sayfada, milimetrenin onda biri cinsinden
+**tam sayıdır** (ondalık ayırıcıya bağlı hiçbir şey yok):
+
+```
+T|başlık            R|rapor satırı
+S|n|ad|parça|x0|y0|x1|y1|kx0|ky0|kx1|ky1   tabaka ve kenar payı içi
+O|n|tür|x y x y ...                        çizili artığın konturu
+P|n|parça|sınıf|tür|x y x y ...            yerleşen parçanın bir konturu
+```
+
+Her yönün (variant) konturu motor tarafından inceltilip saklanır
+(`ac2fNCKeepOutline`, kontur başına en çok 120 nokta). Yerleşen parçanın
+konturu, rasterin gittiği hücreye kaydırılır (motor çerçevesi) ve
+çerçevenin tersiyle (devriği) sayfaya döner — `ac2fNSApply`'ın taşıma
+vektörüyle aynı hesap, bu yüzden çizim uygulanınca parçanın gideceği
+yerle birebir aynıdır (`test_corel.py` bunu denetler). Çıkış `A|APPLY`,
+`A|SETTINGS` ya da `A|CANCEL`.
+
+**Akış** (`ac2fNSRun`): hesap tek komut grubunda yapılır; önizleme açıkken
+belge iç/dış gruplarıyla bekler. `Apply` taşır ve grubu kapatır; diğer iki
+düğmede grup kapanıp `Undo` ile her şey geri alınır, *Change settings*
+seçimdeki aynı şekillerle ayar penceresini yeniden açar.
 
 ## Başlangıç noktaları (`ac2fStart`)
 
@@ -696,11 +754,25 @@ raporlanır.
 ## Sınama araçları
 
 ```
-tools/vbapy.py      VBA -> Python derleyicisi (alt küme)
-tools/cdrmock.py    CorelDRAW nesne modeli taklidi
-tools/test_nest.py  ac2fNestCore, gerçek geometriyle
-tools/test_corel.py ac2fNest + ac2fStart, taklit belgede uçtan uca
+tools/vbapy.py         VBA -> Python derleyicisi (alt küme)
+tools/cdrmock.py       CorelDRAW nesne modeli taklidi
+tools/vbacheck.py      gerçek VBA derleyicisinin kuralları (lint çalıştırır)
+tools/test_nest.py     ac2fNestCore, gerçek geometriyle
+tools/test_corel.py    ac2fNest + ac2fStart, taklit belgede uçtan uca
+tools/test_windows.py  pencere betikleri, PowerShell 7 + tools/winstub.cs
 ```
+
+`test_windows.py` PowerShell 7'yi (`pwsh`) ister: `AC2F_PWSH` ortam
+değişkeni ya da `PATH`. Linux'ta WinForms ve GDI+ olmadığından
+`tools/winstub.cs` onların yerini tutar (yalnız betiklerin kullandığı
+üyeler, WinForms'un hata verdiği yerde hata vererek: aralık dışı
+`SelectedIndex`, bağlı satırı yeniden ekleme, 3 noktadan az çokgen ...).
+Sınama betiği değiştirmeden çalıştırır (yalnız GDI+ türleri taklide
+yönlendirilir), düğmelere basar, kutulara yazar, çıkışı okur; ayrıca
+Windows PowerShell 5.1'de olmayan yapıları (`?:`, `??`, `?.`, `&&`) ve
+`$PID`, `$Input` gibi otomatik değişkenlere atamayı arar. `pwsh` varsa
+`test_corel.py` da VBA'nın yazdığı gerçek betiklerle uçtan uca çalışır
+(`t_real_windows`); yoksa o senaryo atlanır.
 
 `vbapy` VBA anlamını korumaya çalışır: `Long`/`Integer` atamada bankacı
 yuvarlaması ve taşma hatası, sınır denetimli diziler (`a(-1)` sondan

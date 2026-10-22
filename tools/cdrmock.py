@@ -139,7 +139,12 @@ class ShapeRange(Coll):
         self.doc = doc
 
     def group(self):
+        if len(self._items) < 2:
+            raise VBError('Grouping needs at least two shapes', 5)
         return self.doc.group_shapes(self._items)
+
+    def add(self, s):
+        self._items.append(V(s))
 
     def getboundingbox(self, x, y, w, h, *rest):
         bb = None
@@ -366,6 +371,7 @@ class Shape(object):
         self.fill = _Fill()
         self.outline = _Outline()
         self.powerclip = None
+        self.locked = False
         Shape._ids[0] += 1
         self.staticid = Shape._ids[0]
         self.deleted = False
@@ -396,11 +402,17 @@ class Shape(object):
         b = self.bbox()
         x.v, y.v, w.v, h.v = b[0], b[1], b[2] - b[0], b[3] - b[1]
 
+    def _unlocked(self):
+        if self.locked:
+            raise VBError('The object is locked', 5)
+
     def move(self, dx, dy):
+        self._unlocked()
         dx, dy = float(V(dx)), float(V(dy))
         self._xform(lambda p: (p[0] + dx, p[1] + dy))
 
     def rotate(self, ang):
+        self._unlocked()
         a = math.radians(float(V(ang)))
         b = self.bbox()
         cx, cy = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
@@ -409,6 +421,7 @@ class Shape(object):
                                cy + (p[0] - cx) * s + (p[1] - cy) * c))
 
     def flip(self, axes):
+        self._unlocked()
         axes = int(V(axes))
         b = self.bbox()
         cx, cy = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
@@ -814,6 +827,11 @@ class Host(object):
         if not os.path.exists(p):
             raise VBError('File not found', 53)
         os.remove(p)
+
+    def new_object(self, cls):
+        if cls == 'shaperange':
+            return ShapeRange(self.doc, [])
+        raise VBError('Invalid use of New keyword: %s' % cls, 429)
 
     def createobject(self, prog):
         if prog.lower() == 'adodb.stream':

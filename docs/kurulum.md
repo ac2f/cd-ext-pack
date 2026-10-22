@@ -14,7 +14,10 @@ Sürüm 1.2.0'dan itibaren kaynak **saf ASCII**'dir — hiçbir Türkçe karakte
 içermez. Bu yüzden `src\` altındaki `.bas` dosyalarını doğrudan içe
 aktarabilirsiniz; kod sayfası dönüşümü artık gerekmiyor.
 
-Yine de satır sonlarını CRLF yapmak için betiği çalıştırabilirsiniz:
+VBE içe aktarması Windows satır sonu (CRLF) bekler. 1.21.0'dan beri depo
+`.bas` dosyalarını klonda ve GitHub ZIP'inde CRLF olarak verir. Tek bir
+dosyayı tarayıcıdan "raw" indirdiyseniz LF gelebilir; o zaman ya da emin
+olmak için betiği çalıştırın:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\build.ps1
@@ -140,6 +143,23 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
+
+### Sürüm 1.20.0'dan 1.21.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fNest.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fNestCore.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fSettings.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fMenu.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fJob.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fCore.bas` | **Değişti** (sürüm) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Bu sürüm, nesting makrolarının **"Expected variable or procedure, not
+module"** derleme hatasını giderir. Altı modülü de yenileyin, sonra
+`Debug > Compile ac2fPack` hatasız bitmeli. Ayar numaraları ve kayıtlı
+ayarlar değişmedi.
 
 ### Sürüm 1.19.0'dan 1.20.0'a
 
@@ -384,5 +404,8 @@ değiştirilmedi.
 | `Alt+F11` açılmıyor | VBA bileşeni kurulu değil (bkz. adım 0) |
 | Menüde eski Türkçe metinler görünüyor | Eski modüller silinmemiş; bkz. "içe aktarma üzerine yazmaz" |
 | `User-defined type not defined` | `ac2fCore` içe aktarılmamış; önce onu ekleyin |
+| `Expected variable or procedure, not module` | 1.21.0'dan eski bir `ac2fNest`, `ac2fMenu` ya da `ac2fJob` duruyor; bu modülleri silip yeniden aktarın |
+| İçe aktarınca kodda `Attribute VB_Name` satırı görünüyor, modülün adı `Module1` | Dosya LF satır sonlu gelmiş (tek dosya "raw" indirildiyse olur); `tools\build.ps1` ile CRLF'e çevirin ya da depoyu ZIP/klon olarak alın |
+| Nesting penceresi açılmıyor, metin sorusu geliyor | PowerShell engelli ya da iş menüsündeki *List window* ayarı `0`; Windows 10/11'deki Windows PowerShell 5.1 gerekir |
 | Makro listede görünmüyor | Makro yalnızca **Public Sub** ve **parametresiz** ise listelenir; `Debug > Compile` ile hata olup olmadığına bakın |
 | "Makrolar devre dışı" uyarısı | `Araçlar > Makrolar > Güvenlik` → güven düzeyini düşürün |

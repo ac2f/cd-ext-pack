@@ -34,7 +34,7 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         "  7  -  Box letter report (no drawing)" & vbCrLf & _
         "  8  -  ACP panel V-grooves" & vbCrLf & _
         "  9  -  Centerline (reduce to a single line)" & vbCrLf & _
-        " 10  -  Nesting (true shape, sheets window)" & vbCrLf & _
+        " 10  -  Nesting: settings, preview, apply" & vbCrLf & _
         " 11  -  Nesting report (nothing moves)" & vbCrLf
     m = m & _
         " 12  -  Bending order: apply it to the objects" & vbCrLf & _
@@ -65,8 +65,8 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         Case "6": ac2fBoxLetterStripProfile
         Case "7": ac2fBoxLetterReport
         Case "8": ac2fPanelGroove
-        Case "9": ac2fCenterline
-        Case "10": ac2fNest
+        Case "9": ac2fCenterline.ac2fCenterline
+        Case "10": ac2fNest.ac2fNest
         Case "11": ac2fNestReport
         Case "12": ac2fBendOrder
         Case "13": ac2fBendPreview
@@ -75,9 +75,9 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         Case "16": ac2fPlotTest
         Case "17": ac2fPlotSave
         Case "18": ac2fPlotFixSend
-        Case "19": ac2fSettings
+        Case "19": ac2fSettings.ac2fSettings
         Case "20": ac2fAbout
-        Case "21", "J", "j": ac2fJob
+        Case "21", "J", "j": ac2fJob.ac2fJob
         Case "22": ac2fNestAgain
         Case "23": ac2fStartPoints
         Case "24": ac2fStartPointsAgain
@@ -105,7 +105,7 @@ Attribute ac2fAbout.VB_Description = "ac2f pack: Version and contents"
     s = s & "  Box letter strip     developed return, grooves, strip" & vbCrLf
     s = s & "  ACP panel V-grooves  flat sheet and groove lines" & vbCrLf
     s = s & "  Centerline           filled artwork to a single line" & vbCrLf
-    s = s & "  Nesting              true shape, holes, offcuts, sheets" & vbCrLf
+    s = s & "  Nesting              true shape, offcuts, preview window" & vbCrLf
     s = s & "  Start points         corner, side or centre; direction" & vbCrLf
     s = s & "  Send to plotter      HPGL straight from the selection" & vbCrLf
     s = s & "  Bending order        letters, setups, counters last" & vbCrLf
