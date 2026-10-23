@@ -14,7 +14,7 @@ Makro bittikten sonra belgedeki GERCEK sekillere bakilir:
 
 Kullanim:  python3 tools/test_corel.py
 """
-import math, os, shutil, sys, tempfile, time
+import datetime, math, os, shutil, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -729,6 +729,73 @@ def t_job_local_server():
         env.close()
 
 
+def t_job_folder_tokens():
+    scenario('Job: takim yolu klasorunde F belirteci, sahibe gore istif, dukkan kodu StockTrack\'ten')
+    env = JobEnv()
+    try:
+        h = env.h
+        job = env.p.m.ac2fjob
+        tok = 'F21-10-2026.merkez.pleksi-beyaz'
+        name = '001-pleksi-1220x2440--2pcs--2800um-akpolimer-dokme-beyaz--' + tok
+        r = job.f_ac2fjbsplitgrouptok(name, 0, '', 0, '', '')
+        expect(tuple(r) == (True, 1, 'pleksi-1220x2440', 2, '2800um-akpolimer-dokme-beyaz', tok),
+               'belirtecli ad ayrilir: %r' % (r,))
+        r = job.f_ac2fjbsplitgroup(name, 0, '', 0, '')
+        expect(r[4] == '2800um-akpolimer-dokme-beyaz', 'eski cagri belirteci tail\'e katmaz: %r' % (r,))
+        r = job.f_ac2fjbsplitgrouptok('012-dekota-1560x3050--1pcs--F01-02-2026.ali.dekota', 0, '', 0, '', '')
+        expect(r[4] == '' and r[5] == 'F01-02-2026.ali.dekota', 'yalniz belirtec: %r' % (r,))
+        r = job.f_ac2fjbsplitgrouptok('001-pleksi-1220x2440--2pcs--2800um-beyaz', 0, '', 0, '', '')
+        expect(r[0] and r[4] == '2800um-beyaz' and r[5] == '', 'belirtecsiz eski ad: %r' % (r,))
+        expect(not job.f_ac2fjbsplitgrouptok('malzeme-F21-10-2026.merkez.pleksi', 0, '', 0, '', '')[0],
+               'malzeme klasoru takim yolu grubu sayilmaz')
+        expect(job.f_ac2fjbgroupname(3, 'pleksi-1220x2440', 2, '2800um-beyaz', tok) ==
+               '003-pleksi-1220x2440--2pcs--2800um-beyaz--' + tok, 'yeni ad belirtecle biter')
+        expect(job.f_ac2fjbtokowner(tok) == 'merkez', 'belirtecteki sahip')
+        expect(job.f_ac2fjbcut('ozturk-reklam-ltd-sti-xx', 21) == 'ozturk-reklam-ltd-sti', 'kesince tire kalmaz')
+
+        # Gercek klasorler: ayni sahibin grubuna istif, belirtecsiz eski grup herkese uyar,
+        # baska sahibin grubuna istif yok.
+        root = os.path.join(env.tmp, 'Isler')
+        day = (datetime.date.today() - datetime.timedelta(days=3))
+        dayname = day.strftime('%d-%m-%Y') + '--gun'
+        cust = os.path.join(root, dayname, 'ali')
+        os.makedirs(os.path.join(cust, '001-pleksi-1220x2440--1pcs--2800um-beyaz--F20-10-2026.ali.pleksi-beyaz', '001'))
+        os.makedirs(os.path.join(cust, '002-pleksi-1220x2440--3pcs--2800um-beyaz', '001'))
+        r = job.f_ac2fjbfindgroup(cust, 'pleksi-1220x2440', '2800um-beyaz', 'ali', 0, 0, '')
+        expect(r[0].startswith('001-') and r[1] == 1 and r[2] == 2 and r[3] == 'F20-10-2026.ali.pleksi-beyaz',
+               'musterinin kendi grubu bulunur, belirteci korunur: %r' % (r,))
+        r = job.f_ac2fjbfindgroup(cust, 'pleksi-1220x2440', '2800um-beyaz', 'merkez', 0, 0, '')
+        expect(r[0].startswith('002-') and r[1] == 3 and r[3] == '',
+               'baska sahip: belirtecsiz eski gruba istif (belirtec sonra eklenir): %r' % (r,))
+        os.rename(os.path.join(cust, '002-pleksi-1220x2440--3pcs--2800um-beyaz'),
+                  os.path.join(cust, '002-pleksi-1220x2440--3pcs--2800um-beyaz--F20-10-2026.veli.pleksi-beyaz'))
+        r = job.f_ac2fjbfindgroup(cust, 'pleksi-1220x2440', '2800um-beyaz', 'merkez', 0, 0, '')
+        expect(r[0] == '' and r[2] == 2, 'baska sahibin grubuna istiflenmez, yeni numara 3 olur: %r' % (r,))
+
+        # Belirtecin tarihi musteri klasorunun gun klasorunden.
+        env.set('JBGunlukKlasorKoku', root)
+        job.f_ac2fjbreadutf8 = lambda *a, **k: ''   # CDR Auto Renamer ayari yok
+        serial = job.f_ac2fjbdirdate('D:\\Isler\\' + dayname + '\\ali')
+        got = datetime.date(1899, 12, 30) + datetime.timedelta(days=int(serial))
+        expect(got == day, 'gun klasorunun tarihi: %s (beklenen %s)' % (got, day))
+        serial = job.f_ac2fjbdirdate('D:\\Isler\\baska-klasor\\ali')
+        got = datetime.date(1899, 12, 30) + datetime.timedelta(days=int(serial))
+        expect(got == datetime.date.today(), 'tarih okunamazsa bugun: %s' % got)
+
+        # Dukkan kodu: StockTrack ping'inin ucuncu alani, kapaliyken son bilinen.
+        ping = 'http://main/api/v1/corel/ping'
+        expect(job.f_ac2fjbshopcode() == 'isletme', 'sunucu yokken isletme')
+        env.set('JBSunucuAdresi', 'http://main/api/v1')
+        env.set('JBAnahtar', 'k')
+        h.http_routes = {ping: (200, '#ac2f-corel 1\r\nok\tAcme Reklam\tMerkez Dukkan\r\n')}
+        expect(job.f_ac2fjbshopcode() == 'merkez-dukkan', 'ping\'teki kod: %r' % job.f_ac2fjbshopcode())
+        expect(env.get('JBKlasorKodu') == 'merkez-dukkan', 'kod saklanir')
+        h.http_routes = {}
+        expect(job.f_ac2fjbshopcode() == 'merkez-dukkan', 'sunucu yanit vermezse saklanan kod')
+    finally:
+        env.close()
+
+
 def main():
     t0 = time.time()
     only = [a for a in sys.argv[1:] if a.startswith('t_')]
@@ -755,6 +822,7 @@ def main():
     t_start_markers()
     t_nest_then_start()
     t_job_local_server()
+    t_job_folder_tokens()
     print('\n%s (%.1f s)' % ('HATA: %d' % len(FAILS) if FAILS else 'Hepsi gecti', time.time() - t0))
     sys.exit(1 if FAILS else 0)
 

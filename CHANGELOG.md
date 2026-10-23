@@ -2,6 +2,35 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.22.0] - 2026-10-23
+
+### Takım yolu klasöründe belirteç
+
+**Toolpath folders** (iş menüsü `4`) klasör adının sonuna bir belirteç
+ekler; StockTrack Runner da aynısını yapar:
+
+```
+001-pleksi-1220x2440--2pcs--2800um-akpolimer-dokme-beyaz--F21-10-2026.merkez.pleksi-beyaz
+```
+
+- `F21-10-2026`: projenin bulunduğu gün klasörünün tarihi (iş önceki bir
+  günde başladıysa o gün),
+- `merkez`: malzemenin sahibi — müşterinin kendi malıysa müşteri klasörü
+  (`ozturk-reklam`), dükkânın stoğuysa dükkânın **klasör kodu**
+  (StockTrack › Ayarlar › Corel entegrasyonu; eklenti bağlantı denemesinde
+  ve klasör açarken StockTrack'ten okur, çevrimdışıyken son bilineni),
+- `pleksi-beyaz`: tür-renk.
+
+İstifleme belirteci yok sayar (klasör ilk açıldığı belirteçle kalır,
+belirteci olmayan eski klasöre istiflerken eklenir) ama **sahibi farklı
+tabakayı aynı klasöre koymaz**. Klasör CNC'ye kopyalansa da kimin, hangi
+günün işi olduğu adından okunur. Runner'ın açtığı `malzeme-F…` klasörleri
+(kesimsiz malzeme satışı) takım yolu klasörü sayılmaz. Used parts
+belirteçli klasörleri de bulur.
+
+Test aracı `vbapy` artık `Like`, `InStrRev` ve `Format$(3, "000")`'ı da
+çalıştırıyor (iş modülünün klasör adı yordamları ilk kez testte).
+
 ## [1.21.0] - 2026-10-22
 
 ### Düzeltildi: nesting makroları derlenmiyordu

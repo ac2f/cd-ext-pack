@@ -1155,8 +1155,14 @@ koyun (bkz. [kurulum](kurulum.md#araç-çubuğuna-kısayol-koymak)).
   sorulur (aşağıda).
 - **Export**: `exp` + sıra numarası + ayraç + malzeme türü. Numara o
   klasördeki son `exp`'nin bir fazlasıdır.
-- **Takım yolu klasörü**: `NNN-tür-ebat--Nadet--kalınlıkµm-marka-varyant-renk`.
+- **Takım yolu klasörü**: `NNN-tür-ebat--Nadet--kalınlıkµm-marka-varyant-renk--F<gün>.<sahip>.<tür>-<renk>`.
   Kalınlık mikron yazılır (2,8 mm → `2800um`).
+- **Belirteç** (sondaki `F21-10-2026.merkez.pleksi-beyaz`): projenin gün
+  klasörünün tarihi, malzemenin sahibi (müşterinin kendi malında müşteri
+  klasörü, dükkânın stoğunda StockTrack'teki **klasör kodu**), tür-renk.
+  Klasör başka bilgisayara ya da CNC'ye kopyalansa da kimin, hangi günün
+  işi olduğu adından okunur. İstif belirteci yok sayar (ilk açıldığı gibi
+  kalır) ama sahibi farklı tabakalar ayrı klasöre gider.
 - **Ebat**: klasör adında her zaman plakanın stoktaki **tam** ölçüsü
   yazar. Plakanın ne kadarının kullanıldığı teklif kesilince belli olur;
   o zaman `5` klasörün içine `u1350x1000` gibi bir dosya koyar (aşağıda).
@@ -1290,10 +1296,15 @@ Corel'i açmanız gerekmez:
 
 - müşteri klasörü (teklif günü ile dönüşüm günü arasında müşterinin bir
   klasörü varsa o, yoksa dönüşüm gününün altında yeni),
-- teklifteki her tabaka için takım yolu klasörü, aynı adlarla ve aynı
-  istifleme kuralıyla (`001-pleksi-1220x2440--2pcs--...\001`, `\002`,
-  uzun tabakada `p001`/`p002`),
-- tabakanın bir kısmı kullanıldıysa `u1220x900` dosyası.
+- teklifteki her kesilecek tabaka için takım yolu klasörü, aynı adlarla,
+  aynı belirteçle ve aynı istifleme kuralıyla
+  (`001-pleksi-1220x2440--2pcs--...--F21-10-2026.merkez.pleksi-beyaz\001`,
+  `\002`, uzun tabakada `p001`/`p002`),
+- tabakanın bir kısmı kullanıldıysa `u1220x900` dosyası,
+- **malzeme satışında** (teklifte kesim kalemi olmayan satış) takım yolu
+  klasörü değil `malzeme-F21-10-2026.merkez.pleksi-beyaz` klasörü ve
+  içinde satılan her ölçü için `m1220x2440-2800um-akpolimer-dokme-2adet`
+  gibi bir dosya. Eklenti bu klasörlere dokunmaz.
 
 Runner'ın klasör açtığı işler için **Toolpath folders**'ı (iş menüsü `4`)
 ayrıca çalıştırmayın, tabakalar ikinci kez istiflenir. Eklenti müşteri

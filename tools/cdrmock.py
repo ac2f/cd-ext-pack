@@ -16,7 +16,7 @@ dugumu yeni baslangic yapar (CorelDRAW topluluk makrolarinin dayandigi
 davranis). SubPath.ReverseDirection istenirse kapatilabilir
 (Host.reverse_supported = False).
 """
-import copy, math, os, re
+import copy, fnmatch, math, os, re
 
 from vbapy import V, VBError, NullStr, VArr2
 
@@ -819,8 +819,24 @@ class Host(object):
         return self.tmpdir if name.upper() in ('TEMP', 'TMP') else ''
 
     def dir(self, path='', attrs=0):
+        """Dir$: tam yol (var mi) ya da joker (*, ?) ile listeleme; Dir$()
+        listenin sonrakini verir. Buyuk/kucuk harf duyarsiz (Windows gibi)."""
+        if not path:
+            return self._dir_left.pop(0) if getattr(self, '_dir_left', None) else ''
         p = self.fs(path)
-        return os.path.basename(p) if os.path.exists(p) else ''
+        base = os.path.basename(p)
+        if '*' in base or '?' in base:
+            parent = os.path.dirname(p)
+            try:
+                names = sorted(os.listdir(parent))
+            except OSError:
+                names = []
+            pat = base.lower()
+            hits = [n for n in names if fnmatch.fnmatchcase(n.lower(), pat)]
+            self._dir_left = hits[1:]
+            return hits[0] if hits else ''
+        self._dir_left = []
+        return base if os.path.exists(p) else ''
 
     def kill(self, path):
         p = self.fs(path)

@@ -339,6 +339,35 @@ def vb_cat(a, b):
     return vb_cstr(a) + vb_cstr(b)
 
 
+def vb_like(s, pat):
+    """VBA Like (Option Compare Binary): ? bir karakter, * herhangi, # rakam,
+    [abc] / [a-z] / [!abc] karakter kumesi."""
+    s, pat = vb_cstr(s), vb_cstr(pat)
+    rx, i = '', 0
+    while i < len(pat):
+        c = pat[i]
+        if c == '?':
+            rx += '.'
+        elif c == '*':
+            rx += '.*'
+        elif c == '#':
+            rx += '[0-9]'
+        elif c == '[':
+            j = pat.find(']', i + 1)
+            if j < 0:
+                raise VBError('Invalid pattern string', 93)
+            body = pat[i + 1:j]
+            neg = body.startswith('!')
+            if neg:
+                body = body[1:]
+            rx += '[' + ('^' if neg else '') + ''.join('\\' + ch if ch in '\\^]' else ch for ch in body) + ']'
+            i = j
+        else:
+            rx += re.escape(c)
+        i += 1
+    return re.fullmatch(rx, s, re.S) is not None
+
+
 def vb_eq(a, b):
     if isinstance(a, str) or isinstance(b, str):
         return vb_cstr(a) == vb_cstr(b)
@@ -479,6 +508,18 @@ def vb_instr(*a):
     return vb_cstr(s).find(vb_cstr(t), conv_long(start) - 1) + 1
 
 
+def vb_instrrev(s, t, start=-1, compare=0):
+    """InStrRev: t'nin s icindeki son yeri (1'den), start'tan geriye; yoksa 0."""
+    s, t = vb_cstr(s), vb_cstr(t)
+    if conv_long(compare) == 1:
+        s, t = s.lower(), t.lower()
+    start = conv_long(start)
+    end = len(s) if start == -1 else start
+    if end < 1 or end > len(s):
+        return 0 if end < 1 else 0
+    return s.rfind(t, 0, end) + 1 if len(t) <= end else 0
+
+
 def vb_replace(s, a, b):
     return vb_cstr(s).replace(vb_cstr(a), vb_cstr(b))
 
@@ -566,6 +607,8 @@ def vb_format(v, fmt=''):
     if fmt == '':
         return vb_cstr(v)
     grouping = ',' in fmt.split('.')[0]
+    # tam kisimdaki "0" sayisi en az basamaktir: Format$(3, "000") = "003"
+    lead = fmt.split('.')[0].count('0')
     if '.' in fmt:
         dec = fmt.split('.')[1]
         req = dec.count('0')
@@ -578,9 +621,18 @@ def vb_format(v, fmt=''):
             if len(frac) < req:
                 frac = frac + '0' * (req - len(frac))
             s = whole + ('.' + frac if frac else '')
-        return s
+        return _pad_lead(s, lead)
     s = ('{:,.0f}' if grouping else '{:.0f}').format(_round_even(v) if isinstance(v, float) else v)
-    return s
+    return _pad_lead(s, lead)
+
+
+def _pad_lead(s, lead):
+    neg = s.startswith('-')
+    body = s[1:] if neg else s
+    whole, dot, rest = body.partition('.')
+    if lead > 1 and ',' not in whole and len(whole) < lead:
+        whole = '0' * (lead - len(whole)) + whole
+    return ('-' if neg else '') + whole + dot + rest
 
 
 def vb_item(obj, *args):
@@ -648,7 +700,7 @@ BUILTINS = {
     'trim$': 'vb_trim', 'trim': 'vb_trim',
     'ucase$': '(lambda s: vb_cstr(s).upper())', 'lcase$': '(lambda s: vb_cstr(s).lower())',
     'ucase': '(lambda s: vb_cstr(s).upper())', 'lcase': '(lambda s: vb_cstr(s).lower())',
-    'instr': 'vb_instr', 'replace$': 'vb_replace', 'replace': 'vb_replace',
+    'instr': 'vb_instr', 'instrrev': 'vb_instrrev', 'replace$': 'vb_replace', 'replace': 'vb_replace',
     'split': 'vb_split', 'array': 'vb_array', 'strcomp': 'vb_strcomp',
     'isnumeric': 'vb_isnumeric', 'isarray': 'vb_isarray', 'strptr': 'vb_strptr',
     'ascw': 'vb_ascw', 'string$': 'vb_string', 'space$': 'vb_space', 'str$': 'vb_str',
@@ -764,7 +816,7 @@ TOK_RE = re.compile(r'''
   | (?P<op><>|<=|>=|:=|[-+*/\\^&=<>(),.\#])
 ''', re.X)
 
-KEYWORD_OPS = {'and', 'or', 'not', 'xor', 'mod', 'is', 'to', 'eqv', 'imp'}
+KEYWORD_OPS = {'and', 'or', 'not', 'xor', 'mod', 'is', 'to', 'eqv', 'imp', 'like'}
 
 
 def tokenize(s):
@@ -786,7 +838,7 @@ def tokenize(s):
 
 
 BIN_BP = {'imp': 1, 'eqv': 2, 'xor': 3, 'or': 4, 'and': 5,
-          '=': 7, '<>': 7, '<': 7, '>': 7, '<=': 7, '>=': 7, 'is': 7,
+          '=': 7, '<>': 7, '<': 7, '>': 7, '<=': 7, '>=': 7, 'is': 7, 'like': 7,
           '&': 8, '+': 9, '-': 9, 'mod': 10, '\\': 11, '*': 12, '/': 12, '^': 14}
 
 
@@ -892,6 +944,8 @@ class Parser(object):
             return 'vb_cmp(%s, %r, %s)' % (a, op, b)
         if op == 'is':
             return '(%s is %s)' % (a, b)
+        if op == 'like':
+            return 'vb_like(%s, %s)' % (a, b)
         raise CompileError('operator %r not supported' % op)
 
     def prefix(self):
@@ -2025,7 +2079,7 @@ class Project(object):
 
 _RUNTIME = {k: v for k, v in globals().items()
             if k.startswith('vb_') or k.startswith('conv_') or k in (
-                'VArr', 'VArr2', 'VBError', '_Goto', 'NullStr', 'Ref', 'V', '_num', 'math')}
+                'VArr', 'VArr2', 'VBError', '_Goto', 'NullStr', 'Ref', 'V', '_num', '_pydate', 'math')}
 
 
 def load_module(path, name=None):

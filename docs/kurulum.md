@@ -144,6 +144,18 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.21.0'dan 1.22.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fJob.bas` | **Değişti** — önce silin, sonra aktarın |
+| `ac2fCore.bas` | **Değişti** (sürüm) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Takım yolu klasörlerinin adına `--F<gün>.<sahip>.<tür>-<renk>` belirteci
+eklenir. StockTrack Runner'ı da 1.3.0'a güncelleyin ki ikisi aynı adları
+kursun. Ayar numaraları değişmedi.
+
 ### Sürüm 1.20.0'dan 1.21.0'a
 
 | Dosya | Ne yapmalı |

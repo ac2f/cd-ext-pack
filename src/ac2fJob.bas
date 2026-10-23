@@ -25,9 +25,18 @@ Attribute VB_Name = "ac2fJob"
 '  WHERE THINGS GO
 '
 '    <day>\<customer>\exp01--pleksi.dxf
-'    <day>\<customer>\001-pleksi-1220x2440--2pcs--2800um-akpolimer-dokme-beyaz\001
-'                                                                           \002
-'                                                                           \u1220x900
+'    <day>\<customer>\001-pleksi-1220x2440--2pcs--2800um-akpolimer-dokme-beyaz--F21-10-2026.merkez.pleksi-beyaz\001
+'                                                                                                            \002
+'                                                                                                            \u1220x900
+'
+'  The token at the end tells, even on a copy taken to the machine, which
+'  day folder holds the project (F + its date), whose material it is (the
+'  customer's folder for their own sheet, the shop's folder code from
+'  StockTrack for stock) and the kind and colour. Stacking ignores it (a
+'  folder keeps the token it was made with) but never puts one owner's
+'  sheets in another owner's folder. StockTrack Runner names folders the
+'  same way; a plain material sale it puts in malzeme-F... with m files,
+'  which this module leaves alone.
 '
 '  The day folder is the one CDR Auto Renamer makes every morning. Its
 '  config.json is read for the base folder, the date format and the
@@ -98,6 +107,8 @@ Public Const AC2F_K_JB_BACK   As String = "JBGeriBakmaGun"
 Public Const AC2F_K_JB_CHECK  As String = "JBExportOncesiKontrol"
 Public Const AC2F_K_JB_PRICE  As String = "JBKesimFiyatlari"   ' string, last pricing row
 Public Const AC2F_K_JB_LIST   As String = "JBListePenceresi"
+' The shop's folder code from StockTrack (ping), kept for offline use.
+Public Const AC2F_K_JB_CODE   As String = "JBKlasorKodu"        ' string
 
 Public Const AC2F_DEF_JB_LONG   As Double = 4000#   ' longer sheets get p001 / p002
 Public Const AC2F_DEF_JB_DIALOG As Long = 1         ' show the DXF export dialog
@@ -335,7 +346,8 @@ Attribute ac2fJobFolders.VB_Description = "ac2f pack: Create or stack the toolpa
     proposal = ac2fJBPropose(jr, why)
     Do
         m = "TOOLPATH FOLDERS  -  " & jr.CustFolder & vbCrLf
-        m = m & "Sheet: " & ac2fJBMatText(jr) & vbCrLf & vbCrLf
+        m = m & "Sheet: " & ac2fJBMatText(jr) & vbCrLf
+        m = m & "Token: " & ac2fJBFolderTok(jr, custDir) & vbCrLf & vbCrLf
         m = m & why & vbCrLf & vbCrLf
         m = m & "Enter            accept what is shown below" & vbCrLf
         m = m & "3                three of the job's sheet" & vbCrLf
@@ -506,6 +518,9 @@ Attribute ac2fJobSetup.VB_Description = "ac2f pack: StockTrack server, key, day 
             ElseIf n = 0 Then
                 ac2fWarn "The server answered with an empty list.", "Job Setup"
             Else
+                If Len(ac2fJBToken(ac2fJBTab(rows(1), 2))) > 0 Then
+                    ac2fSetStr AC2F_K_JB_CODE, ac2fJBToken(ac2fJBTab(rows(1), 2))
+                End If
                 ac2fInfo "Connected to StockTrack:  " & ac2fJBTab(rows(1), 1) & ac2fJBSavedNote(), "Job Setup"
             End If
         ElseIf UCase$(answer) = "L" Then
@@ -1726,21 +1741,27 @@ Private Sub ac2fJBMakeFolders(ByRef jr As ac2fJobRec, ByVal custDir As String, _
                               ByRef toks() As String, ByRef cnts() As Long, _
                               ByVal n As Long)
     Dim found() As String, oldCnt() As Long, grp() As Long, splits() As Long
+    Dim oldTok() As String
     Dim tail As String, head As String, nm As String, leaf As String
     Dim m As String, rep As String, errText As String
+    Dim tok As String, owner As String, ftok As String, keep As String
     Dim i As Long, k As Long, q As Long, first As Long
     Dim maxNo As Long, nextNo As Long, c As Long
     Dim w As Double, h As Double, lim As Double
 
     ReDim found(1 To n): ReDim oldCnt(1 To n): ReDim grp(1 To n): ReDim splits(1 To n)
+    ReDim oldTok(1 To n)
     tail = ac2fJBSpec(jr)
     lim = ac2fGetNum(AC2F_K_JB_LONG, AC2F_DEF_JB_LONG)
+    tok = ac2fJBFolderTok(jr, custDir)
+    owner = ac2fJBTokOwner(tok)
 
     ' --- dry run: what is there already ---
     For i = 1 To n
         head = jr.MatKind & "-" & toks(i)
-        found(i) = ac2fJBFindGroup(custDir, head, tail, c, maxNo)
+        found(i) = ac2fJBFindGroup(custDir, head, tail, owner, c, maxNo, ftok)
         oldCnt(i) = c
+        oldTok(i) = ftok
         If ac2fJBParseSize(toks(i), w, h) Then
             If lim > 0 And h > lim Then
                 splits(i) = CLng(ac2fCeil(h / lim))
@@ -1765,7 +1786,7 @@ Private Sub ac2fJBMakeFolders(ByRef jr As ac2fJobRec, ByVal custDir As String, _
             m = m & "STACK  " & found(i) & vbCrLf & "    -> " & (oldCnt(i) + cnts(i)) & _
                 "pcs, adds " & ac2fJBRange(oldCnt(i) + 1, oldCnt(i) + cnts(i)) & vbCrLf
         Else
-            m = m & "NEW    " & ac2fJBGroupName(grp(i), head, cnts(i), tail) & vbCrLf & _
+            m = m & "NEW    " & ac2fJBGroupName(grp(i), head, cnts(i), tail, tok) & vbCrLf & _
                 "    -> " & ac2fJBRange(1, cnts(i)) & vbCrLf
         End If
         If splits(i) > 0 Then
@@ -1792,7 +1813,10 @@ Private Sub ac2fJBMakeFolders(ByRef jr As ac2fJobRec, ByVal custDir As String, _
     For i = 1 To n
         head = jr.MatKind & "-" & toks(i)
         If Len(found(i)) > 0 Then
-            nm = ac2fJBGroupName(grp(i), head, oldCnt(i) + cnts(i), tail)
+            ' a folder keeps its token; an older one without gets it now
+            keep = oldTok(i)
+            If Len(keep) = 0 Then keep = tok
+            nm = ac2fJBGroupName(grp(i), head, oldCnt(i) + cnts(i), tail, keep)
             first = oldCnt(i) + 1
             If StrComp(nm, found(i), vbBinaryCompare) <> 0 Then
                 On Error Resume Next
@@ -1806,7 +1830,7 @@ Private Sub ac2fJBMakeFolders(ByRef jr As ac2fJobRec, ByVal custDir As String, _
                 On Error GoTo 0
             End If
         Else
-            nm = ac2fJBGroupName(grp(i), head, cnts(i), tail)
+            nm = ac2fJBGroupName(grp(i), head, cnts(i), tail, tok)
             first = 1
             If Not ac2fJBMakeDirs(custDir & "\" & nm) Then
                 errText = errText & "Could not create " & nm & vbCrLf
@@ -1869,49 +1893,75 @@ Private Function ac2fJBRange(ByVal a As Long, ByVal b As Long, _
     End If
 End Function
 
-' 001-pleksi-1220x2440--2pcs--2800um-akpolimer-dokme-beyaz
+' 001-pleksi-1220x2440--2pcs--2800um-akpolimer-dokme-beyaz--F21-10-2026.merkez.pleksi-beyaz
 Private Function ac2fJBGroupName(ByVal grpNo As Long, ByVal head As String, _
-                                 ByVal cnt As Long, ByVal tail As String) As String
+                                 ByVal cnt As Long, ByVal tail As String, _
+                                 ByVal tok As String) As String
     Dim s As String
     s = Format$(grpNo, "000") & "-" & head & ac2fJBSep() & CStr(cnt) & "pcs"
     If Len(tail) > 0 Then s = s & ac2fJBSep() & tail
+    If Len(tok) > 0 Then s = s & ac2fJBSep() & tok
     ac2fJBGroupName = s
 End Function
 
-' Looks for a group folder with this head and tail. Returns its name
-' (empty when there is none) and its count; maxNo is the highest group
-' number already in use.
+' Looks for a group folder with this head and tail for this owner: one
+' whose token names the same owner, else one with no token at all (made
+' before tokens). Returns its name (empty when there is none), its count
+' and its token; maxNo is the highest group number already in use.
 Private Function ac2fJBFindGroup(ByVal custDir As String, ByVal head As String, _
-                                 ByVal tail As String, ByRef cnt As Long, _
-                                 ByRef maxNo As Long) As String
+                                 ByVal tail As String, ByVal owner As String, _
+                                 ByRef cnt As Long, ByRef maxNo As Long, _
+                                 ByRef tok As String) As String
     Dim names() As String
-    Dim i As Long, n As Long, grpNo As Long, c As Long
-    Dim h As String, t As String, hit As String
+    Dim i As Long, n As Long, grpNo As Long, c As Long, bareCnt As Long
+    Dim h As String, t As String, gt As String, hit As String, bare As String
 
     cnt = 0
     maxNo = 0
+    tok = ""
     n = ac2fJBListNames(custDir, "*", True, names)
     For i = 1 To n
-        If ac2fJBSplitGroup(names(i), grpNo, h, c, t) Then
+        If ac2fJBSplitGroupTok(names(i), grpNo, h, c, t, gt) Then
             If grpNo > maxNo Then maxNo = grpNo
-            If Len(hit) = 0 And StrComp(h, head, vbTextCompare) = 0 _
-               And StrComp(t, tail, vbTextCompare) = 0 Then
-                hit = names(i)
-                cnt = c
+            If StrComp(h, head, vbTextCompare) = 0 And StrComp(t, tail, vbTextCompare) = 0 Then
+                If Len(gt) = 0 Then
+                    If Len(bare) = 0 Then
+                        bare = names(i)
+                        bareCnt = c
+                    End If
+                ElseIf Len(hit) = 0 And StrComp(ac2fJBTokOwner(gt), owner, vbTextCompare) = 0 Then
+                    hit = names(i)
+                    cnt = c
+                    tok = gt
+                End If
             End If
         End If
     Next i
+    If Len(hit) = 0 And Len(bare) > 0 Then
+        hit = bare
+        cnt = bareCnt
+    End If
     ac2fJBFindGroup = hit
 End Function
 
-' "001-pleksi-1220x2440--2pcs--2800um-..." -> 1, "pleksi-1220x2440", 2,
-' "2800um-...". False for anything that is not a group folder.
+' "001-pleksi-1220x2440--2pcs--2800um-...--F21-10-2026.merkez.pleksi" -> 1,
+' "pleksi-1220x2440", 2, "2800um-..."; the token is left out of tail.
+' False for anything that is not a group folder.
 Private Function ac2fJBSplitGroup(ByVal nm As String, ByRef grpNo As Long, _
                                   ByRef head As String, ByRef cnt As Long, _
                                   ByRef tail As String) As Boolean
-    Dim rest As String, sep As String
-    Dim p As Long, q As Long, d As Long, after As Long
+    Dim tok As String
+    ac2fJBSplitGroup = ac2fJBSplitGroupTok(nm, grpNo, head, cnt, tail, tok)
+End Function
 
+' The same, also returning the token ("" when the folder has none).
+Private Function ac2fJBSplitGroupTok(ByVal nm As String, ByRef grpNo As Long, _
+                                     ByRef head As String, ByRef cnt As Long, _
+                                     ByRef tail As String, ByRef tok As String) As Boolean
+    Dim rest As String, sep As String
+    Dim p As Long, q As Long, d As Long, after As Long, r As Long
+
+    tok = ""
     If Len(nm) < 6 Then Exit Function
     If Not (Left$(nm, 3) Like "###") Or Mid$(nm, 4, 1) <> "-" Then Exit Function
     rest = Mid$(nm, 5)
@@ -1934,15 +1984,109 @@ Private Function ac2fJBSplitGroup(ByVal nm As String, ByRef grpNo As Long, _
                 after = 0
             End If
             If after > 0 Then
+                If ac2fJBIsTok(tail) Then
+                    tok = tail
+                    tail = ""
+                Else
+                    r = InStrRev(tail, sep)
+                    If r > 0 Then
+                        If ac2fJBIsTok(Mid$(tail, r + Len(sep))) Then
+                            tok = Mid$(tail, r + Len(sep))
+                            tail = Left$(tail, r - 1)
+                        End If
+                    End If
+                End If
                 grpNo = CLng(Left$(nm, 3))
                 head = Left$(rest, p - 1)
                 cnt = CLng(Mid$(rest, q, d - q))
-                ac2fJBSplitGroup = True
+                ac2fJBSplitGroupTok = True
                 Exit Function
             End If
         End If
         p = InStr(p + 1, rest, sep)
     Loop
+End Function
+
+' "F21-10-2026.merkez.pleksi-beyaz" or "malzeme-F21-10-2026...".
+Private Function ac2fJBIsTok(ByVal s As String) As Boolean
+    ac2fJBIsTok = (s Like "F##-##-####.*") Or (s Like "malzeme-F##-##-####.*")
+End Function
+
+' The owner in a token ("merkez" in "F21-10-2026.merkez.pleksi").
+Private Function ac2fJBTokOwner(ByVal tok As String) As String
+    Dim parts() As String
+    parts = Split(tok, ".")
+    If UBound(parts) >= 2 Then ac2fJBTokOwner = parts(1)
+End Function
+
+' The token for this job's sheet: F + the date of the day folder the
+' customer folder is in, the owner, kind-colour.
+Private Function ac2fJBFolderTok(ByRef jr As ac2fJobRec, ByVal custDir As String) As String
+    Dim d As Date
+    Dim kc As String
+
+    d = ac2fJBDirDate(custDir)
+    kc = ac2fJBJoin(jr.MatKind, jr.MatColor, "-")
+    If Len(kc) = 0 Then kc = "malzeme"
+    ac2fJBFolderTok = "F" & Right$("0" & CStr(Day(d)), 2) & "-" & Right$("0" & CStr(Month(d)), 2) & _
+                      "-" & CStr(Year(d)) & "." & ac2fJBOwnerTok(jr) & "." & ac2fJBCut(kc, 40)
+End Function
+
+' Whose sheet: the customer's folder name for their own material (C),
+' else the shop's folder code.
+Private Function ac2fJBOwnerTok(ByRef jr As ac2fJobRec) As String
+    Dim s As String
+    If jr.MatOwner = "C" Then s = ac2fJBCut(ac2fJBToken(jr.CustFolder), 20)
+    If Len(s) = 0 Then s = ac2fJBShopCode()
+    ac2fJBOwnerTok = s
+End Function
+
+' The shop's folder code, from StockTrack when it answers (third field of
+' the ping), else the last one kept, else "isletme".
+Private Function ac2fJBShopCode() As String
+    Dim rows() As String
+    Dim errText As String, c As String
+
+    If Len(ac2fJBServer()) > 0 Then
+        If ac2fJBGetRows("/corel/ping", rows, errText) > 0 Then
+            c = ac2fJBToken(ac2fJBTab(rows(1), 2))
+            If Len(c) > 0 Then ac2fSetStr AC2F_K_JB_CODE, c
+        End If
+    End If
+    If Len(c) = 0 Then c = ac2fJBToken(ac2fGetStr(AC2F_K_JB_CODE, ""))
+    If Len(c) = 0 Then c = "isletme"
+    ac2fJBShopCode = ac2fJBCut(c, 20)
+End Function
+
+' The date of the day folder a customer folder is in (its name starts
+' with the date in CDR Auto Renamer's format); today when it cannot tell.
+Private Function ac2fJBDirDate(ByVal custDir As String) As Date
+    Dim root As String, fmt As String, dsep As String
+    Dim dayDir As String, dayName As String, stamp As String
+    Dim p As Long, back As Long
+
+    ac2fJBDirDate = Date
+    p = InStrRev(custDir, "\")
+    If p <= 1 Then Exit Function
+    dayDir = Left$(custDir, p - 1)
+    dayName = Mid$(dayDir, InStrRev(dayDir, "\") + 1)
+    If Not ac2fJBDayRule(root, fmt, dsep) Then fmt = "%d-%m-%Y"
+    For back = -1 To 400
+        stamp = ac2fJBStrftime(fmt, Date - back)
+        If Len(stamp) > 0 And Left$(dayName, Len(stamp)) = stamp Then
+            ac2fJBDirDate = Date - back
+            Exit Function
+        End If
+    Next back
+End Function
+
+' The first n characters, without a dash left at the end.
+Private Function ac2fJBCut(ByVal s As String, ByVal n As Long) As String
+    If Len(s) > n Then s = Left$(s, n)
+    Do While Right$(s, 1) = "-"
+        s = Left$(s, Len(s) - 1)
+    Loop
+    ac2fJBCut = s
 End Function
 
 ' Next free export number in the folder: "01", "02" ...

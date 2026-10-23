@@ -674,4 +674,4 @@ Ayrıntı: **[docs/gelistirme.md](docs/gelistirme.md)**
 
 ## Sürüm
 
-1.21.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
+1.22.0 — bkz. [CHANGELOG.md](CHANGELOG.md)
