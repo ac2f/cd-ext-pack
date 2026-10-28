@@ -66,6 +66,8 @@ Private m_sps() As Long, m_spc() As Long, m_spn As Long   ' subpath start / coun
 ' Traced chains: points held flat, one index table per chain
 Private m_px() As Double, m_py() As Double, m_pn As Long
 Private m_cs() As Long, m_cc() As Long, m_cn As Long
+Private m_pi() As Long          ' cell index of each traced point
+Private m_used() As Byte
 
 '=====================================================================
 ' MACROS
@@ -133,6 +135,7 @@ Private Sub ac2fCLRun(ByVal joined As Boolean)
     res = ac2fGetNum(AC2F_K_CL_RES, AC2F_DEF_CL_RES)
     If res <= 0 Then res = AC2F_DEF_CL_RES
     m_res = res
+    ac2fSegReset
 
     On Error GoTo Fail
     oldOpt = Application.Optimization
@@ -326,7 +329,12 @@ Private Function ac2fCLFlattenCurve(ByVal cv As Curve) As Boolean
     Dim ax As Double, ay As Double, bx As Double, by As Double
     Dim cxx As Double, cyy As Double, chord As Double
     Dim arcL As Double, th As Double, turnDir As Double
-    Dim steps As Long
+    Dim steps As Long, n As Long, j As Long
+    Dim tolCurve As Double
+    Dim isClosed As Boolean
+
+    tolCurve = m_res * 0.25
+    If tolCurve > 0.2 Then tolCurve = 0.2
 
     m_fn = 0: m_spn = 0
     ReDim m_fx(0 To 4095): ReDim m_fy(0 To 4095)
@@ -356,23 +364,41 @@ Private Function ac2fCLFlattenCurve(ByVal cv As Curve) As Boolean
                     arcL = sg.Length
                     ax = sg.StartNode.PositionX: ay = sg.StartNode.PositionY
                     bx = sg.EndNode.PositionX: by = sg.EndNode.PositionY
-                    cxx = bx - ax: cyy = by - ay
-                    chord = Sqr(cxx * cxx + cyy * cyy)
 
-                    th = 0
-                    If arcL > 0 Then
-                        If (arcL - chord) / arcL >= 0.0002 Then th = ac2fCLTheta(chord, arcL)
+                    ' Points on the real curve, no further than a quarter of a
+                    ' cell from it (see CURVE SAMPLING in ac2fCore).
+                    n = ac2fSegmentPoints(sg, tolCurve)
+                    If n >= 0 Then
+                        For j = 0 To n - 1
+                            ac2fCLAddPt ac2fSgX(j), ac2fSgY(j)
+                        Next j
+                    Else
+                        ' This CorelDRAW gives no points along a segment: the
+                        ' circular arc model is all that is left, as before.
+                        cxx = bx - ax: cyy = by - ay
+                        chord = Sqr(cxx * cxx + cyy * cyy)
+                        th = 0
+                        If arcL > 0 Then
+                            If (arcL - chord) / arcL >= 0.0002 Then th = ac2fCLTheta(chord, arcL)
+                        End If
+                        steps = CLng(ac2fCeil(arcL / (m_res * 0.7)))
+                        If steps < 1 Then steps = 1
+                        If steps > 400 Then steps = 400
+                        turnDir = ac2fCLSegSign(sp, nSeg, k)
+                        ac2fCLEmitArc ax, ay, bx, by, arcL, th, turnDir, steps
                     End If
-
-                    ' Enough samples that the polyline is finer than a cell
-                    steps = CLng(ac2fCeil(arcL / (m_res * 0.7)))
-                    If steps < 1 Then steps = 1
-                    If steps > 400 Then steps = 400
-
-                    turnDir = ac2fCLSegSign(sp, nSeg, k)
-                    ac2fCLEmitArc ax, ay, bx, by, arcL, th, turnDir, steps
                     If m_fn >= MAX_PTS Then Exit For
                 Next k
+
+                ' An open path does not come back to its start: its last
+                ' node belongs to it (a closed one ends where it began).
+                isClosed = True
+                On Error Resume Next
+                isClosed = sp.Closed
+                On Error GoTo 0
+                If Not isClosed Then
+                    ac2fCLAddPt sg.EndNode.PositionX, sg.EndNode.PositionY
+                End If
 
                 m_spc(m_spn) = m_fn - m_sps(m_spn)
                 If m_spc(m_spn) >= 3 Then
@@ -653,9 +679,6 @@ End Sub
 '=====================================================================
 ' 5  TRACE PIXELS INTO CHAINS
 '=====================================================================
-
-Private m_pi() As Long          ' cell index of each traced point
-Private m_used() As Byte
 
 Private Function ac2fCLDeg(ByVal idx As Long) As Long
     Dim r As Long, c As Long, dr As Long, dc As Long, d As Long

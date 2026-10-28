@@ -19,8 +19,13 @@ Attribute VB_Name = "ac2fBending"
 '  HOW IT WORKS
 '
 '  1  FLATTENING.  Every selected object is reduced to contours of
-'     straight steps. Arcs are recovered from chord and arc length
-'     alone, so no control point is ever read.
+'     straight steps whose corners lie ON the real curve. CorelDRAW is
+'     asked for the points (Segment.GetPointPositionAt) and the step is
+'     refined until the curve stays within Curve tol of it, so an S, a
+'     loop or a hand-lettered script comes out as drawn. See CURVE
+'     SAMPLING in ac2fCore. (Version 1.22 and earlier guessed a circular
+'     arc from chord and length; on anything but a true arc that was
+'     wrong by millimetres.)
 '
 '  2  CONTAINMENT.  Each closed contour is tested against every other:
 '     does its first point fall inside, and is the other one bigger?
@@ -103,6 +108,7 @@ Private m_sshp() As Long           ' which drawing object this contour came from
 ' The objects themselves, so the drawing can be reordered.
 Private m_shp() As Shape, m_shpN As Long
 Private m_curShape As Long
+Private m_redo As Boolean           ' sampling turned out unavailable: read this shape again
 
 ' Per letter. A letter is one outside contour plus whatever it encloses.
 Private Type ac2fBNGlyph
@@ -533,6 +539,7 @@ Private Sub ac2fBNShape(ByVal s As Shape, ByVal tol As Double)
     Dim i As Long
     Dim cv As Curve
     Dim dup As Shape
+    Dim gn0 As Long, gs0 As Long
 
     If s Is Nothing Then Exit Sub
     On Error GoTo Skip
@@ -560,23 +567,40 @@ Private Sub ac2fBNShape(ByVal s As Shape, ByVal tol As Double)
     ' not recorded, because what moves in the stack is the leaf.
     ac2fBNAddShape s
 
-    Set cv = Nothing
-    On Error Resume Next
-    Set cv = s.DisplayCurve
-    On Error GoTo Skip
+    gn0 = ac2fGN: gs0 = ac2fGSub
 
-    If Not cv Is Nothing Then
-        ac2fBNCurve cv, tol
-        Exit Sub
+    ' Normal route: read the displayed curve as it is. It is not changed.
+    Set cv = Nothing
+    If ac2fSegMode() >= 0 Then
+        On Error Resume Next
+        Set cv = s.DisplayCurve
+        On Error GoTo Skip
+        If Not cv Is Nothing Then
+            m_redo = False
+            ac2fBNCurve cv, tol
+            If Not m_redo Then Exit Sub
+            ' CorelDRAW gave no usable points along a segment: forget
+            ' what this shape produced and read it again by cutting a copy.
+            ac2fGN = gn0: ac2fGSub = gs0
+        End If
     End If
 
+    ' Copy route: the object is not a plain curve (text, rectangle ...), or
+    ' this CorelDRAW cannot give points along a segment. Either way the
+    ' work is done on a duplicate, which is deleted afterwards.
     Set dup = s.Duplicate(0, 0)
     On Error Resume Next
     dup.ConvertToCurves
     Set cv = dup.Curve
     On Error GoTo SkipDup
     If cv Is Nothing Then GoTo SkipDup
+    m_redo = False
     ac2fBNCurve cv, tol
+    If m_redo Then
+        ' The mode has just turned to cutting: go through the copy again.
+        ac2fGN = gn0: ac2fGSub = gs0
+        ac2fBNCurve cv, tol
+    End If
     dup.Delete
     Exit Sub
 
@@ -587,13 +611,19 @@ SkipDup:
 Skip:
 End Sub
 
+'---------------------------------------------------------------------
+' Flatten one curve into contours of points that lie on the real curve
+' (see CURVE SAMPLING in ac2fCore). tol is how far the polyline may
+' stray from the drawing. Besides the points, the largest departure of
+' each contour from its own chords is kept (m_sbulge): it tells a round
+' letter from a straight one.
+'---------------------------------------------------------------------
 Private Sub ac2fBNCurve(ByVal cv As Curve, ByVal tol As Double)
-    Dim i As Long, k As Long, nSub As Long, nSeg As Long
+    Dim i As Long, k As Long, j As Long, m As Long, n As Long
+    Dim nSub As Long, nSeg As Long
     Dim sp As SubPath, sg As Segment
     Dim ax As Double, ay As Double, bx As Double, by As Double
-    Dim cxx As Double, cyy As Double, chord As Double
-    Dim arcL As Double, th As Double, turnDir As Double
-    Dim steps As Long, r As Double, stepLen As Double
+    Dim chord As Double, arcL As Double
     Dim bulge As Double, maxBulge As Double
 
     On Error Resume Next
@@ -618,51 +648,42 @@ Private Sub ac2fBNCurve(ByVal cv As Curve, ByVal tol As Double)
                 On Error GoTo 0
                 maxBulge = 0
 
-                For k = 1 To nSeg
+                k = 1
+                Do While k <= nSeg
                     Set sg = sp.Segments(k)
-                    arcL = sg.Length
-                    ax = sg.StartNode.PositionX: ay = sg.StartNode.PositionY
-                    bx = sg.EndNode.PositionX: by = sg.EndNode.PositionY
-                    cxx = bx - ax: cyy = by - ay
-                    chord = Sqr(cxx * cxx + cyy * cyy)
 
-                    th = 0
-                    If arcL > 0 Then
-                        If (arcL - chord) / arcL >= 0.0002 Then th = ac2fSolveTheta(chord, arcL)
-                    End If
-
-                    ' Sagitta h = s^2 / (8R), so a chord of sqrt(8*R*tol)
-                    ' stays within tol of the true arc.
-                    steps = 1
-                    If th > 0.000000001 Then
-                        r = arcL / th
-                        stepLen = Sqr(8# * r * tol)
-                        If stepLen > 0 Then steps = CLng(ac2fCeil(arcL / stepLen))
-                        If steps < 1 Then steps = 1
-                        If steps > 2000 Then steps = 2000
-                    End If
-
-                    ' How far this segment strays from its own chord.
-                    ' With the turn angle known the sagitta is exact. A
-                    ' curve too shallow for the angle solver still has to
-                    ' be measured, and for small angles the sagitta is
-                    ' close to Sqr(24 * chord * (arc - chord)) / 8. An S
-                    ' turns both ways and shows up in neither, only in
-                    ' the length it adds over the chord.
-                    bulge = arcL - chord
-                    If th > 0.000000001 Then
-                        r = arcL / th
-                        If r * (1# - Cos(th / 2#)) > bulge Then bulge = r * (1# - Cos(th / 2#))
-                    ElseIf arcL > chord And chord > 0 Then
-                        If Sqr(24# * chord * (arcL - chord)) / 8# > bulge Then _
-                            bulge = Sqr(24# * chord * (arcL - chord)) / 8#
+                    If ac2fSegMode() < 0 Then
+                        ' Cutting mode, on a copy: halve the segment until
+                        ' every piece is within tolerance of its chord, then
+                        ' take the pieces' start nodes. The bulge is taken
+                        ' from the segment as it was, before it is cut.
+                        arcL = sg.Length
+                        ax = sg.StartNode.PositionX: ay = sg.StartNode.PositionY
+                        bx = sg.EndNode.PositionX: by = sg.EndNode.PositionY
+                        chord = Sqr((bx - ax) * (bx - ax) + (by - ay) * (by - ay))
+                        bulge = ac2fSegBulge(arcL, chord)
+                        m = ac2fSegSplit(sp, k, tol)
+                        For j = 0 To m - 1
+                            Set sg = sp.Segments(k + j)
+                            ac2fBNAddPt sg.StartNode.PositionX, sg.StartNode.PositionY
+                        Next j
+                        nSeg = sp.Segments.Count
+                        k = k + m
+                    Else
+                        n = ac2fSegmentPoints(sg, tol)
+                        If n < 0 Then
+                            m_redo = True
+                            Exit Sub
+                        End If
+                        For j = 0 To n - 1
+                            ac2fBNAddPt ac2fSgX(j), ac2fSgY(j)
+                        Next j
+                        bulge = ac2fSgDev
+                        k = k + 1
                     End If
                     If bulge > maxBulge Then maxBulge = bulge
-
-                    turnDir = ac2fBNSegSign(sp, nSeg, k)
-                    ac2fBNEmitArc ax, ay, bx, by, arcL, th, turnDir, steps
-                    If ac2fGN >= MAX_PTS Then Exit For
-                Next k
+                    If ac2fGN >= MAX_PTS Then Exit Do
+                Loop
 
                 ' last node of the subpath
                 Set sg = sp.Segments(nSeg)
@@ -679,61 +700,6 @@ Private Sub ac2fBNCurve(ByVal cv As Curve, ByVal tol As Double)
             End If
         End If
         If ac2fGN >= MAX_PTS Then Exit For
-    Next i
-End Sub
-
-Private Function ac2fBNSegSign(ByVal sp As SubPath, ByVal nSeg As Long, _
-                               ByVal k As Long) As Double
-    Dim a As Double, b As Double
-    Dim dPrev As Double, dCur As Double, dNext As Double
-
-    If nSeg < 2 Then
-        ac2fBNSegSign = 1#
-        Exit Function
-    End If
-    dCur = ac2fBNChordDir(sp, k)
-    dNext = ac2fBNChordDir(sp, IIf(k = nSeg, 1, k + 1))
-    dPrev = ac2fBNChordDir(sp, IIf(k = 1, nSeg, k - 1))
-    a = ac2fWrapAngle(dNext - dCur)
-    b = ac2fWrapAngle(dCur - dPrev)
-    If (a + b) >= 0 Then ac2fBNSegSign = 1# Else ac2fBNSegSign = -1#
-End Function
-
-Private Function ac2fBNChordDir(ByVal sp As SubPath, ByVal k As Long) As Double
-    Dim sg As Segment
-    On Error Resume Next
-    Set sg = sp.Segments(k)
-    If sg Is Nothing Then Exit Function
-    ac2fBNChordDir = ac2fAtan2(sg.EndNode.PositionY - sg.StartNode.PositionY, _
-                               sg.EndNode.PositionX - sg.StartNode.PositionX)
-End Function
-
-' Start point included, end point left to the next segment.
-Private Sub ac2fBNEmitArc(ByVal ax As Double, ByVal ay As Double, _
-                          ByVal bx As Double, ByVal by As Double, _
-                          ByVal arcL As Double, ByVal th As Double, _
-                          ByVal turnDir As Double, ByVal steps As Long)
-    Dim i As Long
-    Dim r As Double, phi As Double, t0 As Double
-    Dim cx As Double, cy As Double, a0 As Double, ang As Double
-
-    If th < 0.000000001 Then
-        For i = 0 To steps - 1
-            ac2fBNAddPt ax + (bx - ax) * i / steps, ay + (by - ay) * i / steps
-        Next i
-        Exit Sub
-    End If
-
-    r = arcL / th
-    phi = ac2fAtan2(by - ay, bx - ax)
-    t0 = phi - turnDir * th / 2#
-    cx = ax + turnDir * r * (-Sin(t0))
-    cy = ay + turnDir * r * Cos(t0)
-    a0 = ac2fAtan2(ay - cy, ax - cx)
-
-    For i = 0 To steps - 1
-        ang = a0 + turnDir * th * i / steps
-        ac2fBNAddPt cx + r * Cos(ang), cy + r * Sin(ang)
     Next i
 End Sub
 
@@ -785,6 +751,7 @@ Public Sub ac2fBNReset()
     ac2fGN = 0: ac2fGSub = 0: m_gn = 0: m_gseqN = 0: m_groups = 0
     m_shpN = 0: m_curShape = -1: m_ordered = 0
     ac2fBNBackToFront = False
+    ac2fSegReset
     ReDim m_shp(0 To 255)
     ReDim m_sshp(0 To 255)
     ReDim ac2fGX(0 To 8191): ReDim ac2fGY(0 To 8191)

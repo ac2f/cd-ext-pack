@@ -253,11 +253,13 @@ Bulduğunuz değer o malzeme + kalınlık için kalıcıdır.
 
 ### Bu modülün sınırları
 
-- **Segmentler dairesel yay kabul edilir.** Gerçek bezier yaylarda yarıçap
-  hatası %0,05 mertebesindedir — ihmal edilebilir. Ancak tek bir segment
-  içinde dönüm noktası varsa (S kıvrımı) model onu tek yönlü yay sanar ve o
-  segmentte derzi seyrek koyar. Böyle bir yerde düğüm ekleyip segmenti
-  ikiye bölmek sorunu çözer.
+- **Bu modül segmentleri dairesel yay kabul eder** (yalnız uzunluk ve
+  kiriş okunur). Gerçek bezier yaylarda yarıçap hatası %0,05 mertebesindedir
+  — ihmal edilebilir. Ancak tek bir segment içinde dönüm noktası varsa
+  (S kıvrımı) model onu tek yönlü yay sanar ve o segmentte derzi seyrek
+  koyar. Böyle bir yerde düğüm ekleyip segmenti ikiye bölmek sorunu çözer.
+  (Plotter, bükme sırası ve orta hat bu modeli **kullanmaz**; onlar eğrinin
+  gerçek noktalarını okur.)
 - **Toplam açınım boyu her koşulda kesindir**; yukarıdaki durum yalnız ara
   derz konumlarını etkiler (ölçülen en kötü sapma 0,06 mm).
 - **Şerit tek parça çizilir.** Rulo boyu aşılıyorsa kesim yerleri kırmızı
@@ -632,6 +634,25 @@ düşer.
 90 ve 270'te en–boy takas olur (200×300 → 300×200). Kenar payı
 döndürmeden **sonra** uygulanır, dolayısıyla iş her durumda köşeye
 oturur. 90'ın katı olmayan bir değer en yakın çeyreğe yuvarlanır.
+
+### Dönük, ters ya da aynalı geliyorsa: yön sihirbazı
+
+`ac2fPlotCalibrate` (ana menü `27`) `Rotate` ve `Mirror` değerini **tek
+kesimle** bulur. Test L'si hiçbir döndürme olmadan gider, çıkan parçaya
+(makinenin önü altta) bakıp sekiz resimden numarasını yazarsınız; ayarlar
+buna göre tersine kurulur, L yeniden gider ve "doğru" demenizle biter. Yanlış
+resmi seçseniz bile doğrulama kesimi ayarı bir kez daha düzeltir (en çok
+4 kesim). Yarıda bırakırsanız önceki ayarınız geri yüklenir.
+
+Gönderim raporunda iki yeni bölüm vardır:
+
+- **Design (CorelDRAW)** / **Check**: dosyadaki boyut, CorelDRAW'ın aynı
+  seçim için bildirdiği boyutla karşılaştırılır. Fark çıkarsa dış çizgi
+  kalınlığı, bir efekt ya da sayfa dışında kalan bir parça aranır.
+- **Curve tolerance**: dosya, çizimden bu kadardan fazla sapmaz. Eğriler
+  CorelDRAW'dan gerçek noktalarıyla okunur (bkz. README › Eğri örnekleme);
+  eskiden dairesel yay *tahmin edilir* ve S kıvrımlı ya da el yazısı
+  şekiller milimetrelerce bozulurdu.
 
 ### Ara dosya var mı
 

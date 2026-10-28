@@ -80,6 +80,30 @@ class Path(object):
             prev = q
         return L
 
+    def param_at_fraction(self, k, f):
+        a, c, b = self.seg_pts(k)
+        if c is None or f <= 0:
+            return max(0.0, f)
+        if f >= 1:
+            return 1.0
+        N = 2000
+        cum, prev = [0.0], a
+        for i in range(1, N + 1):
+            q = bez(a, c[0], c[1], b, i / float(N))
+            cum.append(cum[-1] + math.hypot(q[0] - prev[0], q[1] - prev[1]))
+            prev = q
+        target = f * cum[-1]
+        lo, hi = 0, N
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if cum[mid] < target:
+                lo = mid
+            else:
+                hi = mid
+        span = cum[hi] - cum[lo]
+        u = 0.0 if span <= 0 else (target - cum[lo]) / span
+        return (lo + u) / float(N)
+
     def samples(self, per=40):
         out = []
         for k in range(self.nseg()):
@@ -241,6 +265,14 @@ class Segment(object):
         t = float(V(offset)) if offset is not None else 0.5
         if otype is not None and int(V(otype)) != CONSTS['cdrrelativesegmentoffset']:
             raise VBError('absolute offsets are not modelled', 5)
+        mode = getattr(self._shape.doc.host, 'sampling_mode', 'param')
+        if mode == 'garbage':
+            x.v, y.v = 12345.0, -777.0
+            return
+        if mode == 'arclen':
+            # CorelDRAW's relative offset is a fraction of the ARC LENGTH, not of
+            # the bezier parameter: walk a fine table to find that point
+            t = self._path.param_at_fraction(self._k, t)
         px, py = self._path.point(self._k, t)
         x.v, y.v = px, py
 
@@ -519,11 +551,45 @@ class _LayerShapes(Coll):
         return ShapeRange(self.layer.doc, self.layer.items)
 
 
+class Collection(object):
+    """VBA Collection: Add(item, key), Item(index | key), Count."""
+
+    def __init__(self):
+        self._items, self._keys = [], []
+
+    @property
+    def count(self):
+        return len(self._items)
+
+    def add(self, item, key=None):
+        k = None if key is None else V(key)
+        if k is not None and k.lower() in self._keys:
+            raise VBError('This key is already associated with an element of this collection', 457)
+        self._items.append(V(item))
+        self._keys.append(None if k is None else k.lower())
+
+    def item(self, i):
+        i = V(i)
+        if isinstance(i, str):
+            if i.lower() not in self._keys:
+                raise VBError('Invalid procedure call or argument', 5)
+            return self._items[self._keys.index(i.lower())]
+        i = int(i)
+        if i < 1 or i > len(self._items):
+            raise VBError('Subscript out of range', 9)
+        return self._items[i - 1]
+
+
 class Page(object):
     def __init__(self, doc, w, h):
         self.doc = doc
         self.sizewidth = w
         self.sizeheight = h
+
+    @property
+    def shapes(self):
+        # Object Manager: on plan one (front) first; the mock stacks last-added on top
+        return Coll(list(reversed(self.doc.all_shapes())))
 
     @property
     def layers(self):
@@ -722,6 +788,11 @@ class WScriptShell(object):
     def run(self, cmd, style=1, wait=False):
         cmd = V(cmd)
         self.host.commands.append(cmd)
+        m_job = re.search(r'-Path "([^"]+)"', cmd)
+        if m_job and '-Target "' in cmd:
+            # ac2fPlot sender: remember what would have gone down the socket
+            self.host.sent.append(open(self.host.fs(m_job.group(1)), 'rb').read())
+            return self.host.send_rc
         handler = self.host.window_handler
         if handler is None:
             return 1
@@ -743,6 +814,8 @@ class Host(object):
         self.http_routes = {}
         self.http_log = []
         self.sampling_supported = True
+        self.sent = []
+        self.send_rc = 0
         self.reverse_supported = True
         self.err = ErrObj()
         self.application = Application()
@@ -798,7 +871,8 @@ class Host(object):
 
     def msgbox(self, prompt, buttons=0, title=''):
         self.messages.append(('msg', prompt))
-        return 6
+        # vbOKCancel answers OK; every other button set answers Yes
+        return 1 if (int(V(buttons)) & 15) == 1 else 6
 
     def getsetting(self, app, sec, key, default=''):
         return self.registry.get((app, sec, key.lower()), default)
@@ -838,6 +912,12 @@ class Host(object):
         self._dir_left = []
         return base if os.path.exists(p) else ''
 
+    def filelen(self, path):
+        p = self.fs(path)
+        if not os.path.exists(p):
+            raise VBError('File not found', 53)
+        return os.path.getsize(p)
+
     def kill(self, path):
         p = self.fs(path)
         if not os.path.exists(p):
@@ -847,6 +927,8 @@ class Host(object):
     def new_object(self, cls):
         if cls == 'shaperange':
             return ShapeRange(self.doc, [])
+        if cls == 'collection':
+            return Collection()
         raise VBError('Invalid use of New keyword: %s' % cls, 429)
 
     def createobject(self, prog):

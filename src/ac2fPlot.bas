@@ -72,6 +72,7 @@ Public Const AC2F_K_PL_DELAY  As String = "PLGonderimGecikmesiMS"
 Public Const AC2F_K_PL_SEQ    As String = "PLGonderimSirasi"
 Public Const AC2F_K_PL_PARK   As String = "PLBitisKonumu"
 Public Const AC2F_K_PL_TARGET As String = "PLPlotterAdresi"   ' string, not on the sheet
+Public Const AC2F_K_PL_CALIB  As String = "PLYonKontrolEdildi" ' 1 once the wizard has run, not on the sheet
 
 Public Const AC2F_DEF_PL_MARGIN As Double = 5#     ' margin from the origin (mm)
 Public Const AC2F_DEF_PL_TOL    As Double = 0.05   ' curve flattening tolerance (mm)
@@ -85,6 +86,8 @@ Public Const AC2F_DEF_PL_DELAY  As Long = 0        ' ms per 1 KB, 0 = send in on
 Public Const AC2F_DEF_PL_TARGET As String = "192.168.1.100:9100"
 
 Private m_seqMissing As Long        ' objects not found in the page stack
+Private m_desOK As Boolean          ' the design's own size was read from CorelDRAW
+Private m_desW As Double, m_desH As Double
 
 '---------------------------------------------------------------------
 ' The flattened geometry lives in ac2fBending, which also puts it in
@@ -117,13 +120,43 @@ Public Sub ac2fPlotTest()
 Attribute ac2fPlotTest.VB_Description = "ac2f pack: Send a test L to the plotter to check cutting and orientation"
     Dim host As String, port As Long
     Dim path As String, errText As String
-    Dim bytesOut As Long
+
+    If Not ac2fPLAskTarget(host, port) Then Exit Sub
+
+    If ac2fPLSendTestL(host, port, path, errText) Then
+        ac2fInfo _
+            "A test L went to " & host & ":" & port & vbCrLf & _
+            "Rotate " & ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) & _
+            ", Mirror " & ac2fGetLng(AC2F_K_PL_MIR, AC2F_DEF_PL_MIR) & vbCrLf & vbCrLf & _
+            "It should cut this, 40 mm wide and 80 mm tall:" & vbCrLf & vbCrLf & _
+            "      |" & vbCrLf & _
+            "      |" & vbCrLf & _
+            "      |___" & vbCrLf & vbCrLf & _
+            "Tall leg on the LEFT, foot pointing RIGHT, 80 mm the tall way." & _
+            vbCrLf & vbCrLf & _
+            "NOT RIGHT? Run the orientation wizard (main menu 27): you say what " & _
+            "came out and it sets Rotate and Mirror for you, then checks." & _
+            vbCrLf & vbCrLf & _
+            "RIGHT SHAPE BUT ONLY TRACED" & vbCrLf & _
+            "   The machine is not cutting. Knife force, blade depth, " & _
+            "tool, then try Preamble = 2." & vbCrLf & vbCrLf & _
+            "NOTHING MOVED" & vbCrLf & _
+            "   It never arrived. Check address, port and cable.", CAPTION_
+    Else
+        ac2fWarn "The test could not be sent." & vbCrLf & vbCrLf & _
+                 errText & vbCrLf & vbCrLf & "File: " & path, CAPTION_
+    End If
+End Sub
+
+' Builds the test L, puts it through Rotate and Mirror as set now, writes
+' and sends it. Returns False with errText when it could not be sent.
+Private Function ac2fPLSendTestL(ByVal host As String, ByVal port As Long, _
+                                 ByRef path As String, ByRef errText As String) As Boolean
     Dim margin As Double
     Dim minX As Double, minY As Double
     Dim i As Long
     Dim parkIdx As Long
-
-    If Not ac2fPLAskTarget(host, port) Then Exit Sub
+    Dim bytesOut As Long
 
     margin = ac2fGetNum(AC2F_K_PL_MARGIN, AC2F_DEF_PL_MARGIN)
     If margin < 0 Then margin = 0
@@ -152,36 +185,218 @@ Attribute ac2fPlotTest.VB_Description = "ac2f pack: Send a test L to the plotter
     bytesOut = ac2fPLWrite(path, margin * AC2F_UNITS_PER_MM - minX * AC2F_UNITS_PER_MM, _
                                  margin * AC2F_UNITS_PER_MM - minY * AC2F_UNITS_PER_MM, parkIdx)
     If bytesOut = 0 Then
-        ac2fWarn "Could not write " & path, CAPTION_
-        Exit Sub
+        errText = "Could not write " & path
+        Exit Function
+    End If
+    ac2fPLSendTestL = ac2fPLSendFile(path, host, port, errText)
+End Function
+
+'=====================================================================
+' ORIENTATION WIZARD
+'
+' Finding Rotate and Mirror by trial is slow: there are eight ways a
+' machine can show a job, the first guess is wrong half the time, and
+' every try costs material. The wizard needs one cut.
+'
+' 1  A test L goes out with NO turning and NO flipping, so it shows
+'    what the machine does by itself.
+' 2  You pick the picture that matches the piece. The eight pictures
+'    are the eight turns and mirrors of the L; each is worked out from
+'    the geometry and written in words (which corner, which way the
+'    long leg runs).
+' 3  Rotate and Mirror are set to the opposite turn.
+' 4  The L goes out again with those settings, and you say whether it
+'    is right. If it is not, what you now see is used to correct the
+'    settings once more, until it is right.
+'
+' Turns and mirrors are kept as 2 x 2 matrices (entries -1, 0, 1), so
+' undoing one, or following one by another, is exact and has no cases.
+'=====================================================================
+Public Sub ac2fPlotCalibrate()
+Attribute ac2fPlotCalibrate.VB_Description = "ac2f pack: Find the plotter's Rotate and Mirror from one test cut"
+    Dim host As String, port As Long
+    Dim path As String, errText As String
+    Dim sa As Long, sb As Long, sc As Long, sd As Long        ' what is stored now (S)
+    Dim oa As Long, ob As Long, oc As Long, od As Long        ' what was seen (O)
+    Dim na As Long, nb As Long, nc As Long, nd As Long
+    Dim pick As Long, rounds As Long
+    Dim q As Long, m As Long
+    Dim oldRot As Long, oldMir As Long
+
+    If Not ac2fPLAskTarget(host, port) Then Exit Sub
+
+    If MsgBox("ORIENTATION WIZARD" & vbCrLf & vbCrLf & _
+              "A small test L (40 x 80 mm) will be cut with NO turning and NO " & _
+              "flipping, so it shows what the machine does on its own." & vbCrLf & vbCrLf & _
+              "Put material in and press OK. Afterwards look at the piece the way " & _
+              "it came off the machine, the edge nearest you at the bottom." & vbCrLf & vbCrLf & _
+              "Machine: " & host & ":" & port, _
+              vbOKCancel + vbInformation, ac2fTitle(CAPTION_)) <> vbOK Then Exit Sub
+
+    ' What was set before comes back if the wizard is not finished.
+    oldRot = ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT)
+    oldMir = ac2fGetLng(AC2F_K_PL_MIR, AC2F_DEF_PL_MIR)
+
+    ' S starts as "nothing": identity
+    sa = 1: sb = 0: sc = 0: sd = 1
+    ac2fPLStoreOrient 0, 0
+
+    For rounds = 1 To 4
+        If Not ac2fPLSendTestL(host, port, path, errText) Then
+            ac2fPLStoreOrient oldRot, oldMir
+            ac2fWarn "The test could not be sent." & vbCrLf & vbCrLf & _
+                     errText & vbCrLf & vbCrLf & "File: " & path & vbCrLf & vbCrLf & _
+                     "Rotate and Mirror are as they were.", CAPTION_
+            Exit Sub
+        End If
+
+        pick = ac2fPLAskPicture(rounds)
+        If pick = 0 Then
+            ac2fPLStoreOrient oldRot, oldMir
+            Exit Sub                                ' cancelled
+        End If
+        ac2fPLMatFromPick pick - 1, oa, ob, oc, od
+
+        If pick = 1 Then
+            ' The piece is right with the settings as they stand.
+            ac2fSetLng AC2F_K_PL_CALIB, 1
+            ac2fInfo "ORIENTATION SET" & vbCrLf & vbCrLf & _
+                     "Rotate " & ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) & _
+                     ", Mirror " & ac2fGetLng(AC2F_K_PL_MIR, AC2F_DEF_PL_MIR) & vbCrLf & vbCrLf & _
+                     "Remembered for every job from now on. Change it only if " & _
+                     "the machine or its settings change; run this wizard again then.", CAPTION_
+            Exit Sub
+        End If
+
+        ' what is stored now, followed by the opposite of what was seen
+        ' (the opposite of a turn is the turn back; a mirror is its own
+        ' opposite): the new setting S' = S * O^-1
+        ac2fPLMatMul sa, sb, sc, sd, oa, oc, ob, od, na, nb, nc, nd
+        sa = na: sb = nb: sc = nc: sd = nd
+        If Not ac2fPLMatToQM(sa, sb, sc, sd, q, m) Then
+            ac2fPLStoreOrient oldRot, oldMir
+            Exit Sub
+        End If
+        ac2fPLStoreOrient q * 90, m
+    Next rounds
+
+    ac2fPLStoreOrient oldRot, oldMir
+    ac2fWarn "The L still does not come out right after four tries." & vbCrLf & vbCrLf & _
+             "Rotate and Mirror are as they were (" & oldRot & " and " & oldMir & "). " & _
+             "If the shape itself is wrong (stretched, not 40 x 80), the plotter's own " & _
+             "unit or scale setting is the cause, not the orientation.", CAPTION_
+End Sub
+
+Private Sub ac2fPLStoreOrient(ByVal rot As Long, ByVal mir As Long)
+    ac2fSetLng AC2F_K_PL_ROT, rot
+    ac2fSetLng AC2F_K_PL_MIR, mir
+End Sub
+
+' The eight pictures: index k = 0..7 is Rotate (k mod 4) quarter turns
+' counter-clockwise, then a left-right flip when k >= 4. Index 0 is the
+' L as drawn. Returns the matrix of that turn.
+Private Sub ac2fPLMatFromPick(ByVal k As Long, ByRef a As Long, ByRef b As Long, _
+                              ByRef c As Long, ByRef d As Long)
+    ac2fPLMatFromQM k Mod 4, k \ 4, a, b, c, d
+End Sub
+
+' Rotation by q quarter turns (counter-clockwise), then mirror flags m
+' (1 flip X, 2 flip Y, 3 both), as ac2fPLOrient applies them.
+Private Sub ac2fPLMatFromQM(ByVal q As Long, ByVal m As Long, ByRef a As Long, _
+                            ByRef b As Long, ByRef c As Long, ByRef d As Long)
+    Select Case q
+        Case 1:    a = 0:  b = -1: c = 1:  d = 0
+        Case 2:    a = -1: b = 0:  c = 0:  d = -1
+        Case 3:    a = 0:  b = 1:  c = -1: d = 0
+        Case Else: a = 1:  b = 0:  c = 0:  d = 1
+    End Select
+    If m = 1 Or m = 3 Then a = -a: b = -b
+    If m = 2 Or m = 3 Then c = -c: d = -d
+End Sub
+
+' Finds Rotate quarter turns q and a flip m that make the matrix.
+Private Function ac2fPLMatToQM(ByVal a As Long, ByVal b As Long, ByVal c As Long, _
+                               ByVal d As Long, ByRef q As Long, ByRef m As Long) As Boolean
+    Dim qq As Long, mm As Long
+    Dim ta As Long, tb As Long, tc As Long, td As Long
+    For mm = 0 To 1
+        For qq = 0 To 3
+            ac2fPLMatFromQM qq, mm, ta, tb, tc, td
+            If ta = a And tb = b And tc = c And td = d Then
+                q = qq: m = mm
+                ac2fPLMatToQM = True
+                Exit Function
+            End If
+        Next qq
+    Next mm
+End Function
+
+' R = A * B for 2 x 2 matrices.
+Private Sub ac2fPLMatMul(ByVal a1 As Long, ByVal b1 As Long, ByVal c1 As Long, ByVal d1 As Long, _
+                         ByVal a2 As Long, ByVal b2 As Long, ByVal c2 As Long, ByVal d2 As Long, _
+                         ByRef ra As Long, ByRef rb As Long, ByRef rc As Long, ByRef rd As Long)
+    ra = a1 * a2 + b1 * c2
+    rb = a1 * b2 + b1 * d2
+    rc = c1 * a2 + d1 * c2
+    rd = c1 * b2 + d1 * d2
+End Sub
+
+' Where the corner and the legs of the L land when it is put through the
+' matrix, in words. The L's long leg points up (0,1) and its short leg
+' right (1,0); the corner is where they meet.
+Private Function ac2fPLPictureText(ByVal a As Long, ByVal b As Long, _
+                                   ByVal c As Long, ByVal d As Long) As String
+    Dim ux As Long, uy As Long, vx As Long, vy As Long
+    Dim corner As String
+
+    ux = b: uy = d          ' long leg
+    vx = a: vy = c          ' short leg
+    If uy + vy > 0 Then corner = "bottom" Else corner = "top"
+    If ux + vx > 0 Then corner = corner & "-left" Else corner = corner & "-right"
+    ac2fPLPictureText = "corner " & corner & ", long leg " & ac2fPLDirName(ux, uy) & _
+                        ", short leg " & ac2fPLDirName(vx, vy)
+End Function
+
+Private Function ac2fPLDirName(ByVal x As Long, ByVal y As Long) As String
+    If y > 0 Then
+        ac2fPLDirName = "UP"
+    ElseIf y < 0 Then
+        ac2fPLDirName = "DOWN"
+    ElseIf x > 0 Then
+        ac2fPLDirName = "RIGHT"
+    Else
+        ac2fPLDirName = "LEFT"
+    End If
+End Function
+
+' Asks which of the eight pictures the piece looks like. Returns 1..8,
+' 0 when cancelled. Picture 1 is the L as it should be.
+Private Function ac2fPLAskPicture(ByVal rounds As Long) As Long
+    Dim k As Long, a As Long, b As Long, c As Long, d As Long
+    Dim t As String, answer As String, v As Long
+
+    t = "Which picture is the piece you cut?" & vbCrLf & _
+        "(edge nearest you at the bottom; do not flip the sheet over)" & vbCrLf & vbCrLf
+    For k = 0 To 7
+        ac2fPLMatFromPick k, a, b, c, d
+        t = t & "  " & (k + 1) & "  -  " & ac2fPLPictureText(a, b, c, d)
+        If k = 0 Then t = t & "   (RIGHT)"
+        t = t & vbCrLf
+    Next k
+    If rounds > 1 Then
+        t = t & vbCrLf & "Try " & rounds & ": the settings were corrected, this is what " & _
+            "the new cut shows."
     End If
 
-    If ac2fPLSendFile(path, host, port, errText) Then
-        ac2fInfo _
-            "A test L went to " & host & ":" & port & vbCrLf & _
-            "Rotate " & ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) & _
-            ", Mirror " & ac2fGetLng(AC2F_K_PL_MIR, AC2F_DEF_PL_MIR) & vbCrLf & vbCrLf & _
-            "It should cut this, 40 mm wide and 80 mm tall:" & vbCrLf & vbCrLf & _
-            "      |" & vbCrLf & _
-            "      |" & vbCrLf & _
-            "      |___" & vbCrLf & vbCrLf & _
-            "Tall leg on the LEFT, foot pointing RIGHT, 80 mm the tall way." & _
-            vbCrLf & vbCrLf & _
-            "LYING ON ITS SIDE" & vbCrLf & _
-            "   The machine swaps the axes. Set Rotate to 270 and send " & _
-            "again; if that turns it the wrong way, use 90." & vbCrLf & vbCrLf & _
-            "A MIRROR IMAGE, foot pointing LEFT" & vbCrLf & _
-            "   Set Mirror to 1. Upside down instead, set Mirror to 2." & vbCrLf & vbCrLf & _
-            "RIGHT SHAPE BUT ONLY TRACED" & vbCrLf & _
-            "   The machine is not cutting. Knife force, blade depth, " & _
-            "tool, then try Preamble = 2." & vbCrLf & vbCrLf & _
-            "NOTHING MOVED" & vbCrLf & _
-            "   It never arrived. Check address, port and cable.", CAPTION_
-    Else
-        ac2fWarn "The test could not be sent." & vbCrLf & vbCrLf & _
-                 errText & vbCrLf & vbCrLf & "File: " & path, CAPTION_
+    answer = InputBox(t, ac2fTitle(CAPTION_), "1")
+    If StrPtr(answer) = 0 Then Exit Function
+    v = CLng(Val(Trim$(answer)))
+    If v < 1 Or v > 8 Then
+        ac2fWarn "Type a number from 1 to 8.", CAPTION_
+        Exit Function
     End If
-End Sub
+    ac2fPLAskPicture = v
+End Function
 
 '=====================================================================
 ' SELECTION -> HPGL
@@ -202,6 +417,7 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
     Dim orderAlg As Long
     Dim seqMode As Long
     Dim parkIdx As Long
+    Dim bbx As Double, bby As Double, bbw As Double, bbh As Double
 
     If ActiveDocument Is Nothing Then
         ac2fWarn "Open a document first.", CAPTION_
@@ -245,7 +461,17 @@ Private Sub ac2fPLRun(ByVal send As Boolean)
     seqMode = ac2fGetLng(AC2F_K_PL_SEQ, AC2F_DEF_PL_SEQ)
     ac2fPLCollectInOrder sr, tol, seqMode
 
+    ' CorelDRAW's own size of what is selected, to set against what is
+    ' about to be written. It is an independent measurement: it does not
+    ' come from the points this module flattened.
+    m_desOK = False
     On Error Resume Next
+    Err.Clear
+    sr.GetBoundingBox bbx, bby, bbw, bbh
+    If Err.Number = 0 Then
+        m_desW = bbw: m_desH = bbh: m_desOK = True
+    End If
+    Err.Clear
     If unitChanged Then ActiveDocument.Unit = oldUnit
     On Error GoTo Fail
 
@@ -470,6 +696,8 @@ Private Function ac2fPLWrite(ByVal path As String, ByVal dx As Double, _
     Dim total As Long
     Dim perPD As Long
     Dim pre As Long
+    Dim x0 As String, y0 As String, px As String, py As String
+    Dim lastX As String, lastY As String
 
     perPD = ac2fGetLng(AC2F_K_PL_PAIRS, AC2F_DEF_PL_PAIRS)
     If perPD < 1 Then perPD = 1
@@ -491,24 +719,36 @@ Private Function ac2fPLWrite(ByVal path As String, ByVal dx As Double, _
 
     For i = 0 To ac2fGSub - 1
         s = ac2fGS(i): n = ac2fGC(i)
-        Print #f, "PU" & ac2fPLU(ac2fGX(s), dx) & "," & ac2fPLU(ac2fGY(s), dy) & ";"
+        x0 = ac2fPLU(ac2fGX(s), dx): y0 = ac2fPLU(ac2fGY(s), dy)
+        Print #f, "PU" & x0 & "," & y0 & ";"
 
+        ' A point that rounds to the one before it adds nothing but a
+        ' zero length move, which some cutters answer with a pause or a
+        ' dent in the material. Drop it.
+        lastX = x0: lastY = y0
         line_ = "": cnt = 0
         For k = 1 To n - 1
-            If cnt > 0 Then line_ = line_ & ","
-            line_ = line_ & ac2fPLU(ac2fGX(s + k), dx) & "," & ac2fPLU(ac2fGY(s + k), dy)
-            cnt = cnt + 1
-            If cnt >= perPD Then
-                Print #f, "PD" & line_ & ";"
-                line_ = "": cnt = 0
+            px = ac2fPLU(ac2fGX(s + k), dx): py = ac2fPLU(ac2fGY(s + k), dy)
+            If px <> lastX Or py <> lastY Then
+                If cnt > 0 Then line_ = line_ & ","
+                line_ = line_ & px & "," & py
+                cnt = cnt + 1
+                lastX = px: lastY = py
+                If cnt >= perPD Then
+                    Print #f, "PD" & line_ & ";"
+                    line_ = "": cnt = 0
+                End If
             End If
         Next k
 
-        ' close the outline by returning to its first point
+        ' close the outline by returning to its first point, unless the
+        ' last point already is that point
         If ac2fGCl(i) Then
-            If cnt > 0 Then line_ = line_ & ","
-            line_ = line_ & ac2fPLU(ac2fGX(s), dx) & "," & ac2fPLU(ac2fGY(s), dy)
-            cnt = cnt + 1
+            If lastX <> x0 Or lastY <> y0 Then
+                If cnt > 0 Then line_ = line_ & ","
+                line_ = line_ & x0 & "," & y0
+                cnt = cnt + 1
+            End If
         End If
         If cnt > 0 Then Print #f, "PD" & line_ & ";"
     Next i
@@ -564,9 +804,10 @@ Private Function ac2fPLAskTarget(ByRef host As String, ByRef port As Long) As Bo
         "   192.168.1.100:23      a telnet port" & vbCrLf & vbCrLf & _
         "ORIENTATION NOW:  Rotate " & ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) & _
         ", Mirror " & ac2fGetLng(AC2F_K_PL_MIR, AC2F_DEF_PL_MIR) & vbCrLf & _
-        "If the cut comes out turned, add r270 (or r90) after the " & _
-        "address, e.g.  192.168.1.200:8080 r270" & vbCrLf & _
-        "m1 / m2 flips it, r0 m0 puts it back. Remembered.", _
+        "Cut comes out turned or mirrored? Run the orientation wizard " & _
+        "(main menu 27); it finds the setting from one test cut." & vbCrLf & _
+        "By hand: add r270 (or r90) after the address, m1 / m2 to flip, " & _
+        "r0 m0 to undo. Remembered.", _
         ac2fTitle(CAPTION_), stored)
 
     If StrPtr(answer) = 0 Then Exit Function
@@ -1012,6 +1253,38 @@ Private Function ac2fPLFileSize(ByVal path As String) As Long
     ac2fPLFileSize = FileLen(path)
 End Function
 
+' Sets the size of the file against the size CorelDRAW reports for the
+' same selection. The file is turned by Rotate, so the design's width and
+' height swap for a quarter turn. Outline width and effects can make
+' CorelDRAW's box a little larger than the path, so the wording says
+' where to look rather than calling it an error.
+Private Function ac2fPLDesignCheck(ByVal fileW As Double, ByVal fileH As Double, _
+                                   ByVal tol As Double) As String
+    Dim q As Long, w As Double, h As Double, lim As Double, d As Double
+    Dim s As String
+
+    q = ((ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) Mod 360) + 360) Mod 360
+    q = ((q + 45) \ 90) Mod 4
+    If q Mod 2 = 1 Then
+        w = m_desH: h = m_desW
+    Else
+        w = m_desW: h = m_desH
+    End If
+    lim = tol * 3#
+    If lim < 0.3 Then lim = 0.3
+    d = Abs(fileW - w)
+    If Abs(fileH - h) > d Then d = Abs(fileH - h)
+
+    s = "   Design (CorelDRAW)  : " & ac2fFmt(w) & " x " & ac2fFmt(h) & " mm" & vbCrLf
+    If d <= lim Then
+        s = s & "   Check               : the file is the size of the design" & vbCrLf
+    Else
+        s = s & "   Check               : DIFFERS by " & ac2fFmt(d) & " mm. Outline width, " & _
+                "an effect or a part outside the page can do this." & vbCrLf
+    End If
+    ac2fPLDesignCheck = s
+End Function
+
 Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
                               ByVal port As Long, ByVal path As String, _
                               ByVal bytesOut As Long, ByVal margin As Double, _
@@ -1066,7 +1339,8 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
             CLng(margin * u + (maxX - minX) * u) & vbCrLf
     s = s & "   Y range             : " & CLng(margin * u) & " .. " & _
             CLng(margin * u + (maxY - minY) * u) & vbCrLf
-    s = s & "   Curve tolerance     : " & ac2fFmt(tol) & " mm" & vbCrLf
+    If m_desOK Then s = s & ac2fPLDesignCheck(maxX - minX, maxY - minY, tol)
+    s = s & "   Curve tolerance     : " & ac2fFmt(tol) & " mm  (the file never strays further)" & vbCrLf
     s = s & "   Mirror              : " & ac2fPLMirName(ac2fGetLng(AC2F_K_PL_MIR, AC2F_DEF_PL_MIR)) & vbCrLf
     s = s & "   PD pairs            : " & ac2fGetLng(AC2F_K_PL_PAIRS, AC2F_DEF_PL_PAIRS) & vbCrLf
     s = s & "   Preamble            : " & ac2fPLPreName(ac2fGetLng(AC2F_K_PL_PRE, AC2F_DEF_PL_PRE)) & vbCrLf
@@ -1080,6 +1354,12 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
     ElseIf Len(host) > 0 And ok Then
         s = s & vbCrLf & "Written straight from the geometry and streamed out." & vbCrLf
         s = s & "No CorelDRAW export, no file left behind, nothing to fix."
+        If ac2fGetLng(AC2F_K_PL_CALIB, 0) = 0 Then
+            s = s & vbCrLf & vbCrLf & "ORIENTATION NOT CHECKED YET" & vbCrLf & _
+                "   If the job comes out turned or mirrored, run the orientation" & vbCrLf & _
+                "   wizard (main menu 27): one test cut and it sets Rotate and" & vbCrLf & _
+                "   Mirror for this machine."
+        End If
     End If
 
     ac2fPLReport = s

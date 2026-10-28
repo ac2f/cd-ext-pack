@@ -26,11 +26,11 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
 
     m = "Enter the number of the action you want:" & vbCrLf & vbCrLf & _
         "  1  -  Length measurement" & vbCrLf & _
-        "  2  -  Length measurement + label on page" & vbCrLf & _
+        "  2  -  Length + label on page" & vbCrLf & _
         "  3  -  3-LED module count" & vbCrLf & _
-        "  4  -  3-LED module count (ask for spacing)" & vbCrLf & _
+        "  4  -  3-LED module count (ask spacing)" & vbCrLf & _
         "  5  -  Box letter strip" & vbCrLf & _
-        "  6  -  Box letter strip (pick profile, tweak, draw)" & vbCrLf & _
+        "  6  -  Box letter strip (pick a profile)" & vbCrLf & _
         "  7  -  Box letter report (no drawing)" & vbCrLf & _
         "  8  -  ACP panel V-grooves" & vbCrLf & _
         "  9  -  Centerline (reduce to a single line)" & vbCrLf & _
@@ -49,7 +49,8 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         " 21  -  Customer job: export, folders, price  (J)" & vbCrLf & _
         " 22  -  Nesting again, last settings" & vbCrLf & _
         " 23  -  Start points   24 - again   25 - markers" & vbCrLf & _
-        " 26  -  Mark selection as offcut sheets" & vbCrLf
+        " 26  -  Mark selection as offcut sheets" & vbCrLf & _
+        " 27  -  Plotter orientation wizard" & vbCrLf
 
     choice = InputBox(m, ac2fTitle(CAPTION_), "1")
     If StrPtr(choice) = 0 Then Exit Sub          ' Cancel
@@ -83,6 +84,7 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         Case "24": ac2fStartPointsAgain
         Case "25": ac2fStartPointsShow
         Case "26": ac2fNestMarkSheets
+        Case "27": ac2fPlotCalibrate
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_
     End Select

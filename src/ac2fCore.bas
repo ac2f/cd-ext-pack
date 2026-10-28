@@ -14,7 +14,7 @@ Option Explicit
 ' Package identity
 '---------------------------------------------------------------------
 Public Const AC2F_NAME    As String = "ac2f pack"
-Public Const AC2F_VERSION As String = "1.22.0"
+Public Const AC2F_VERSION As String = "1.23.0"
 Public Const AC2F_REG_APP As String = "ac2fPack"
 Public Const AC2F_REG_SEC As String = "Ayarlar"
 Public Const AC2F_REG_PROF As String = "Profiles"
@@ -88,6 +88,26 @@ Private m_TempShapes As Long
 Private m_ovrN As Long
 Private m_ovrKey() As String
 Private m_ovrVal() As Double
+
+'---------------------------------------------------------------------
+' Curve sampling state (see CURVE SAMPLING below). Declarations have to
+' stand above the first procedure of the module.
+'---------------------------------------------------------------------
+Public ac2fSgX() As Double          ' sampled points, mm
+Public ac2fSgY() As Double
+Public ac2fSgN As Long              ' how many: the start included, the end left out
+Public ac2fSgDev As Double          ' how far the segment strays from its own chord, mm
+
+Private m_sgMode As Long            ' 0 untested, 1 sampling works, -1 unavailable
+Private m_sgSeg As Segment
+Private m_sgTol As Double
+Private m_sgBad As Boolean
+Private m_sgAx As Double, m_sgAy As Double
+Private m_sgBx As Double, m_sgBy As Double
+Private m_sgLen As Double
+
+Private Const SG_MAX_DEPTH As Long = 12
+Private Const SG_MAX_POINTS As Long = 60000
 
 '=====================================================================
 ' SETTINGS  (Windows registry: VB and VBA Program Settings)
@@ -276,6 +296,288 @@ Public Function ac2fSolveTheta(ByVal chord As Double, ByVal arc As Double) As Do
         If f > r Then lo = mp Else hi = mp
     Next i
     ac2fSolveTheta = (lo + hi) / 2#
+End Function
+
+'=====================================================================
+' CURVE SAMPLING
+'
+' Turns one curved segment into points that lie ON the real curve.
+'
+' CorelDRAW is asked for points along the segment itself
+' (Segment.GetPointPositionAt), so any bezier comes out right: an S
+' that turns both ways, a loop, a cusp, handles of very different
+' length. Nothing is guessed from the segment's length and chord.
+'
+' The polyline is refined until the curve stays within tol of it:
+' every span is probed at its quarter, middle and three-quarter
+' points, and a span whose probes stray more than half the tolerance
+' from its chord is split in two. Every segment starts with at least
+' four spans, and with about one span per 8 mm, so a feature smaller
+' than a span cannot hide between probes.
+'
+' Two independent checks guard the answer. Each probe must lie within
+' reach of both ends (|AP| + |PB| <= length), which no point of a real
+' curve can break. And the finished polyline must be as long as the
+' length CorelDRAW reports for the segment; a loop or wiggle the
+' probes skipped would leave it short, and the segment is then read
+' again, four times as finely.
+'
+' If CorelDRAW does not answer sensibly the mode turns to -1 and the
+' caller cuts the curve with ac2fSegSplit instead, which needs
+' nothing but Segment.AddNodeAt and Segment.Length.
+'=====================================================================
+' Forget what was learned about the CorelDRAW in front of us, so each
+' run tests it again.
+Public Sub ac2fSegReset()
+    m_sgMode = 0
+End Sub
+
+Public Function ac2fSegMode() As Long
+    ac2fSegMode = m_sgMode
+End Function
+
+' A curve of length L between two points A and B can never leave the
+' ellipse whose foci are A and B and whose string is L. Its farthest
+' reach from the chord is therefore sqrt(L^2 - c^2) / 2. This is a
+' proven upper bound, not an estimate.
+Public Function ac2fSegBulge(ByVal arcL As Double, ByVal chord As Double) As Double
+    Dim d As Double
+    d = arcL * arcL - chord * chord
+    If d > 0# Then ac2fSegBulge = Sqr(d) / 2#
+End Function
+
+' Distance from point (px, py) to the finite line a-b.
+Public Function ac2fPtSegDist(ByVal px As Double, ByVal py As Double, _
+                              ByVal ax As Double, ByVal ay As Double, _
+                              ByVal bx As Double, ByVal by As Double) As Double
+    Dim dx As Double, dy As Double, l2 As Double, t As Double
+    dx = bx - ax: dy = by - ay
+    l2 = dx * dx + dy * dy
+    If l2 <= 0.000000000001 Then
+        t = 0#
+    Else
+        t = ((px - ax) * dx + (py - ay) * dy) / l2
+        If t < 0# Then t = 0#
+        If t > 1# Then t = 1#
+    End If
+    dx = px - (ax + t * dx): dy = py - (ay + t * dy)
+    ac2fPtSegDist = Sqr(dx * dx + dy * dy)
+End Function
+
+' Points along sg. Returns how many (ac2fSgN), the start point first and
+' the end point left to the next segment, or -1 when CorelDRAW cannot
+' give points along a segment (the mode is then -1 until the next reset).
+Public Function ac2fSegmentPoints(ByVal sg As Segment, ByVal tol As Double) As Long
+    Dim ax As Double, ay As Double, bx As Double, by As Double
+    Dim chord As Double, ln As Double
+    Dim n0 As Long, attempt As Long
+    Dim polyLen As Double, k As Long
+    Dim px As Double, py As Double
+
+    ac2fSgN = 0: ac2fSgDev = 0#
+    If tol < 0.0005 Then tol = 0.0005
+    If ac2fSgMax() = 0 Then ac2fSgGrow
+
+    ax = sg.StartNode.PositionX: ay = sg.StartNode.PositionY
+    bx = sg.EndNode.PositionX: by = sg.EndNode.PositionY
+    chord = Sqr((bx - ax) * (bx - ax) + (by - ay) * (by - ay))
+    ln = 0#
+    On Error Resume Next
+    ln = sg.Length
+    On Error GoTo 0
+
+    ac2fSgAdd ax, ay
+    ac2fSegmentPoints = 1
+    If ac2fSegBulge(ln, chord) <= tol * 0.25 Then
+        ac2fSgDev = ac2fSegBulge(ln, chord)
+        Exit Function
+    End If
+    If m_sgMode < 0 Then
+        ac2fSegmentPoints = -1
+        Exit Function
+    End If
+
+    Set m_sgSeg = sg
+    m_sgTol = tol
+    m_sgAx = ax: m_sgAy = ay: m_sgBx = bx: m_sgBy = by
+    m_sgLen = ln
+
+    If m_sgMode = 0 Then
+        If Not ac2fSgEndsAgree() Then
+            m_sgMode = -1
+            ac2fSgN = 0
+            ac2fSegmentPoints = -1
+            Exit Function
+        End If
+        m_sgMode = 1
+    End If
+
+    n0 = CLng(ac2fCeil(ln / 8#))
+    If n0 < 4 Then n0 = 4
+    If n0 > 128 Then n0 = 128
+
+    For attempt = 0 To 2
+        m_sgBad = False
+        ac2fSgN = 0
+        ac2fSgAdd ax, ay
+        ac2fSgRun n0
+        If m_sgBad Then
+            m_sgMode = -1
+            ac2fSgN = 0
+            ac2fSegmentPoints = -1
+            Exit Function
+        End If
+        polyLen = 0#
+        For k = 1 To ac2fSgN - 1
+            px = ac2fSgX(k) - ac2fSgX(k - 1): py = ac2fSgY(k) - ac2fSgY(k - 1)
+            polyLen = polyLen + Sqr(px * px + py * py)
+        Next k
+        px = bx - ac2fSgX(ac2fSgN - 1): py = by - ac2fSgY(ac2fSgN - 1)
+        polyLen = polyLen + Sqr(px * px + py * py)
+        If polyLen >= ln - (ln * 0.001 + 0.01) Then Exit For
+        n0 = n0 * 4
+        If n0 > 4096 Then Exit For
+    Next attempt
+
+    ' how far the segment really strays from its chord, as measured
+    For k = 1 To ac2fSgN - 1
+        px = ac2fPtSegDist(ac2fSgX(k), ac2fSgY(k), ax, ay, bx, by)
+        If px > ac2fSgDev Then ac2fSgDev = px
+    Next k
+    ac2fSegmentPoints = ac2fSgN
+End Function
+
+' The segment must hand back its own two nodes at offsets 0 and 1.
+Private Function ac2fSgEndsAgree() As Boolean
+    Dim px As Double, py As Double
+    On Error GoTo Fail
+    m_sgSeg.GetPointPositionAt px, py, 0#, cdrRelativeSegmentOffset
+    If Abs(px - m_sgAx) > 0.05 Or Abs(py - m_sgAy) > 0.05 Then Exit Function
+    m_sgSeg.GetPointPositionAt px, py, 1#, cdrRelativeSegmentOffset
+    If Abs(px - m_sgBx) > 0.05 Or Abs(py - m_sgBy) > 0.05 Then Exit Function
+    ac2fSgEndsAgree = True
+    Exit Function
+Fail:
+End Function
+
+Private Sub ac2fSgRun(ByVal n0 As Long)
+    Dim i As Long
+    Dim t0 As Double, t1 As Double, tm As Double
+    Dim x0 As Double, y0 As Double, x1 As Double, y1 As Double
+    Dim xm As Double, ym As Double
+
+    t0 = 0#: x0 = m_sgAx: y0 = m_sgAy
+    For i = 1 To n0
+        If m_sgBad Then Exit Sub
+        t1 = i / n0
+        If i = n0 Then
+            x1 = m_sgBx: y1 = m_sgBy
+        Else
+            ac2fSgProbe t1, x1, y1
+        End If
+        tm = (t0 + t1) / 2#
+        ac2fSgProbe tm, xm, ym
+        ac2fSgSpan t0, x0, y0, t1, x1, y1, tm, xm, ym, 0
+        If i < n0 Then ac2fSgAdd x1, y1
+        t0 = t1: x0 = x1: y0 = y1
+    Next i
+End Sub
+
+' One span of the polyline, from offset t0 to t1, whose middle point is
+' already known. Adds the points that belong strictly between the two
+' ends. Quarter and three-quarter probes decide whether the chord will do.
+Private Sub ac2fSgSpan(ByVal t0 As Double, ByVal x0 As Double, ByVal y0 As Double, _
+                       ByVal t1 As Double, ByVal x1 As Double, ByVal y1 As Double, _
+                       ByVal tm As Double, ByVal xm As Double, ByVal ym As Double, _
+                       ByVal depth As Long)
+    Dim ta As Double, xa As Double, ya As Double
+    Dim tb As Double, xb As Double, yb As Double
+    Dim d As Double, e As Double
+
+    If m_sgBad Then Exit Sub
+    ta = (t0 + tm) / 2#: tb = (tm + t1) / 2#
+    ac2fSgProbe ta, xa, ya
+    ac2fSgProbe tb, xb, yb
+    If m_sgBad Then Exit Sub
+
+    d = ac2fPtSegDist(xm, ym, x0, y0, x1, y1)
+    e = ac2fPtSegDist(xa, ya, x0, y0, x1, y1)
+    If e > d Then d = e
+    e = ac2fPtSegDist(xb, yb, x0, y0, x1, y1)
+    If e > d Then d = e
+
+    If d <= m_sgTol * 0.5 Or depth >= SG_MAX_DEPTH Or ac2fSgN >= SG_MAX_POINTS Then Exit Sub
+
+    ac2fSgSpan t0, x0, y0, tm, xm, ym, ta, xa, ya, depth + 1
+    ac2fSgAdd xm, ym
+    ac2fSgSpan tm, xm, ym, t1, x1, y1, tb, xb, yb, depth + 1
+End Sub
+
+' One point of the real curve. A point that is out of reach of either
+' end cannot belong to a curve of this length: CorelDRAW has answered
+' with nonsense, so the reading is flagged and thrown away.
+Private Sub ac2fSgProbe(ByVal t As Double, ByRef x As Double, ByRef y As Double)
+    Dim reach As Double
+    On Error GoTo Bad
+    m_sgSeg.GetPointPositionAt x, y, t, cdrRelativeSegmentOffset
+    reach = Sqr((x - m_sgAx) * (x - m_sgAx) + (y - m_sgAy) * (y - m_sgAy)) + _
+            Sqr((x - m_sgBx) * (x - m_sgBx) + (y - m_sgBy) * (y - m_sgBy))
+    If reach > m_sgLen * 1.002 + 0.05 Then GoTo Bad
+    Exit Sub
+Bad:
+    m_sgBad = True
+    x = m_sgAx: y = m_sgAy
+End Sub
+
+Private Function ac2fSgMax() As Long
+    On Error Resume Next
+    ac2fSgMax = UBound(ac2fSgX) + 1
+End Function
+
+Private Sub ac2fSgGrow()
+    ReDim ac2fSgX(0 To 1023): ReDim ac2fSgY(0 To 1023)
+End Sub
+
+Private Sub ac2fSgAdd(ByVal x As Double, ByVal y As Double)
+    If ac2fSgN > UBound(ac2fSgX) Then
+        ReDim Preserve ac2fSgX(0 To (UBound(ac2fSgX) + 1) * 2 - 1)
+        ReDim Preserve ac2fSgY(0 To UBound(ac2fSgX))
+    End If
+    ac2fSgX(ac2fSgN) = x
+    ac2fSgY(ac2fSgN) = y
+    ac2fSgN = ac2fSgN + 1
+End Sub
+
+' The fallback for a CorelDRAW that cannot give points along a segment.
+' Cuts segment k of sp in halves (Segment.AddNodeAt) until each piece
+' is within tolerance of its own chord, by the same proven bound.
+' Works on a COPY of the drawing: it adds nodes. Returns how many
+' segments now stand where segment k stood.
+Public Function ac2fSegSplit(ByVal sp As SubPath, ByVal k As Long, _
+                             ByVal tol As Double) As Long
+    Dim cnt As Long, pos As Long, budget As Long
+    Dim sg As Segment
+    Dim ln As Double, chord As Double
+
+    If tol < 0.0005 Then tol = 0.0005
+    cnt = 1: pos = k: budget = 4096
+    Do While pos < k + cnt
+        Set sg = sp.Segments(pos)
+        ln = 0#
+        On Error Resume Next
+        ln = sg.Length
+        On Error GoTo 0
+        chord = Sqr((sg.EndNode.PositionX - sg.StartNode.PositionX) ^ 2 + _
+                    (sg.EndNode.PositionY - sg.StartNode.PositionY) ^ 2)
+        If ac2fSegBulge(ln, chord) > tol * 0.25 And budget > 0 Then
+            sg.AddNodeAt 0.5, cdrRelativeSegmentOffset
+            cnt = cnt + 1
+            budget = budget - 1
+        Else
+            pos = pos + 1
+        End If
+    Loop
+    ac2fSegSplit = cnt
 End Function
 
 Public Function ac2fAtan2(ByVal y As Double, ByVal x As Double) As Double

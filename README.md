@@ -192,8 +192,8 @@ Doğrudan `ac2fCenterlineJoined` / `ac2fCenterlineSeparate` de çağrılabilir.
 
 ### Nasıl çalışıyor
 
-1. Konturlar poligona açılır (dairesel yay modeli — bezier kontrol
-   noktasına gerek yok)
+1. Konturlar poligona açılır (eğrinin **gerçek** noktaları okunur, bkz.
+   [Eğri örnekleme](#eğri-örnekleme))
 2. **Şekil başına** çift-tek dolgu (delikler doğru çıkar), şekiller
    **birleştirilir** (değen harfler tek bölge olur)
 3. Zhang-Suen inceltmesiyle tek piksel kalınlığa iner
@@ -393,6 +393,35 @@ Eğri toleransı ayrı değil: konturları düz adımlara bölen tek ayar
 Sıra **ekranda gördüğünüz çizim üzerinden**, `Rotate` ve `Mirror`'dan
 önce hesaplanır; yani "sol" her zaman ekranınızın solu.
 
+## Eğri örnekleme
+
+Plotter, bükme sırası, kesim süresi ve orta hat, eğrileri düz adımlara
+bölerken **eğrinin gerçek noktalarını** CorelDRAW'dan okur
+(`Segment.GetPointPositionAt`). Hiçbir şey uzunluk ve kirişten *tahmin
+edilmez*: S kıvrımı, ilmek, sivri uç, el yazısı ya da script yazı tipi
+tasarımdaki gibi çıkar.
+
+- Her adım, eğriyi çeyrek, orta ve dörtte-üç noktalarında yoklar; eğri
+  `Curve tol` (ayar 41, varsayılan 0,05 mm) uzaklığın yarısından fazla
+  sapıyorsa adım ikiye bölünür. Her segment en az 4 adımla ve yaklaşık
+  8 mm'de bir adımla başlar; adımdan küçük bir ayrıntı yoklamalar arasında
+  gizlenemez.
+- İki bağımsız denetim vardır: her nokta segmentin iki ucuna yetişebilir
+  olmalı (`|AP| + |PB| ≤ uzunluk`; gerçek bir eğrinin hiçbir noktası bunu
+  aşamaz) ve bitmiş çokgenin boyu CorelDRAW'ın bildirdiği segment boyuna
+  eşit olmalı. Atlanmış bir ilmek çokgeni kısa bırakır; segment 4 kat sık
+  yeniden okunur.
+- CorelDRAW nokta vermiyorsa ya da saçma yanıt veriyorsa (`438`, ya da
+  uca yetişmeyen nokta) segment, **bir kopya üzerinde** `Segment.AddNodeAt`
+  ile, parçalar kirişlerine `Curve tol`'un çeyreği içine girene dek
+  ikiye bölünür. Kanıtlanmış sınır: uzunluğu `L`, kirişi `c` olan bir
+  eğri kirişten en çok `√(L² − c²) / 2` uzaklaşır.
+- Sınama: `python3 tools/test_plot.py` dosyadaki HPGL'i geri okur ve
+  gerçek Bezier eğrileriyle karşılaştırır (S, ilmek, sivri uç, 60+ rastgele
+  karalama). En kötü sapma 0,055 mm; eski dairesel yay tahmini aynı
+  şekillerde **3 ile 67 mm** arasında saparak "el yazısı gibi" bozuk
+  çıktı veriyordu.
+
 ## Plotter'a gönderme
 
 Seçimi seçin, `ac2fPlotSend` çalıştırın, adresi onaylayın. **Export yok,
@@ -424,10 +453,29 @@ Manager'ı dizin, sonra gönderin.
 İş bitince bıçak kalkar ve kafa **işin en üst noktasında** bekler
 (`Park`, ayar 67; `0` orijin, `2` olduğu yer).
 
-### Hâlâ 90 derece dönük geliyorsa
+### Dönük ya da aynalı geliyorsa: yön sihirbazı (ana menü 27)
 
-Paket döndürmüyor; makinenin X ekseni besleme yönünde. Adresi yazarken
-sonuna yön ekleyin, kalıcı olarak hatırlanır:
+Paket döndürmüyor; makinenin X ekseni besleme yönünde olabilir. Deneme
+yanılma yerine **`ac2fPlotCalibrate`** (ana menü `27`) tek kesimle bulur:
+
+1. Test L'si **hiçbir döndürme ve aynalama olmadan** gider; makinenin tek
+   başına ne yaptığını gösterir.
+2. Çıkan parçaya bakıp sekiz resimden numarasını yazarsınız. Resimler
+   L'nin sekiz yönüdür ve kodda geometriden üretilip yazıyla tarif edilir
+   ("köşe sol-altta, uzun kol YUKARI, kısa kol SAĞA"). Parçaya makinenin
+   önü (size yakın kenar) altta kalacak biçimde bakın; tabakayı ters
+   çevirmeyin.
+3. `Rotate` ve `Mirror` buna göre **tersine** ayarlanır; L bu ayarlarla
+   yeniden gider.
+4. "Doğru" derseniz bitti (`Rotate`/`Mirror` kalıcı). Değilse gördüğünüz
+   şekil ayarı bir kez daha düzeltir; en çok 4 kesim.
+
+Yarıda bırakırsanız ya da gönderim başarısız olursa önceki ayarınız geri
+yüklenir. Sihirbaz bir kez çalışınca, gönderim raporundaki "yön
+denetlenmedi" uyarısı kalkar.
+
+Elle yapmak isterseniz adresi yazarken sonuna yön ekleyin, kalıcı olarak
+hatırlanır:
 
 ```
 192.168.1.200:8080 r270
@@ -481,8 +529,7 @@ gönderici ve yönlendirme adımından 40 × 80 mm'lik bir **L** gönderir:
 | Sonuç | Anlamı | Ne yapmalı |
 |---|---|---|
 | Doğru şekil, temiz kesti | Her şey yolunda | — |
-| **Yan yatmış** | Makine eksenleri takas ediyor | `Rotate = 270`, ters olursa `90` |
-| **Ayna görüntüsü** | Makine bir ekseni aynalıyor | `Mirror = 1` (ya da baş aşağıysa `2`) |
+| **Yan yatmış, ters ya da ayna görüntüsü** | Makine eksenleri takas ediyor ya da bir ekseni aynalıyor | **Yön sihirbazı** (ana menü `27`); elle: `Rotate = 270`, ters olursa `90`, `Mirror = 1`/`2` |
 | Doğru şekil ama sadece gezdi | Makine hiç kesmiyor | Bıçak kuvveti/derinliği; `Preamble = 2` |
 | Kıpırdamadı | Ulaşmadı | Adres, port, kablo |
 
@@ -656,6 +703,7 @@ Ayrıntı ve sınırlar: **[docs/kullanim.md](docs/kullanim.md)**
 python3 tools/lint.py          # içe aktarmadan önce statik denetim + VBA derleyici kuralları
 python3 tools/test_nest.py     # nesting motoru, gerçek geometriyle
 python3 tools/test_corel.py    # nesting + başlangıç noktası, CorelDRAW taklidinde uçtan uca
+python3 tools/test_plot.py     # plotter: HPGL'i geri okuyup gerçek Bezier eğrileriyle karşılaştırır, yön sihirbazı
 python3 tools/test_windows.py  # nesting pencereleri, PowerShell 7 ile (AC2F_PWSH)
 python3 tools/ps2vba.py        # nest_window.ps1 / nest_preview.ps1 değişince ac2fNest.bas'a gömer
 python3 tools/skeleton.py      # büyük düzenlemelerden sonra kontrol akışı karşılaştırması

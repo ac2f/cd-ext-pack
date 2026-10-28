@@ -207,7 +207,7 @@ SubPath.Length / .Closed / .Segments / .Nodes
 Segment.Length / .StartNode / .EndNode  ->  .PositionX / .PositionY
 ```
 
-### Her segment dairesel yay kabul edilir
+### Her segment dairesel yay kabul edilir (yalnız ac2fBoxLetter)
 
 Kiriş `c` ve yay `L` bilindiğinde dönüş açısı `t`, şu bağıntıdan çözülür:
 
@@ -412,7 +412,7 @@ bilinen** şekillerde ölçüldü, sonra VBA'ya geçirildi ve aynı işlem
 sırasıyla yeniden sınandı.
 
 ```
-1  konturlari poligona ac   (dairesel yay modeli, ac2fBoxLetter ile ayni)
+1  konturlari poligona ac   (gercek egri noktalari, ac2fSegmentPoints)
 2  sekil basina cift-tek dolgu, sekiller arasi OR
 3  Zhang-Suen inceltme
 4  fazlalik merdiven pikseli temizligi
@@ -759,6 +759,7 @@ tools/cdrmock.py       CorelDRAW nesne modeli taklidi
 tools/vbacheck.py      gerçek VBA derleyicisinin kuralları (lint çalıştırır)
 tools/test_nest.py     ac2fNestCore, gerçek geometriyle
 tools/test_corel.py    ac2fNest + ac2fStart, taklit belgede uçtan uca
+tools/test_plot.py     ac2fPlot + ac2fBending, HPGL geri okunup gercek Bezier ile karsilastirilir
 tools/test_windows.py  pencere betikleri, PowerShell 7 + tools/winstub.cs
 ```
 

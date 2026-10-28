@@ -144,6 +144,24 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.22.0'dan 1.23.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fCore.bas` | **Değişti** (eğri örnekleme, sürüm) — önce silin, sonra aktarın |
+| `ac2fBending.bas` | **Değişti** (gerçek eğri noktaları) — önce silin, sonra aktarın |
+| `ac2fPlot.bas` | **Değişti** (yön sihirbazı, tasarım denetimi) — önce silin, sonra aktarın |
+| `ac2fCenterline.bas` | **Değişti** (derleme hatası giderildi) — önce silin, sonra aktarın |
+| `ac2fMenu.bas` | **Değişti** (menü `27`) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Plotter eğrileri artık tasarımdaki gibi çıkar (eski sürüm S kıvrımlı ve
+el yazısı şekilleri milimetrelerce bozuyordu). Bir kez **ana menü `27`**
+(yön sihirbazı) çalıştırın: iş 90 derece dönük ya da aynalı çıkıyorsa
+`Rotate`/`Mirror` değerini tek kesimle bulur. Ayar numaraları ve kayıtlı
+ayarlar değişmedi. Beş modülü de yenileyin, sonra `Debug > Compile ac2fPack`
+hatasız bitmeli.
+
 ### Sürüm 1.21.0'dan 1.22.0'a
 
 | Dosya | Ne yapmalı |

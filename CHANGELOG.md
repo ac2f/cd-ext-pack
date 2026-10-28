@@ -2,6 +2,63 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.23.0] - 2026-10-28
+
+### Düzeltildi: plotter eğrileri bozuk kesiyordu ("el yazısı gibi")
+
+`ac2fBending`, plotter dosyasının noktalarını üreten düzleştirme kodu,
+her segmenti **dairesel yay** sanıyordu: yay açısını uzunluk ve kirişten
+çözüyor, yayın hangi yana şiştiğini komşu kirişlerin yönünden *tahmin*
+ediyordu. Gerçek bir bezier daire dilimi değildir. S kıvrımı, ilmek,
+sivri uç, tutamaç boyları birbirinden çok farklı el yazısı ya da script
+yazı tipleri yanlış tarafa şişiyor ya da biçim değiştiriyordu. Ölçüm
+(gerçek Bezier eğrilerine karşı): **3 ile 67 mm sapma**.
+
+Artık eğrinin **gerçek noktaları** CorelDRAW'dan okunur
+(`Segment.GetPointPositionAt`) ve `Curve tol` içinde kalana dek yoklanıp
+bölünür. En kötü ölçülen sapma **0,055 mm**. Ayrıntı: README › Eğri
+örnekleme. Aynı düzeltme bükme sırasını, kesim süresini ve orta hattı da
+düzeltir (hepsi aynı geometriyi kullanıyordu).
+
+- Yedek yol: CorelDRAW nokta vermiyorsa ya da saçma yanıt veriyorsa
+  `Segment.AddNodeAt` ile bir **kopya** parçalara bölünür (kanıtlanmış
+  elips sınırıyla); sonuç yine tolerans içindedir.
+- **Dosyada sıfır uzunluklu `PD` kalmaz**: kapalı konturların son düğümü
+  başlangıçla aynıydı ve bir yinelenen nokta yazılıyordu.
+- **Orta hat**: açık alt yolun son düğümü artık eklenir.
+
+### Eklendi: yön sihirbazı (`ac2fPlotCalibrate`, ana menü 27)
+
+Makine işi 90 derece dönük ya da aynalı çiziyorsa deneme yanılma yok:
+test L'si hiçbir dönüşüm olmadan gider, çıkan parçanın resmini seçersiniz,
+`Rotate` ve `Mirror` tersine kurulur, L yeniden gider ve doğrulanır.
+Sekiz olası makine yönünün hepsinde en çok 2 kesimde doğru ayara varır
+(testlenmiş); yanlış resim seçilse bile doğrulama kesimi düzeltir. İptal ya
+da gönderim hatasında önceki ayar geri yüklenir.
+
+### Eklendi: gönderim raporunda tasarım denetimi
+
+Dosyadaki boyut, CorelDRAW'ın aynı seçim için bildirdiği boyutla
+karşılaştırılır (`Design (CorelDRAW)` / `Check`). Yön sihirbazı çalışmadıysa
+rapor bunu hatırlatır.
+
+### Düzeltildi: `ac2fCenterline` derlenmiyordu
+
+İki modül düzeyi değişken (`m_pi`, `m_used`) yordamların ortasında
+bildirilmişti; VBA bunu "Only comments may appear after End Sub, End
+Function, or End Property" ile reddeder. Bildirimler üste taşındı.
+`tools/lint.py` artık bu hatayı yakalıyor (ilk yordamdan sonraki her
+modül düzeyi bildirim hata).
+
+### Araçlar
+
+- `tools/test_plot.py` (yeni): HPGL'i geri okuyup gerçek Bezier eğrileriyle
+  karşılaştırır; döndürme/aynalama (16 birleşim), yön sihirbazı (8 makine),
+  yedek yollar, tolerans ayarı, rastgele karalamalar.
+- `tools/cdrmock.py`: `Collection`, `Page.Shapes`, `FileLen`, yay uzunluğuna
+  göre ofset (CorelDRAW gibi), çöp/yok yanıt kipleri, ağ gönderimini
+  yakalama.
+
 ## [1.22.0] - 2026-10-23
 
 ### Takım yolu klasöründe belirteç

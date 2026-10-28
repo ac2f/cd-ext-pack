@@ -224,6 +224,15 @@ def main():
                                   f'(beklenen {prev_proc})')
                 continue
 
+            # VBA wants every module level declaration above the first
+            # procedure: "Only comments may appear after End Sub, End
+            # Function, or End Property", reported only when CorelDRAW
+            # compiles the module.
+            if prev_proc is not None and not stack \
+                    and re.match(r'^(public|private|global|friend|dim|const|type|enum|declare)\b', low):
+                errors.append(f'{f}:{i} modul duzeyi bildirim ilk yordamdan ("{prev_proc}") sonra; '
+                              f'VBA derlemez, tum bildirimleri yordamlarin ustune tasiyin')
+
             cm = const_re.match(code)
             if cm:
                 known_syms.add(cm.group(1))
