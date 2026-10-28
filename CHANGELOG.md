@@ -2,6 +2,24 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.23.1] - 2026-10-28
+
+### Düzeltildi: plotter işi 90 derece sola çevirip kesiyordu
+
+Bu plotter her işi kendiliğinden 90 derece sola çeviriyor. `Rotate`
+varsayılanı artık **270** (dosya 90 derece sağa çevrilerek gönderilir):
+ikisi birbirini götürür ve kesim ekranda gördüğünüz gibi çıkar. Ayar,
+sihirbaz ya da adres satırına yön yazmak gerekmez.
+
+- Gönderim raporu, adres sorusu ve test L'si artık yön sihirbazından söz
+  etmez; "yön denetlenmedi" uyarısı kalktı. Sihirbaz (`ana menü 27`) başka
+  bir makine için duruyor, kimseye dayatılmıyor.
+- Hız ve kuvvet bu sürümde **değişmedi**: dosyaya hız (`VS`) ya da kuvvet
+  (`FS`) komutu yazılmıyor, makinenin kendi ayarı geçerli.
+- Test: `tools/test_plot.py` makinenin 90 sola çevirmesini taklit eder ve
+  varsayılan ayarla L, 300 x 100 dikdörtgen ve el yazısı eğrinin ekrandaki
+  gibi çıktığını doğrular.
+
 ## [1.23.0] - 2026-10-28
 
 ### Düzeltildi: plotter eğrileri bozuk kesiyordu ("el yazısı gibi")

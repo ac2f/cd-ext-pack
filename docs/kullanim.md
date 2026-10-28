@@ -616,20 +616,21 @@ Onaylayın, iş gider. **Export etmeniz ve dosya düzeltmeniz gerekmez.**
 
 ### Yön: nasıl görüyorsanız öyle
 
-**Hiçbir şey döndürülmez.** Belge X'i plotter X'i, belge Y'si plotter
-Y'si olur. Arada döndürecek bir export süzgeci yok — iş ekranda durduğu
-gibi kesilir.
+**Ayar gerekmez: kesim ekranda gördüğünüz gibi çıkar.** Bu plotter her işi
+kendiliğinden **90 derece sola** çevirip işliyor; paket bunu bilir ve dosyayı
+gönderirken önce **90 derece sağa** çevirir (`Rotate` varsayılanı **270**).
+İkisi birbirini götürür. Export süzgeci yok; çeviri, düzleştirilmiş noktalara
+tek adımda uygulanır.
 
-Yine de dönük çıkıyorsa sebep dosya değil **makinedir**: çoğu kesicide X
-ekseni malzeme besleme yönünde uzar, bu yüzden geniş bir iş ruloya enine
-düşer.
+Dönüş makineye bağlıdır (çoğu kesicide X ekseni malzeme besleme yönünde
+uzar). Başka bir makine için `Rotate` değeri aşağıdadır.
 
 | `Rotate` (ayar 61) | Sonuç |
 |---|---|
-| `0` *(varsayılan)* | Ekranda gördüğünüz gibi |
+| `0` | İşi çevirmeden gönderir (makine kendisi çevirmiyorsa) |
 | `90` | Saat yönünün tersine çeyrek tur |
 | `180` | Ters çevrilir |
-| `270` | Saat yönüne çeyrek tur |
+| `270` *(varsayılan)* | Saat yönüne çeyrek tur: bu plotter işi 90 sola çevirdiği için telafi |
 
 90 ve 270'te en–boy takas olur (200×300 → 300×200). Kenar payı
 döndürmeden **sonra** uygulanır, dolayısıyla iş her durumda köşeye
@@ -753,7 +754,7 @@ The file is written, so you can send it by hand.
 ### Dönük geliyorsa
 
 Paket işi **birebir** gönderir: belge X'i plotter X'i, belge Y'si
-plotter Y'si. Arada döndüren bir şey yok, `Rotate` varsayılanı 0.
+plotter Y'si; makinenin kendi 90 derece sola dönüşü için dosya 90 sağa çevrilir (`Rotate` varsayılanı 270).
 
 Yine de dönük çıkıyorsa sebep **makinedir**: çoğu kesicide X ekseni
 malzeme besleme yönünde uzar, bu yüzden geniş bir iş ruloya enine

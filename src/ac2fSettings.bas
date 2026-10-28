@@ -670,14 +670,13 @@ Private Sub ac2fBuildTable3()
         AC2F_KIND_INT, CDbl(AC2F_DEF_PL_ROT), 0, 270, _
         "Quarter turns applied before the job is sent. 0 means none." & _
         vbCrLf & vbCrLf & _
-        "Nothing is rotated by default: document X becomes plotter X and " & _
-        "document Y becomes plotter Y, so the job cuts exactly as it " & _
-        "sits on screen. There is no export filter in between to turn it." & _
+        "The default is 270. The plotter turns every job 90 degrees to the " & _
+        "left on its own, so the file is turned 90 to the right first and " & _
+        "the cut lands on the material exactly as the drawing sits on " & _
+        "screen. Leave it as it is." & vbCrLf & vbCrLf & _
+        "Only for a different machine: 0 sends the job unturned, and 90 " & _
+        "or 270 compensate for a machine that turns it the other way." & _
         vbCrLf & vbCrLf & _
-        "If it still comes out turned, that is the machine rather than " & _
-        "the file. On most cutters the X axis runs along the media feed, " & _
-        "so a wide job lands across the roll. Set 90 or 270 here to " & _
-        "compensate, whichever way your plotter leans." & vbCrLf & vbCrLf & _
         "90 turns counter-clockwise, 270 clockwise. Width and height swap " & _
         "over, and the margin is applied afterwards, so the job still " & _
         "lands in the corner either way." & vbCrLf & vbCrLf & _

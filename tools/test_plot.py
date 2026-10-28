@@ -37,7 +37,7 @@ def scenario(name):
 
 
 class Env(object):
-    def __init__(self, settings=None, page=(600.0, 400.0)):
+    def __init__(self, settings=None, page=(600.0, 400.0), defaults=False):
         self.tmp = tempfile.mkdtemp(prefix='ac2f_')
         self.h = cm.Host(self.tmp, page)
         self.h.stubs = {'ac2fsettings': lambda: None}
@@ -47,7 +47,11 @@ class Env(object):
         bad = [w for w in self.p.warnings if not w.startswith(skip)]
         if bad:
             raise SystemExit('\n'.join(bad))
-        for k, v in (settings or {}).items():
+        # Geometry tests judge the shape itself, so they send it unturned unless a
+        # test says otherwise; defaults=True leaves every setting at its factory value.
+        base = {} if defaults else {'PLDondurmeDerece': 0}
+        base.update(settings or {})
+        for k, v in base.items():
             self.h.registry[(REG[0], REG[1], k.lower())] = str(v)
         self.doc = self.h.doc
 
@@ -425,6 +429,42 @@ def t_wizard_cancel_and_send_fail():
     e.close()
 
 
+def t_default_is_as_seen():
+    scenario('Varsayilan ayarla: makine isi 90 sola cevirse de kesim ekrandaki gibi cikar')
+    MACHINE = mat(1, 0)          # makine her isi 90 derece SOLA (saat yonunun tersi) cevirir
+    # 1) test L'si
+    e = Env(defaults=True)
+    e.curve([cm.Path([(0, 0), (40, 0), (40, 20), (15, 20), (15, 80), (0, 80)], closed=True)])
+    runs, _ = parse_hpgl(e.plot())
+    cut = [apply(MACHINE, p) for p in runs[0][:-1]]
+    want = [(0, 0), (40, 0), (40, 20), (15, 20), (15, 80), (0, 80)]
+    ox, oy = min(x for x, y in cut), min(y for x, y in cut)
+    got = [(round(x - ox, 2), round(y - oy, 2)) for x, y in cut]
+    expect(got == [(float(x), float(y)) for x, y in want], 'L makineden sonra ekrandaki gibi: uzun kol solda, ayak sagda %s' % got)
+    e.close()
+    # 2) genis bir is: genis kalmali
+    e = Env(defaults=True)
+    e.curve([cm.rect_path(0, 0, 300, 100)])
+    runs, _ = parse_hpgl(e.plot())
+    cut = [apply(MACHINE, p) for p in runs[0]]
+    w = max(x for x, y in cut) - min(x for x, y in cut)
+    h = max(y for x, y in cut) - min(y for x, y in cut)
+    expect(abs(w - 300) < 0.05 and abs(h - 100) < 0.05, '300 x 100 is makineden sonra 300 x 100 (%.2f x %.2f)' % (w, h))
+    e.close()
+    # 3) el yazisi egri: makineden sonra gercek egriyle ayni
+    e = Env(defaults=True)
+    p = script_e()
+    e.curve([p])
+    runs, _ = parse_hpgl(e.plot())
+    cut = [[apply(MACHINE, q) for q in r] for r in runs]
+    tpts = fine(p)
+    shift = (min(x for r in cut for x, y in r) - min(x for x, y in tpts),
+             min(y for r in cut for x, y in r) - min(y for x, y in tpts))
+    dev = compare([p], cut, shift)
+    expect(dev <= 0.1, 'script e makineden sonra tasarimla ayni (sapma %.3f mm)' % dev)
+    e.close()
+
+
 if __name__ == '__main__':
     import time
     t0 = time.time()
@@ -438,6 +478,7 @@ if __name__ == '__main__':
     t_straight_not_oversampled()
     t_rotation_mirror()
     t_group_and_order()
+    t_default_is_as_seen()
     t_wizard()
     t_wizard_user_error()
     t_wizard_cancel_and_send_fail()

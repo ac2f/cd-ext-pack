@@ -433,15 +433,15 @@ düzeltilecek dosya yok.**
 
 ### Yön: nasıl görüyorsanız öyle
 
-**Hiçbir şey döndürülmez.** Belge X'i plotter X'i, belge Y'si plotter
-Y'si olur; iş ekranda durduğu gibi kesilir. Arada döndürecek bir export
-süzgeci yoktur.
+**Ayar gerekmez: kesim, ekranda gördüğünüz gibi çıkar.** Bu plotter her işi
+kendiliğinden **90 derece sola** çevirip işliyor; dosya bu yüzden gönderilmeden
+önce **90 derece sağa** çevrilir (`Rotate` varsayılanı **270**), ikisi birbirini
+götürür ve iş malzemeye ekranda durduğu gibi oturur. Genişlik ve yükseklik
+yer değiştirmez; kenar payı dönmeden sonra uygulandığı için iş yine köşeye
+oturur.
 
-Yine de dönük çıkıyorsa sebep makinedir: çoğu kesicide X ekseni malzeme
-besleme yönünde uzar, bu yüzden geniş bir iş ruloya enine düşer. `Rotate`
-ayarı (42) bunu telafi eder, **varsayılanı 0** — yani döndürme yok.
-90 saat yönünün tersine, 270 saat yönüne çevirir; en–boy takas olur ve
-kenar payı sonradan uygulandığı için iş yine köşeye oturur.
+Başka bir makinede farklı bir dönüş gerekirse `Rotate` ayarı (42) vardır:
+`0` işi çevirmeden gönderir, 90 saat yönünün tersine, 270 saat yönüne çevirir.
 
 ### Kesim sırası ve bitiş
 
@@ -471,8 +471,8 @@ yanılma yerine **`ac2fPlotCalibrate`** (ana menü `27`) tek kesimle bulur:
    şekil ayarı bir kez daha düzeltir; en çok 4 kesim.
 
 Yarıda bırakırsanız ya da gönderim başarısız olursa önceki ayarınız geri
-yüklenir. Sihirbaz bir kez çalışınca, gönderim raporundaki "yön
-denetlenmedi" uyarısı kalkar.
+yüklenir. Bu plotter için sihirbaza gerek yoktur (varsayılan ayar zaten
+doğrudur); başka bir makine için vardır.
 
 Elle yapmak isterseniz adresi yazarken sonuna yön ekleyin, kalıcı olarak
 hatırlanır:

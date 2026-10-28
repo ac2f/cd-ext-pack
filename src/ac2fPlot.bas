@@ -31,14 +31,16 @@ Attribute VB_Name = "ac2fPlot"
 '  top of the job, so the work can be taken off. Park sets where.
 '
 '  ORIENTATION
-'  Nothing is rotated: document X becomes HPGL X and document Y
-'  becomes HPGL Y, so the job reaches the plotter exactly as it sits
-'  on screen. There is no export filter in the way to turn it.
+'  The cut has to land on the material the way the drawing sits on
+'  screen. The plotter in use here turns every job a quarter turn to the
+'  left (counter-clockwise) on its own, so the file is turned a quarter
+'  turn to the right (clockwise) before it goes out, and the two cancel.
+'  That is the Rotate default, 270. The turn is made on the flattened
+'  points, then the job is moved to the margin, so nothing about it
+'  changes except which way it faces.
 '
-'  If it still comes out turned, that is the machine: on most cutters
-'  the X axis runs along the media feed, so a wide job lands across
-'  the roll. The Rotate setting compensates for that and defaults to
-'  0, which is no rotation at all.
+'  Another machine that needs a different turn sets Rotate (or runs the
+'  orientation wizard); 0 sends the job unturned.
 '
 '  SENDING
 '  VBA has no socket of its own, so the bytes go out through a short
@@ -76,7 +78,7 @@ Public Const AC2F_K_PL_CALIB  As String = "PLYonKontrolEdildi" ' 1 once the wiza
 
 Public Const AC2F_DEF_PL_MARGIN As Double = 5#     ' margin from the origin (mm)
 Public Const AC2F_DEF_PL_TOL    As Double = 0.05   ' curve flattening tolerance (mm)
-Public Const AC2F_DEF_PL_ROT    As Long = 0        ' 0 = exactly as you see it
+Public Const AC2F_DEF_PL_ROT    As Long = 270      ' this machine turns a job 90 left, so send it 90 right (270)
 Public Const AC2F_DEF_PL_MIR    As Long = 0        ' 0 none, 1 flip X, 2 flip Y, 3 both
 Public Const AC2F_DEF_PL_PAIRS  As Long = 1        ' coordinate pairs per PD
 Public Const AC2F_DEF_PL_PRE    As Long = 1        ' 0 none, 1 IN;SP1;PA;, 2 SP1;PA;
@@ -133,9 +135,6 @@ Attribute ac2fPlotTest.VB_Description = "ac2f pack: Send a test L to the plotter
             "      |" & vbCrLf & _
             "      |___" & vbCrLf & vbCrLf & _
             "Tall leg on the LEFT, foot pointing RIGHT, 80 mm the tall way." & _
-            vbCrLf & vbCrLf & _
-            "NOT RIGHT? Run the orientation wizard (main menu 27): you say what " & _
-            "came out and it sets Rotate and Mirror for you, then checks." & _
             vbCrLf & vbCrLf & _
             "RIGHT SHAPE BUT ONLY TRACED" & vbCrLf & _
             "   The machine is not cutting. Knife force, blade depth, " & _
@@ -804,10 +803,7 @@ Private Function ac2fPLAskTarget(ByRef host As String, ByRef port As Long) As Bo
         "   192.168.1.100:23      a telnet port" & vbCrLf & vbCrLf & _
         "ORIENTATION NOW:  Rotate " & ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) & _
         ", Mirror " & ac2fGetLng(AC2F_K_PL_MIR, AC2F_DEF_PL_MIR) & vbCrLf & _
-        "Cut comes out turned or mirrored? Run the orientation wizard " & _
-        "(main menu 27); it finds the setting from one test cut." & vbCrLf & _
-        "By hand: add r270 (or r90) after the address, m1 / m2 to flip, " & _
-        "r0 m0 to undo. Remembered.", _
+        "Nothing else to set: the job is cut the way it looks on screen.", _
         ac2fTitle(CAPTION_), stored)
 
     If StrPtr(answer) = 0 Then Exit Function
@@ -1345,8 +1341,8 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
     s = s & "   PD pairs            : " & ac2fGetLng(AC2F_K_PL_PAIRS, AC2F_DEF_PL_PAIRS) & vbCrLf
     s = s & "   Preamble            : " & ac2fPLPreName(ac2fGetLng(AC2F_K_PL_PRE, AC2F_DEF_PL_PRE)) & vbCrLf
     s = s & "   Rotate              : " & ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) & _
-            " deg" & IIf(ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) = 0, _
-                         "  (as on screen)", "") & vbCrLf
+            " deg" & IIf(ac2fGetLng(AC2F_K_PL_ROT, AC2F_DEF_PL_ROT) = AC2F_DEF_PL_ROT, _
+                         "  (turned to cancel the machine's own turn; the cut is as on screen)", "") & vbCrLf
 
     If Len(errText) > 0 Then
         s = s & vbCrLf & "REASON" & vbCrLf & "   " & errText & vbCrLf
@@ -1354,12 +1350,6 @@ Private Function ac2fPLReport(ByVal ok As Boolean, ByVal host As String, _
     ElseIf Len(host) > 0 And ok Then
         s = s & vbCrLf & "Written straight from the geometry and streamed out." & vbCrLf
         s = s & "No CorelDRAW export, no file left behind, nothing to fix."
-        If ac2fGetLng(AC2F_K_PL_CALIB, 0) = 0 Then
-            s = s & vbCrLf & vbCrLf & "ORIENTATION NOT CHECKED YET" & vbCrLf & _
-                "   If the job comes out turned or mirrored, run the orientation" & vbCrLf & _
-                "   wizard (main menu 27): one test cut and it sets Rotate and" & vbCrLf & _
-                "   Mirror for this machine."
-        End If
     End If
 
     ac2fPLReport = s

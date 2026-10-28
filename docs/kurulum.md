@@ -144,6 +144,19 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.23.0'dan 1.23.1'e
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fPlot.bas` | **Değişti** (`Rotate` varsayılanı 270) — önce silin, sonra aktarın |
+| `ac2fSettings.bas` | **Değişti** (ayar açıklaması) — önce silin, sonra aktarın |
+| `ac2fCore.bas` | **Değişti** (sürüm) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Plotter artık işi ekranda gördüğünüz gibi keser; ayar yapmanız gerekmez.
+Daha önce `Rotate` değerini elle yazdıysanız o değer geçerli kalır
+(ana menü `19` › Rotate ya da adres satırına `r270`).
+
 ### Sürüm 1.22.0'dan 1.23.0'a
 
 | Dosya | Ne yapmalı |
