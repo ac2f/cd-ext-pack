@@ -401,12 +401,9 @@ Her satırda ilk sayılar **plakadan kesilecek boy**, `faces` ise bu
 kesimlerin bitmiş ölçü (net) üzerinde verdiği **yüz uzunluklarıdır**;
 birleşim yerleri yüzlerin toplamından okunur (1. seçenekte x = 3120).
 
-- Bir **numara** yazın ya da **her plakadan kesilecek boyu** kendiniz yazın.
-- `3200 960` — bu boylarda kes; plaka, listedeki sığan en kısası seçilir.
-- `3050:3000 3200:*` — `plaka:boy`; `*` = kalanı bu plaka alsın.
+- Bir **numara** yazın ya da parçaları **soldan sağa kendiniz yazın**
+  ([aşağıda](#parçaları-kendiniz-yazmak-dekupe-için)).
 - `0` — bölme, tek parça çiz.
-- Yazdığınız boylar toplamı tutmazsa (kaç mm eksik/fazla) söyler ve
-  yeniden sorar; sonuna `*` koymak yeter.
 - Seçenekler **en az plakayla** başlar; aynı sayıda plakada **en az fire**
   verenler öne gelir. Genellikle ilki *dolu plakalar* (her plaka sonuna
   kadar, sonuncu kalanı alır: artan tek büyük parça kalır), ikincisi *eşit
@@ -416,7 +413,56 @@ birleşim yerleri yüzlerin toplamından okunur (1. seçenekte x = 3120).
 - Soru kutusuna sığmayan seçenekler gösterilmez; görünen numaralar
   seçilebilir, ya da boylar elle yazılır.
 
-Bütün boylar **kesim boyudur**: yüz boyu + iki ucundaki pay.
+Seçenek satırlarındaki ilk sayılar **kesim boyudur**: yüz boyu + iki ucundaki pay.
+
+#### Parçaları kendiniz yazmak (dekupe için)
+
+Dekupe boşluklarına denk gelecek bölmeleri hesap yapmadan yazın: ölçüyü
+**yüz** (tabelada görünen, net) ya da **kesim** (plakadan kesilen) olarak
+verirsiniz, **büküm payları otomatik eklenir ya da çıkarılır**.
+
+| Yazış | Anlamı |
+|---|---|
+| `n200cm` (`net`, `f`, `face`) | **Yüz** 200 cm; kat ve derz payları üstüne eklenir |
+| `k320cm` (`c`, `cut`, `kesim`) | **Kesim** 320 cm (örn. tam plaka); yüz, paylar düşülünce çıkar |
+| `200cm` ya da `2000` | Düz sayı: son verilen türdür; başta **kesim** (`net` yazınca yüz olur) |
+| `*` | Kalan; birden çok `*` kalanı **eşit** paylaşır |
+| `3050:n2000` | `plaka:ölçü`; o parça 3050'lik plakadan |
+| `at 2000 5100 7500` | **Konumla:** birleşimler bitmiş ölçünün solundan (dik panelde üstünden) bu mesafelerde; son parça kalanı alır |
+
+`net` ya da `cut` tek başına yazılırsa o noktadan sonraki bütün ölçülerin
+türü olur (`net 2000 3100 * *`); `n2000` gibi yapışık yazılırsa yalnız o
+ölçünün. Ölçü `200cm`, `3.2m`, `2000` (mm) yazılabilir; birimsiz **50'den
+küçük** sayı metre sayılır.
+
+**Örnek: 10 m tabela, sağ ve sol kat 7,5 cm, derz payı 3 cm.** İlk parça 2 m
+yüz, ikinci parça tam plaka (320 kesim), üçüncü 2,5 m yüz, dördüncü kalan:
+
+```
+7.5cm out
+3200 j30
+n200cm k320cm n250cm *
+```
+
+```
+1.  cut 2105   face 0-2000 (2000)   folds 75 | 30
+2.  cut 3200   face 2000-5140 (3140)   folds 30 | 30
+3.  cut 2560   face 5140-7640 (2500)   folds 30 | 30
+4.  cut 2465   face 7640-10000 (2360)   folds 30 | 75
+```
+
+Aynı bölme konumla: birleşimler 2000, 5140, 7640'ta →
+`at 2000 5140 7640`. Dekupe boşlukları cetvelden/kılavuz çizgilerinden
+okunan konumlara denk geliyorsa `at` en kolayıdır.
+
+- **Yazdığınız plan önce parça parça gösterilir** (kesim boyu, yüzün net
+  ölçü üzerindeki aralığı, uçlardaki paylar) ve sorulur: *Evet* çizer,
+  *Hayır* aynı satırı düzeltmeniz için geri açar. Ölçünün yüz mü kesim mi
+  anlaşıldığını buradan görürsünüz. Numara seçmek bu soruyu sormaz.
+- Yüzler toplamı bitmiş ölçüye eşit olmalı; olmazsa kaç mm eksik/fazla
+  olduğunu söyler ve yeniden sorar (sonuna `*` koymak yeter).
+- Bir parça sığabileceği en uzun plakadan uzun çıkarsa (örn. `n3200` =
+  3260 kesim) uyarır; `3050:` gibi plaka yazmak ya da yüzü kısaltmak gerekir.
 
 #### Paylar ve net ölçü
 

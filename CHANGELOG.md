@@ -2,6 +2,41 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.26.0] - 2026-10-29
+
+### Eklendi: parçaları yüz (net) ya da kesim olarak yazmak, konumla bölmek
+
+Dekupe boşluklarına denk gelecek bölmeleri yazmak, her ölçünün büküm payı
+içerip içermediğini hesaplamayı gerektiriyordu. Artık her parça için ölçünün
+ne olduğu söylenir ve **kat ile derz payları otomatik** eklenir/çıkarılır
+(`ac2fPanelGroove`, `ac2fPanelSplit`; "Nasıl bölünsün" sorusu):
+
+- `n2000` (ya da `net`, `f`, `face`): **yüz**, tabelada görünen ölçü; kesim =
+  yüz + uçlardaki paylar. `k3200` (ya da `c`, `cut`, `kesim`): **kesim**, plakadan
+  kesilen boy; yüz = kesim − paylar. Düz sayı o ana dek verilen türdedir
+  (başta kesim, eski girişler aynen çalışır). `net` / `cut` tek başına
+  yazılırsa sonraki bütün ölçülerin türünü değiştirir.
+- `*` kalanı alır; **birden çok `*` kalanı eşit paylaşır** (`net 2000 3100 * *`).
+- `plaka:ölçü` (`3050:n2000`) ile parçanın plakası seçilir; yazılmazsa
+  listedeki sığan en kısası alınır.
+- **`at 2000 5140 7640`**: birleşimler bitmiş ölçünün solundan (dik panelde
+  üstünden) bu mesafelerde. Parçalar yüzler kadar, kalan son parça olur;
+  `in` yönünde ölçü net dikdörtgenin başından alınır.
+- Yazılan plan çizmeden önce **parça parça gösterilir** (kesim boyu, yüzün net
+  ölçü üzerindeki aralığı, uçlardaki paylar) ve onay sorulur; *Hayır* satırı
+  düzeltmek için geri açar. Numara seçmek soru sormaz.
+- Hata iletileri artık yüz toplamı üzerinden: "The faces add up to 3900 but the
+  finished size is 4000 (short by 100)". Soru metni yeni girişleri anlatır.
+
+Örnek: 10 m tabela, kat 7,5 cm, derz payı 3 cm, `n200cm k320cm n250cm *` →
+kesimler 2105 / 3200 / 2560 / 2465, yüzler 2000 / 3140 / 2500 / 2360,
+birleşimler x = 2000 / 5140 / 7640.
+
+### Sınama
+
+`tools/test_panel.py`: net/kesim/konum girişleri, `*` paylaşımı, `plaka:ölçü`,
+dik panel, `in` yönü, hata iletileri, onayda *Hayır* (181 denetim).
+
 ## [1.25.1] - 2026-10-29
 
 ### Düzeltildi: bölünen panelde plakalar tek grupta toplanıyordu

@@ -175,6 +175,13 @@ seçenekleri sunar ve her plaka için ayrı panel çizer:
 1                1. seçenek: 3200 + 960   (2: 2080 + 2080)  ya da kendi boylarınız: 3000 1160
 ```
 
+Parçaları kendiniz de yazabilirsiniz (dekupe boşluklarına denk gelsin
+diye): `n200cm k320cm n250cm *` — `n` yüz (net), `k` kesim, `*` kalan;
+**büküm payları otomatik** eklenir. Konumla da olur: `at 2000 5140 7640`
+(birleşimler soldan bu mesafelerde). Yazdığınız plan çizmeden önce parça
+parça gösterilip onaylatılır. Ayrıntı:
+[docs/kullanim.md › Parçaları kendiniz yazmak](docs/kullanim.md#parçaları-kendiniz-yazmak-dekupe-için).
+
 Plakalar **net ölçü üzerinde, yerinde** çizilir: yüzler bitmiş ölçüyü
 (4000 × 1000) tam kaplar, derzler asıl dikdörtgenin üstüne düşer; derz
 payları yüzün **dışında** kalır ve birleşimde komşu plakanınkiyle **üst üste

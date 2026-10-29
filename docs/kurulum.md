@@ -144,6 +144,17 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.25.1'den 1.26.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fPanel.bas` | **Değişti** (net/kesim ölçü girişi, konumla bölme, onay) — önce silin, sonra aktarın |
+| `ac2fCore.bas` | **Değişti** (sürüm) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Eski girişler (`3200 960`, `3050:3000 3200:*`) aynen çalışır; artık yazılan
+plan çizmeden önce parça parça gösterilip onay sorulur.
+
 ### Sürüm 1.25.0'dan 1.25.1'e
 
 | Dosya | Ne yapmalı |

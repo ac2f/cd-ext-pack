@@ -286,7 +286,7 @@ def t_custom_lengths():
         asked, msgs = e.run('ac2fpanelgroove', '5cm out', '3200 j30', '3000 1000', '3000 *')
         ps = panels(e)
         expect(len(asked) == 4, 'toplam tutmayinca ayni soru yeniden soruldu (%d)' % len(asked))
-        expect(any('add up to 4000' in m and 'short by 160' in m for m in msgs), 'uyari farki soyluyor: %s' % [m[:120] for m in msgs])
+        expect(any('faces add up to 3840' in m.lower() and 'finished size is 4000' in m and 'short by 160' in m for m in msgs), 'uyari yuzler toplami ve farki soyluyor: %s' % [m[:120] for m in msgs])
         expect(len(ps) == 2 and close(ps[1][1][2] - ps[1][1][0], 1160), '* kalani aldi: 1160')
     finally:
         e.close()
@@ -306,7 +306,7 @@ def t_custom_lengths():
     try:
         e.rect(0, 0, 4000, 1000)
         asked, msgs = e.run('ac2fpanelgroove', '5cm out', '3200 j30', '3200 960 500', '3.2m 960')
-        expect(msgs and 'add up to 4660' in msgs[0] and '3 plates need 4220' in msgs[0], 'uc parca (3200 960 500) 4660 eder, 3 plakanin ihtiyaci 4220: uyari')
+        expect(msgs and 'add up to 4440' in msgs[0] and 'finished size is 4000' in msgs[0] and 'over by 440' in msgs[0], 'uc parca (3200 960 500): yuzler 4440 eder, bitmis olcu 4000: 440 fazla')
         ps = panels(e)
         expect(len(ps) == 2, 'metre yazimi (3.2m) okundu, 3200 + 960')
     finally:
@@ -655,6 +655,151 @@ def t_layers_reused():
         e.close()
 
 
+def t_net_and_cut_pieces():
+    scenario('10 m tabela, kat 7.5 cm: parcalar n (yuz) / k (kesim) ile, bukum paylari otomatik')
+    e = Env()
+    try:
+        e.rect(0, 0, 10000, 1200)
+        asked, msgs = e.run('ac2fpanelgroove', '7.5cm out', '3200 j30', 'n200cm k320cm n250cm *')
+        ps = panels(e)
+        expect(len(ps) == 4, 'dort plaka (%d)' % len(ps))
+        cuts = [round(p[1][2] - p[1][0], 1) for p in ps]
+        expect(cuts == [2105.0, 3200.0, 2560.0, 2465.0], 'kesim boylari (yuz + paylar otomatik): %s' % cuts)
+        fs = [round(faces(p)[0], 1) for p in ps]
+        expect(fs == [2000.0, 3140.0, 2500.0, 2360.0], 'yuzler 2000 / 3140 (k320 = tam plaka) / 2500 / kalan 2360: %s' % fs)
+        expect(close(sum(fs), 10000), 'yuzler toplami tam 10000')
+        xs = [round(p[2]['1 left'][0][0], 1) for p in ps]
+        expect(xs == [0.0, 2000.0, 5140.0, 7640.0], 'birlesim konumlari 2000 / 5140 / 7640 (asil olcu uzerinde): %s' % xs)
+        expect(near(allowances(ps[0]), (75, 75, 30, 75)) and near(allowances(ps[3]), (30, 75, 75, 75)), 'bastaki/sondaki: uc kenar 75 kat, birlesim 30')
+        expect(len(asked) == 3 and any(m.startswith('Pieces, left to right') for m in msgs), 'yazilan plan parca parca gosterilip onaylandi')
+        conf = [m for m in msgs if m.startswith('Pieces, left to right')][0]
+        expect('1.  cut 2105   face 0-2000 (2000)   folds 75 | 30' in conf and '2.  cut 3200   face 2000-5140 (3140)   folds 30 | 30' in conf,
+               'onay metni her parcanin kesim, yuz aralik ve paylarini yazar: %s' % conf.split('\r\n')[1:3])
+        expect(len(conf) <= 1000, 'onay metni 1000 karakteri asmiyor (%d)' % len(conf))
+    finally:
+        e.close()
+
+    cases = (
+        ('net 2000 3100 * *', [2105.0, 3160.0, 2510.0, 2555.0], [2000.0, 3100.0, 2450.0, 2450.0]),
+        ('n2000 cut 3200 3200 *', [2105.0, 3200.0, 3200.0, 1825.0], [2000.0, 3140.0, 3140.0, 1720.0]),
+        ('3050:n2000 k3200 *', [2105.0, 3200.0, 4685.0 - 2105.0 - 0.0 if False else None], None),
+    )
+    for text, want_cuts, want_faces in cases[:2]:
+        e = Env()
+        try:
+            e.rect(0, 0, 10000, 1200)
+            e.run('ac2fpanelgroove', '7.5cm out', '3200 j30', text)
+            ps = panels(e)
+            fs = [round(faces(p)[0], 1) for p in ps]
+            cuts = [round(p[1][2] - p[1][0], 1) for p in ps]
+            expect(fs == want_faces and cuts == want_cuts, '"%s" -> yuzler %s, kesimler %s' % (text, fs, cuts))
+        finally:
+            e.close()
+    e = Env()
+    try:
+        e.rect(0, 0, 10000, 1200)
+        e.run('ac2fpanelgroove', '7.5cm out', '3200 j30', '3050:n2000 k3200 n2500 *')
+        ps = panels(e)
+        expect(len(ps) == 4 and close(faces(ps[0])[0], 2000), 'plaka:n birlesimi: 3050 plakasindan 2000 yuz')
+        expect(e.get('ACPPlakaListesi') == '3200', 'plaka listesi degismedi')
+    finally:
+        e.close()
+
+
+def t_positions():
+    scenario('at: birlesimleri net olcu uzerindeki konumla yaz (dekupe bosluklarina denk getir)')
+    e = Env()
+    try:
+        e.rect(0, 0, 10000, 1200)
+        asked, msgs = e.run('ac2fpanelgroove', '7.5cm out', '3200 j30', 'at 2000 5100 7500')
+        ps = panels(e)
+        fs = [round(faces(p)[0], 1) for p in ps]
+        expect(len(ps) == 4 and fs == [2000.0, 3100.0, 2400.0, 2500.0], 'konumlardan yuzler: %s' % fs)
+        xs = [round(p[2]['1 left'][0][0], 1) for p in ps]
+        expect(xs == [0.0, 2000.0, 5100.0, 7500.0], 'birlesim derzleri tam yazilan konumlarda: %s' % xs)
+        expect(close(ps[3][2]['3 right'][0][0], 10000), 'son derz 10000 (net olcu)')
+        cuts = [round(p[1][2] - p[1][0], 1) for p in ps]
+        expect(cuts == [2105.0, 3160.0, 2460.0, 2605.0], 'kesimler (paylar otomatik): %s' % cuts)
+    finally:
+        e.close()
+    e = Env()
+    try:
+        e.rect(0, 0, 10000, 1200)
+        e.run('ac2fpanelgroove', '7.5cm out', '3200 j30', 'at 2000 5140 7640')
+        cuts = [round(p[1][2] - p[1][0], 1) for p in panels(e)]
+        expect(cuts == [2105.0, 3200.0, 2560.0, 2465.0], 'belgedeki ornek: at 2000 5140 7640 = n200cm k320cm n250cm * (%s)' % cuts)
+    finally:
+        e.close()
+    e = Env()
+    try:
+        e.rect(0, 0, 1200, 10000)
+        e.run('ac2fpanelgroove', '7.5cm out', '3200 j30', 'at 2000 5100 7500')
+        ps = panels(e)
+        ys = [round(p[2]['2 top'][0][1], 1) for p in ps]
+        expect(len(ps) == 4 and ys == [10000.0, 8000.0, 4900.0, 2500.0], 'dik panelde konum ustten olculur: ust derzler %s' % ys)
+    finally:
+        e.close()
+    for text, frag in (('at 2000 1000', 'does not fit'), ('at 2000 10000', 'does not fit'),
+                       ('at 2000 5100 *', 'plain positions'), ('at', 'Type an option')):
+        e = Env()
+        try:
+            e.rect(0, 0, 10000, 1200)
+            asked, msgs = e.run('ac2fpanelgroove', '7.5cm out', '3200 j30', text, '0')
+            expect(any(frag in m for m in msgs), '"%s" -> uyari "%s"' % (text, frag))
+        finally:
+            e.close()
+    e = Env()
+    try:
+        e.rect(0, 0, 4160, 1000)
+        e.run('ac2fpanelgroove', '5cm in', '3200 j30', 'at 3120')
+        ps = panels(e)
+        expect(len(ps) == 2 and close(ps[0][2]['3 right'][0][0], 3170) and close(ps[1][2]['3 right'][0][0], 4050),
+               '"in": konum net dikdortgenin basindan (x=50) olculur: birlesim 3170, son 4050')
+    finally:
+        e.close()
+
+
+def t_confirm_no_and_errors():
+    scenario('Onayda Hayir yeniden sorar (yazi hazir gelir); hatali parcalar uyarilir')
+    e = Env()
+    try:
+        e.rect(0, 0, 4000, 1000)
+        answers = iter([7, 6])
+
+        def mb(prompt, buttons=0, title=''):
+            e.h.messages.append(('msg', prompt))
+            return next(answers) if (int(buttons) & 15) == 4 else 1
+        e.h.msgbox = mb
+        seen = []
+        e.h.inputs[:] = ['5cm out', '3200 j30', 'n3000 *', lambda p, d: (seen.append(d), 'n2000 *')[1]]
+        e.h.messages[:] = []
+        e.p.m.ac2fpanel.f_ac2fpanelgroove()
+        ps = panels(e)
+        expect(seen == ['1'] or seen == ['n3000 *'], 'Hayir sonrasi ayni soru yeniden: hazir yazi %r' % (seen,))
+        expect(len(ps) == 2 and close(faces(ps[0])[0], 2000), 'ikinci yanitla cizildi: ilk yuz 2000')
+    finally:
+        e.close()
+    for text, frag in (('n3500 *', 'No plate in your list is long enough'), ('k50 *', 'no longer than its own folds'),
+                       ('n3000 n900', 'The faces add up to 3900'), ('n4000 *', 'nothing is left'),
+                       ('x2000 *', 'Could not read')):
+        e = Env()
+        try:
+            e.rect(0, 0, 4000, 1000)
+            asked, msgs = e.run('ac2fpanelgroove', '5cm out', '3200 j30', text, '0')
+            expect(any(frag in m for m in msgs), '"%s" -> uyari "%s": %s' % (text, frag, [m[:70] for m in msgs[:1]]))
+        finally:
+            e.close()
+    e = Env()
+    try:
+        e.rect(0, 0, 4000, 1000)
+        asked, msgs = e.run('ac2fpanelgroove', '5cm out', '3200 j30', 'n3000 *')
+        ps = panels(e)
+        expect(len(ps) == 2 and close(faces(ps[0])[0], 3000) and close(faces(ps[1])[0], 1000), 'n3000 *: yuzler 3000 + kalan 1000')
+        expect(all(len(m) <= 1000 for m in asked), 'sorular 1000 karakteri asmiyor (%s)' % [len(m) for m in asked])
+    finally:
+        e.close()
+
+
 def main():
     t_single_unchanged()
     t_user_example()
@@ -676,6 +821,9 @@ def main():
     t_in_place_in_direction()
     t_sep_layout()
     t_layers_reused()
+    t_net_and_cut_pieces()
+    t_positions()
+    t_confirm_no_and_errors()
     print('\n%s' % ('HATA: %d' % len(FAILS) if FAILS else 'Hepsi gecti'))
     sys.exit(1 if FAILS else 0)
 

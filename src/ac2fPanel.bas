@@ -56,7 +56,7 @@ Private Const MAX_CANDS  As Long = 40        ' split plans worked out per panel
 Private Const MAX_OPTS   As Long = 6         ' plans offered to the user
 Private Const MIN_FACE   As Double = 100#    ' narrowest face a suggestion makes (mm)
 Private Const PIECE_GAP  As Double = 100#    ' space between pieces on the page (mm)
-Private Const PROMPT_ROOM As Long = 700     ' room for the option lines in a prompt
+Private Const PROMPT_ROOM As Long = 680     ' room for the option lines in a prompt
 
 ' The cut outline and the V-grooves each get a layer of their own.
 Private Const LAYER_CUT    As String = "ACP Cut"
@@ -961,11 +961,11 @@ Private Function ac2fPanelSplitPrompt(ByVal i As Long, ByVal np As Long, _
         msg = msg & vbCrLf & "No ready-made plan fits these plates." & vbCrLf
     End If
 
-    msg = msg & vbCrLf & "Pick a number, or type the length cut from each" & vbCrLf & _
-          "plate (folds and joints included):" & vbCrLf & _
-          "   3200 960           the shortest plate that fits" & vbCrLf & _
-          "   3050:3000 3200:*   plate:length, * = what is left" & vbCrLf & _
-          "   0                  no split, one sheet"
+    msg = msg & vbCrLf & "Pick a number, or write the pieces left to right:" & vbCrLf & _
+          "   3200 960          cut length of each plate" & vbCrLf & _
+          "   n2000 k3200 *     n = face, k = cut; folds added" & vbCrLf & _
+          "   at 2000 5200      joints at these distances" & vbCrLf & _
+          "   0 = one sheet    * = what is left"
     ac2fPanelSplitPrompt = msg
 End Function
 
@@ -989,6 +989,7 @@ Private Function ac2fAskSplit(ByVal i As Long, ByVal np As Long, ByVal along As 
         If StrPtr(answer) = 0 Then Exit Function
         answer = LCase$(Trim$(answer))
         If Len(answer) = 0 Then answer = defText
+        why = ""
 
         If answer = "0" Or answer = "no" Or answer = "off" Or answer = "none" Then
             m_pn(i) = 0
@@ -1010,23 +1011,63 @@ Private Function ac2fAskSplit(ByVal i As Long, ByVal np As Long, ByVal along As 
             End If
             why = "There is no option " & o & "."
         ElseIf ac2fPanelParseCustom(answer, along, fold, joint, dir_, pv, pc, tp, tu, cnt, why) Then
-            m_pn(i) = cnt
-            For k = 0 To cnt - 1
-                m_pplate(i * MAX_PIECES + k) = tp(k)
-                m_pused(i * MAX_PIECES + k) = tu(k)
-            Next k
-            ac2fAskSplit = cnt
-            Exit Function
+            ' A typed plan is shown piece by piece first: the figures can
+            ' mean a face or a cut length, so check it is what was meant.
+            If ac2fPanelConfirm(cnt, tp, tu, fold, joint) Then
+                m_pn(i) = cnt
+                For k = 0 To cnt - 1
+                    m_pplate(i * MAX_PIECES + k) = tp(k)
+                    m_pused(i * MAX_PIECES + k) = tu(k)
+                Next k
+                ac2fAskSplit = cnt
+                Exit Function
+            End If
         End If
-        ac2fWarn why, CAPTION_
+        If Len(why) > 0 Then ac2fWarn why, CAPTION_
         defText = answer
     Loop
 End Function
 
-' Reads "3200 960", "3050:3000 3200:*" and the like: one item per plate,
-' each the length cut from it, optionally preceded by the plate length.
-' A single "*" takes whatever the others leave. On success tp/tu hold
-' plate and cut length per piece and cnt the count.
+' Shows what a typed split comes to, piece by piece, and asks whether to
+' draw it: the cut length, where its face lies on the finished size and
+' the allowance at each end.
+Private Function ac2fPanelConfirm(ByVal n As Long, ByRef tp() As Double, _
+                                  ByRef tu() As Double, ByVal fold As Double, _
+                                  ByVal joint As Double) As Boolean
+    Dim s As String
+    Dim k As Long
+    Dim a0 As Double, a1 As Double, face As Double, offs As Double
+
+    s = "Pieces, left to right:" & vbCrLf
+    For k = 0 To n - 1
+        a0 = ac2fPanelAllow(k, n, 0, fold, joint)
+        a1 = ac2fPanelAllow(k, n, 1, fold, joint)
+        face = tu(k) - a0 - a1
+        s = s & (k + 1) & ".  cut " & ac2fPanelMm(tu(k)) & "   face " & ac2fPanelMm(offs) & _
+            "-" & ac2fPanelMm(offs + face) & " (" & ac2fPanelMm(face) & ")   folds " & _
+            ac2fPanelMm(a0) & " | " & ac2fPanelMm(a1) & vbCrLf
+        offs = offs + face
+    Next k
+    s = s & vbCrLf & "The faces add up to " & ac2fPanelMm(offs) & " (the finished size)."
+    If Len(s) > 960 Then s = Left$(s, 950) & vbCrLf & "..."
+    s = s & vbCrLf & "Draw it this way?"
+    ac2fPanelConfirm = (MsgBox(s, vbQuestion + vbYesNo, ac2fTitle(CAPTION_)) = vbYes)
+End Function
+
+' Reads what the user types for the pieces, left to right (top to bottom
+' for a tall panel). One item per piece:
+'
+'     3200 960             cut length of each plate, folds and joints in it
+'     n2000 k3200 n*       n = face on the finished size, k = cut length
+'     net 2000 3200 *      net / cut on its own sets the kind from there on
+'     at 2000 5200         joints at these distances from the start, measured
+'                          on the finished size; the last piece takes the rest
+'
+' A face (n) is what shows on the finished size; the folds and joint
+' allowances are added to it for you. "plate:" in front names the plate
+' (3050:n2000). One "*" takes whatever is left; several "*" share it
+' equally. Everything is turned into faces first, then the cut lengths.
+' On success tp/tu hold plate and cut length per piece and cnt the count.
 Private Function ac2fPanelParseCustom(ByVal ans As String, ByVal sel As Double, _
                                       ByVal fold As Double, ByVal joint As Double, _
                                       ByVal dir_ As Long, ByRef pv() As Double, _
@@ -1034,9 +1075,16 @@ Private Function ac2fPanelParseCustom(ByVal ans As String, ByVal sel As Double, 
                                       ByRef tu() As Double, ByRef cnt As Long, _
                                       ByRef why As String) As Boolean
     Dim tok() As String
-    Dim t As String, lp As String, rp As String
-    Dim k As Long, c As Long, starAt As Long, j As Long
-    Dim total As Double, sumKnown As Double, need As Double
+    Dim t As String, lp As String, rp As String, pre As String
+    Dim k As Long, c As Long, j As Long, ns As Long, defKind As Long, kind As Long
+    Dim atMode As Boolean
+    Dim kd(0 To 11) As Long             ' 0 cut length, 1 face, 2 star
+    Dim fv(0 To 11) As Double           ' the figure as typed
+    Dim face(0 To 11) As Double
+    Dim netTot As Double, sumKnown As Double, rest As Double, share As Double
+    Dim left_ As Double, nsLeft As Long
+    Dim prevPos As Double
+    Dim a0 As Double, a1 As Double
     Dim bad As String
 
     t = LCase$(Trim$(ans))
@@ -1046,70 +1094,162 @@ Private Function ac2fPanelParseCustom(ByVal ans As String, ByVal sel As Double, 
     tok = Split(t, " ")
 
     cnt = 0
-    starAt = -1
+    defKind = 0
     For k = 0 To UBound(tok)
-        If Len(tok(k)) > 0 Then
-            If cnt >= MAX_PIECES Then
-                why = "At most " & MAX_PIECES & " plates per panel."
-                Exit Function
-            End If
-            c = InStr(tok(k), ":")
-            If c > 0 Then
-                lp = Left$(tok(k), c - 1)
-                rp = Mid$(tok(k), c + 1)
+        t = tok(k)
+        If Len(t) > 0 Then
+            If t = "net" Or t = "n" Or t = "face" Or t = "f" Or t = "yuz" Then
+                defKind = 1
+            ElseIf t = "cut" Or t = "c" Or t = "k" Or t = "kesim" Then
+                defKind = 0
+            ElseIf t = "at" Or t = "@" Then
+                atMode = True
             Else
-                lp = ""
-                rp = tok(k)
-            End If
-            tp(cnt) = 0#
-            If Len(lp) > 0 Then
-                tp(cnt) = ac2fPanelLen(lp, 50#)
-                If tp(cnt) <= 0# Then
-                    why = "Could not read the plate length in """ & tok(k) & """."
+                If cnt >= MAX_PIECES Then
+                    why = "At most " & MAX_PIECES & " plates per panel."
                     Exit Function
                 End If
-            End If
-            If rp = "*" Then
-                If starAt >= 0 Then
-                    why = "Only one plate can take ""the rest"" (*)."
-                    Exit Function
+                c = InStr(t, ":")
+                If c > 0 Then
+                    lp = Left$(t, c - 1)
+                    rp = Mid$(t, c + 1)
+                Else
+                    lp = ""
+                    rp = t
                 End If
-                starAt = cnt
-                tu(cnt) = 0#
-            Else
-                tu(cnt) = ac2fPanelLen(rp, 50#)
-                If tu(cnt) <= 0# Then
-                    why = "Could not read """ & tok(k) & """ as a length." & vbCrLf & _
-                          "Type a number from the list, or lengths like 3200 960."
-                    Exit Function
+                tp(cnt) = 0#
+                If Len(lp) > 0 Then
+                    tp(cnt) = ac2fPanelLen(lp, 50#)
+                    If tp(cnt) <= 0# Then
+                        why = "Could not read the plate length in """ & t & """."
+                        Exit Function
+                    End If
                 End If
-                sumKnown = sumKnown + tu(cnt)
+
+                kind = defKind
+                If rp = "*" Then
+                    kind = 2
+                Else
+                    ' n2000 / k3200: the letters in front say what the figure is
+                    pre = ""
+                    For c = 1 To Len(rp)
+                        If InStr("0123456789.,", Mid$(rp, c, 1)) > 0 Then Exit For
+                        pre = pre & Mid$(rp, c, 1)
+                    Next c
+                    If pre = "n" Or pre = "net" Or pre = "f" Or pre = "face" Or pre = "yuz" Then
+                        kind = 1
+                    ElseIf pre = "k" Or pre = "c" Or pre = "cut" Or pre = "kesim" Then
+                        kind = 0
+                    ElseIf Len(pre) > 0 Then
+                        why = "Could not read """ & t & """ as a length." & vbCrLf & _
+                              "Use n2000 (face), k3200 (cut), * or a plain length."
+                        Exit Function
+                    End If
+                    rp = Mid$(rp, Len(pre) + 1)
+                    fv(cnt) = ac2fPanelLen(rp, 50#)
+                    If fv(cnt) <= 0# Then
+                        why = "Could not read """ & t & """ as a length." & vbCrLf & _
+                              "Type a number from the list, or lengths like 3200 960."
+                        Exit Function
+                    End If
+                End If
+                kd(cnt) = kind
+                cnt = cnt + 1
             End If
-            cnt = cnt + 1
         End If
     Next k
     If cnt = 0 Then
-        why = "Type an option number or the length cut from each plate."
+        why = "Type an option number, or the pieces from left to right."
         Exit Function
     End If
 
-    total = ac2fPanelFlat(sel, fold, joint, cnt, dir_)
-    If starAt >= 0 Then
-        tu(starAt) = total - sumKnown
-        If tu(starAt) <= 0# Then
-            why = "The other plates already take " & ac2fPanelMm(sumKnown) & ", and " & cnt & _
-                  " plates need " & ac2fPanelMm(total) & " in all."
+    If atMode Then
+        ' Joint positions on the finished size; cnt joints make cnt + 1 pieces.
+        If cnt + 1 > MAX_PIECES Then
+            why = "At most " & MAX_PIECES & " plates per panel."
             Exit Function
         End If
-    ElseIf Abs(sumKnown - total) > 0.5 Then
-        why = "These lengths add up to " & ac2fPanelMm(sumKnown) & " but " & cnt & _
-              " plates need " & ac2fPanelMm(total) & vbCrLf & "(" & _
-              ac2fPanelMm(ac2fPanelNet(sel, fold, joint, cnt, dir_)) & " finished + folds and joints; " & _
-              IIf(sumKnown < total, "short by ", "over by ") & _
-              ac2fPanelMm(Abs(total - sumKnown)) & ")." & vbCrLf & _
-              "End the list with * and the last plate takes the rest."
-        Exit Function
+        netTot = ac2fPanelNet(sel, fold, joint, cnt + 1, dir_)
+        prevPos = 0#
+        For j = 0 To cnt - 1
+            If kd(j) = 2 Or tp(j) > 0# Then
+                why = "With ""at"" give plain positions, nothing else."
+                Exit Function
+            End If
+            If fv(j) <= prevPos + 0.5 Or fv(j) >= netTot - 0.5 Then
+                why = "Joint " & (j + 1) & " at " & ac2fPanelMm(fv(j)) & " does not fit." & vbCrLf & _
+                      "Positions grow from the start and stay inside the finished " & _
+                      ac2fPanelMm(netTot) & "."
+                Exit Function
+            End If
+            face(j) = fv(j) - prevPos
+            prevPos = fv(j)
+        Next j
+        face(cnt) = netTot - prevPos
+        tp(cnt) = 0#
+        cnt = cnt + 1
+    Else
+        netTot = ac2fPanelNet(sel, fold, joint, cnt, dir_)
+        If netTot <= 0# Then
+            why = "The folds and joints of " & cnt & " plates leave nothing of the finished size."
+            Exit Function
+        End If
+        For j = 0 To cnt - 1
+            a0 = ac2fPanelAllow(j, cnt, 0, fold, joint)
+            a1 = ac2fPanelAllow(j, cnt, 1, fold, joint)
+            If kd(j) = 2 Then
+                ns = ns + 1
+            Else
+                If kd(j) = 1 Then
+                    face(j) = fv(j)
+                Else
+                    face(j) = fv(j) - a0 - a1
+                End If
+                If face(j) < 1# Then
+                    why = "Piece " & (j + 1) & " (" & ac2fPanelMm(fv(j)) & ") is no longer than its own folds and joints (" & _
+                          ac2fPanelMm(a0 + a1) & "); no face is left."
+                    Exit Function
+                End If
+                sumKnown = sumKnown + face(j)
+            End If
+        Next j
+        rest = netTot - sumKnown
+        If ns = 0 Then
+            If Abs(rest) > 0.5 Then
+                why = "The faces add up to " & ac2fPanelMm(sumKnown) & " but the finished size is " & _
+                      ac2fPanelMm(netTot) & vbCrLf & "(" & cnt & " pieces; " & _
+                      IIf(rest > 0#, "short by ", "over by ") & ac2fPanelMm(Abs(rest)) & ")." & _
+                      vbCrLf & "End the list with * and the last piece takes the rest."
+                Exit Function
+            End If
+        Else
+            If rest <= 0.5 Then
+                why = "The other pieces already take " & ac2fPanelMm(sumKnown) & " of the finished " & _
+                      ac2fPanelMm(netTot) & "; nothing is left for the *."
+                Exit Function
+            End If
+            ' Several * share what is left equally; the last one absorbs rounding.
+            share = Int(rest / ns * 10# + 0.5) / 10#
+            left_ = rest
+            nsLeft = ns
+            For j = 0 To cnt - 1
+                If kd(j) = 2 Then
+                    nsLeft = nsLeft - 1
+                    If nsLeft = 0 Then
+                        face(j) = left_
+                    Else
+                        face(j) = share
+                        left_ = left_ - share
+                    End If
+                End If
+            Next j
+        End If
     End If
+
+    ' Cut length = face + the allowance at each end.
+    For j = 0 To cnt - 1
+        tu(j) = face(j) + ac2fPanelAllow(j, cnt, 0, fold, joint) + ac2fPanelAllow(j, cnt, 1, fold, joint)
+    Next j
 
     ' Plates left out are picked: the shortest one in the list that fits.
     For k = 0 To cnt - 1
@@ -1137,7 +1277,6 @@ Private Function ac2fPanelParseCustom(ByVal ans As String, ByVal sel As Double, 
     End If
     ac2fPanelParseCustom = True
 End Function
-
 
 '=====================================================================
 ' LAYERS
