@@ -15,7 +15,7 @@
   5  -  Box letter strip
   6  -  Box letter strip (pick profile, tweak, draw)
   7  -  Box letter report (no drawing)
-  8  -  ACP panel V-grooves
+  8  -  ACP panel V-grooves   28 - plate split
   9  -  Centerline (reduce to a single line)
  10  -  Nesting (true shape, sheets window)
  11  -  Nesting report (nothing moves)
@@ -281,6 +281,9 @@ Dörtgeni seçin, `ac2fPanelGroove` çalıştırın, tek satır yazın:
 5cm out
 ```
 
+Panel plakadan uzunsa makro ardından **plakalara bölme** sorularını
+açar ([aşağıda](#uzun-panel-plakalara-bölme)).
+
 ### Yerleşim
 
 100×200 bir dörtgen, 5 cm derz, `out`:
@@ -347,6 +350,99 @@ ac2f ACP panel 110x210        (dis grup)
     └── ac2f groove 4 bottom
 ```
 
+### Uzun panel: plakalara bölme
+
+Tabela plakadan uzunsa (4 m'lik bir tabela, 3,20 m'lik plaka) panel,
+birleşimli birkaç plakaya bölünür. Makro bunu kendisi sorar: açınım
+**plaka uzunluğundan** büyükse `ac2fPanelGroove` plaka sorularını açar;
+sığan panelde hiçbir şey değişmez. Her seferinde sormasını isterseniz
+`ac2fPanelSplit` (ana menü `28`) çalıştırın.
+
+Üç soru gelir:
+
+**1. Kat ve yön** — eskisi gibi: `5cm out`.
+
+**2. Plaka boyları ve derz payı** — tek satır, sonraki sefer hazır gelir:
+
+```
+3200 j30         plaka 3200, birleşim derz payı 30
+3200 2440 j20    iki plaka boyu, derz payı 20
+3.2m j3cm        metre ve cm de yazılır
+0                bölme yok, tek parça çiz
+```
+
+`j` (ya da `d`, `derz`, `joint`) birleşim derz payıdır: bir plakanın başka
+plakayla buluşan her kenarında **kalan pay**. İki plakanın da payı olur.
+Boyda birimsiz **50'den küçük** sayı metre sayılır (`3.2` = 3,20 m).
+
+**3. Nasıl bölünsün** — makro seçenekleri hesaplayıp sıralar:
+
+```
+Finished 4000 + folds 100 + joints 60 = 4160 flat  (2 plates)
+
+1. 3200 + 960  (2 plates, left 2240)
+2. 2080 + 2080  (2 plates, left 1120+1120)
+3. 1413.3 + 1393.3 + 1413.4  (3 plates, left 1786.7+1806.7+1786.6)
+```
+
+- Bir **numara** yazın ya da **her plakadan kesilecek boyu** kendiniz yazın.
+- `3200 960` — bu boylarda kes; plaka, listedeki sığan en kısası seçilir.
+- `3050:3000 3200:*` — `plaka:boy`; `*` = kalanı bu plaka alsın.
+- `0` — bölme, tek parça çiz.
+- Yazdığınız boylar toplamı tutmazsa (kaç mm eksik/fazla) söyler ve
+  yeniden sorar; sonuna `*` koymak yeter.
+- Seçenekler **en az plakayla** başlar; aynı sayıda plakada **en az fire**
+  verenler öne gelir. Genellikle ilki *dolu plakalar* (her plaka sonuna
+  kadar, sonuncu kalanı alır: artan tek büyük parça kalır), ikincisi *eşit
+  yüzler* (her plakanın yüzü aynı, birleşimler eşit aralıklı) olur.
+- Plaka listesinde birden çok boy varsa (`3200 2440`) seçenekler her boy
+  için hesaplanır; aynı kesimleri veren boylardan yalnız en kısası listelenir.
+- Soru kutusuna sığmayan seçenekler gösterilmez; görünen numaralar
+  seçilebilir, ya da boylar elle yazılır.
+
+Bütün boylar **kesim boyudur**: yüz boyu + iki ucundaki pay.
+
+#### Paylar ve net ölçü
+
+Tabelanın iki ucu **kat** taşır, her birleşimin iki yanı **derz payı**
+taşır, iki uzun kenar her plakada **kat** taşır. 4000 × 1000 tabela, kat
+50, derz payı 30, plaka 3200:
+
+```
+      plaka 1 (kesim 3200)                plaka 2 (kesim 960)
+ |<--------------------------------->|<------------------------->|
+ | 50 |        yüz 3120        | 30 || 30 |     yüz 880     | 50 |
+ | kat|                        |derz||derz|                 | kat|
+                                     ^ birleşim
+```
+
+| Plaka | Kesim | Soldan pay | Sağdan pay | Üst/alt | Yüz |
+|---|---|---|---|---|---|
+| 1 | 3200 × 1100 | 50 (kat) | 30 (derz) | 50 / 50 | 3120 |
+| 2 | 960 × 1100 | 30 (derz) | 50 (kat) | 50 / 50 | 880 |
+| | | | | **yüzler toplamı** | **4000** |
+
+Ortadaki plakalarda iki paralel kenar (üst/alt) 50, diğer iki kenar
+(birleşimler) 30 olur. Rapor, **yüzler toplamının** bitmiş ölçüyle aynı
+olduğunu yazar (`faces add up to 4000 mm`).
+
+`in` yönünde seçtiğiniz dörtgen **toplam açınımdır** (4160); katlar ve
+derz payları düşülünce net ölçü çıkar (4160 − 100 − 60 = 4000) ve soruda
+gösterilir.
+
+#### Çizim
+
+Her plaka kendi paneli olur (dikdörtgen + dört derz, eskisiyle aynı sıra
+ve başlangıç noktaları), `ac2f ACP panel 1 of 2 3200x1100` gibi adlanır;
+CAM ayrı plakalardan kesebilsin diye **üst üste binmezler**:
+
+- Geniş panelde plakalar kaynağın **altına**, soldan hizalı, 100 mm
+  aralıkla alt alta dizilir.
+- Dik (uzun kenarı yükseklik) panelde plakalar kaynağın **sağına** yan
+  yana dizilir; en üstteki plaka birinci plakadır.
+- Bölme her zaman **uzun kenar** boyunca yapılır. Plakanın eni (diğer
+  kenar) listeden bağımsızdır, makro ona karışmaz.
+
 ### Bilinmesi gerekenler
 
 - **Eksene paralel sınırlayıcı kutu kullanılır.** Döndürülmüş bir
@@ -359,6 +455,12 @@ ac2f ACP panel 110x210        (dis grup)
 - Birden çok dörtgen seçebilirsiniz; her biri ayrı panel olur.
 - `in` modunda derz, kenar uzunluğunun yarısından büyük olamaz; öyle bir
   dörtgen atlanır ve raporda belirtilir.
+- Nesne adlarındaki ölçüler binlik ayracı olmadan yazılır
+  (`ac2f ACP panel 4100x1100`; eski sürümde yerel ayara göre `4.100x1.100`).
+- Plaka listesi ve derz payı bilgisayarda saklanır (`ACPPlakaListesi`,
+  `ACPBirlesimMM`); ayar sayfasında yer almaz, sorudan değişir. Plaka
+  sorusuna `0` yazmak yalnız o seferlik bölmeyi kapatır, listeyi silmez.
+- İptale basınca (kat, plaka ya da seçenek sorusunda) hiçbir şey çizilmez.
 
 ---
 

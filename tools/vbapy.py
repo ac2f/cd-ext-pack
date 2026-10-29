@@ -255,6 +255,8 @@ class VArr2(object):
 
 
 def vb_cstr(x):
+    if isinstance(x, NullStr):
+        return x          # vbNullString (Cancel) stays Null through String variables
     if isinstance(x, bool):
         return 'True' if x else 'False'
     if x is None:

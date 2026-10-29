@@ -2,6 +2,55 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.24.0] - 2026-10-29
+
+### Eklendi: ACP panel plakalara bölme (`ac2fPanelGroove`, `ac2fPanelSplit`)
+
+Tabela plakadan uzunsa (4 m'lik tabela, 5 cm kat, 3,20 m plaka) panel artık
+birleşimli birkaç plakaya bölünür. Açınım **plaka uzunluğundan** büyükse
+`ac2fPanelGroove` kendisi sorar; her seferinde sormasını isteyen
+`ac2fPanelSplit` (ana menü `28`) çalıştırır.
+
+- **Plaka boyları ve derz payı** tek satırda girilir (`3200 j30`,
+  `3200 2440 j20`, `3.2m j3cm`); sonraki sefer hazır gelir. `0` = bölme.
+- **Seçenekler sunulur**: en az plakayla başlayıp en az fire verenler öne
+  gelir (ör. `3200 + 960` ve eşit yüzlü `2080 + 2080`). Bir numara seçilir
+  ya da her plakadan **kesilecek boy** elle yazılır (`3200 960`,
+  `3050:3000 3200:*`, `*` = kalanı bu plaka alsın). Toplam tutmazsa fark
+  söylenip yeniden sorulur.
+- **Pay düzeni**: baştaki ve sondaki plakada üç kenar kat (ör. 50), birleşim
+  kenarı derz payı (ör. 30); ortadaki plakada iki paralel kenar kat, diğer
+  iki kenar derz payı. Katlar ve derz payları düşülünce **net ölçü bitmiş
+  ölçüye eşit** çıkar ve raporda yazılır (`faces add up to 4000 mm`).
+  `in` yönünde seçim toplam açınımdır, net ölçü ondan hesaplanır.
+- **Çizim**: her plaka kendi paneli (dikdörtgen + dört derz, eski sıra ve
+  başlangıç noktalarıyla), `ac2f ACP panel 1 of 2 3200x1100`. Plakalar
+  üst üste binmez: geniş panelde kaynağın altına, dik panelde sağına dizilir.
+  Bölme uzun kenar boyunca yapılır. 100 mm'den dar son plaka olmasın diye
+  önerilerde son plakaya en az 100 mm yüz bırakılır.
+- Tüm sorular, hiçbir şey çizilmeden **önce** sorulur: iptal belgeyi
+  değiştirmez. Her soru ve rapor 1000 karakterin altında kalır (VBA'nın
+  kutu sınırı).
+- Plakaya sığan panelde davranış **eskisi gibidir** (tek soru, tek panel).
+
+### Düzeltildi
+
+- Panel makrosunda hata olursa gösterilen ileti artık gerçek hatadır;
+  eskiden `EndCommandGroup` çağrısının hatası asıl hatanın üstüne yazılıyordu.
+- Nesne adlarındaki ölçüler binlik ayracı olmadan yazılır
+  (`ac2f ACP panel 4100x1100`; eskiden yerel ayara göre `4.100x1.100`).
+- Ana menü kısaldı (`8` satırına `28` eklendi, iki satır kısaltıldı) — InputBox
+  sınırı için.
+
+### Sınama
+
+- `tools/test_panel.py` (yeni, 100+ denetim): tek panel eskisi gibi; 4 m /
+  kat 50 / derz payı 30 / plaka 3200 örneği `3200 + 960`, her kenarın payı,
+  yüzler toplamı = 4000; üç plaka, `in` yönü, dik panel, özel boylar ve hatalı
+  girişler, iptal, birim geri yükleme, soru uzunlukları.
+- `tools/vbapy.py`: boş dize (Cancel) bir `String` değişkene atanınca artık
+  boş kalıyor; harness iptali gerçeğe uygun taklit ediyor.
+
 ## [1.23.1] - 2026-10-28
 
 ### Düzeltildi: plotter işi 90 derece sola çevirip kesiyordu

@@ -43,7 +43,8 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fBoxLetterStrip` | Kutu harf bordürünün açınımını hesaplar ve derzli şeridi çizer |
 | `ac2fBoxLetterStripProfile` | Profil seçip, istenen değeri o seferliğine değiştirip çizer |
 | `ac2fBoxLetterReport` | Aynı hesabı yapar, çizim yapmaz |
-| `ac2fPanelGroove` | Dörtgen çevresine ACP V derz çizgilerini çizer |
+| `ac2fPanelGroove` | Dörtgen çevresine ACP V derz çizgilerini çizer; panel plakadan uzunsa **plakalara böler** |
+| `ac2fPanelSplit` | Aynısı, ama plaka/derz payı sorularını her zaman sorar (ana menü `28`) |
 | `ac2fCenterline` | Tek çizgiye düşürür (birleşik / ayrı ayrı sorar) |
 | `ac2fCenterlineJoined` | Tüm seçimi tek bölge sayar — birleşik el yazısı |
 | `ac2fCenterlineSeparate` | Her nesneyi ayrı ayrı düşürür |
@@ -161,6 +162,31 @@ Yöneticisi'nden görülebilir.
 | `5cm in` | Seçim **plaka**, derzler içeri kaçar | plaka 100×200, katlanmış 90×190 |
 
 Ölçü `5cm`, `50mm` ya da düz `50` (= mm) yazılabilir.
+
+### Uzun panel: plakalara bölme
+
+4 m'lik tabela, 5 cm kat, 3,20 m plaka? Açınım (4,10 m + birleşimler)
+plakadan uzunsa makro **plakaları ve derz payını sorar**, bölme
+seçenekleri sunar ve her plaka için ayrı panel çizer:
+
+```
+5cm out          kat
+3200 j30         plaka 3200, birleşim derz payı 30   (3200 2440 j20: iki boy)
+1                1. seçenek: 3200 + 960   (2: 2080 + 2080)  ya da kendi boylarınız: 3000 1160
+```
+
+```
+plaka 1   kesim 3200 = 50 (kat) + 3120 yüz + 30 (derz)
+plaka 2   kesim  960 = 30 (derz) + 880 yüz + 50 (kat)
+                                    -------------------
+                                    yüzler toplamı 4000
+```
+
+Baştaki ve sondaki plakada üç kenar **kat** (50), birleşim kenarı **derz
+payı** (30); ortadaki plakada iki paralel kenar 50, birleşim kenarları 30.
+Derz payları ve katlar düşülünce **net ölçü** bitmiş ölçüye eşit çıkar ve
+raporda yazılır. Ayrıntı, giriş biçimleri ve çizim düzeni:
+[docs/kullanim.md › Uzun panel](docs/kullanim.md#uzun-panel-plakalara-bölme).
 
 ### Renk ve gruplama
 
@@ -704,6 +730,7 @@ python3 tools/lint.py          # içe aktarmadan önce statik denetim + VBA derl
 python3 tools/test_nest.py     # nesting motoru, gerçek geometriyle
 python3 tools/test_corel.py    # nesting + başlangıç noktası, CorelDRAW taklidinde uçtan uca
 python3 tools/test_plot.py     # plotter: HPGL'i geri okuyup gerçek Bezier eğrileriyle karşılaştırır, yön sihirbazı
+python3 tools/test_panel.py    # ACP panel: tek panel + plakalara bölme (kat/derz payı, net ölçü, seçenekler)
 python3 tools/test_windows.py  # nesting pencereleri, PowerShell 7 ile (AC2F_PWSH)
 python3 tools/ps2vba.py        # nest_window.ps1 / nest_preview.ps1 değişince ac2fNest.bas'a gömer
 python3 tools/skeleton.py      # büyük düzenlemelerden sonra kontrol akışı karşılaştırması

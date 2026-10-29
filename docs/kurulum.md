@@ -144,6 +144,20 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.23.1'den 1.24.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fPanel.bas` | **Değişti** (plakalara bölme) — önce silin, sonra aktarın |
+| `ac2fMenu.bas` | **Değişti** (ana menü `28`) — önce silin, sonra aktarın |
+| `ac2fCore.bas` | **Değişti** (sürüm) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Panel makrosu, açınım plaka uzunluğundan büyükse plakaları ve derz payını
+sorar; sığan panelde davranış eskisi gibidir. İlk kullanımda plaka listesi
+`3200`, derz payı `30` gelir; sorudan değiştirince hatırlanır. Ayar
+numaraları ve kayıtlı ayarlar değişmedi.
+
 ### Sürüm 1.23.0'dan 1.23.1'e
 
 | Dosya | Ne yapmalı |

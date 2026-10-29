@@ -32,18 +32,18 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         "  5  -  Box letter strip" & vbCrLf & _
         "  6  -  Box letter strip (pick a profile)" & vbCrLf & _
         "  7  -  Box letter report (no drawing)" & vbCrLf & _
-        "  8  -  ACP panel V-grooves" & vbCrLf & _
+        "  8  -  ACP panel V-grooves   28 - plate split" & vbCrLf & _
         "  9  -  Centerline (reduce to a single line)" & vbCrLf & _
         " 10  -  Nesting: settings, preview, apply" & vbCrLf & _
         " 11  -  Nesting report (nothing moves)" & vbCrLf
     m = m & _
         " 12  -  Bending order: apply it to the objects" & vbCrLf & _
         " 13  -  Bending order: number them on the page" & vbCrLf & _
-        " 14  -  Bending order report (nothing changes)" & vbCrLf & _
+        " 14  -  Bending order report (no changes)" & vbCrLf & _
         " 15  -  Send to plotter" & vbCrLf & _
         " 16  -  Plotter test shape (40 x 80 L)" & vbCrLf & _
         " 17  -  Write HPGL to a file" & vbCrLf & _
-        " 18  -  Normalise an existing .plt and send" & vbCrLf & _
+        " 18  -  Normalise a .plt and send" & vbCrLf & _
         " 19  -  Settings and profiles" & vbCrLf & _
         " 20  -  About" & vbCrLf & _
         " 21  -  Customer job: export, folders, price  (J)" & vbCrLf & _
@@ -85,6 +85,7 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         Case "25": ac2fStartPointsShow
         Case "26": ac2fNestMarkSheets
         Case "27": ac2fPlotCalibrate
+        Case "28": ac2fPanelSplit
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_
     End Select
@@ -105,7 +106,7 @@ Attribute ac2fAbout.VB_Description = "ac2f pack: Version and contents"
     s = s & "  Length measurement   total length of the outlines" & vbCrLf
     s = s & "  3-LED module count   modules, LEDs, power, supplies" & vbCrLf
     s = s & "  Box letter strip     developed return, grooves, strip" & vbCrLf
-    s = s & "  ACP panel V-grooves  flat sheet and groove lines" & vbCrLf
+    s = s & "  ACP panel V-grooves  flat sheet, grooves, plate split" & vbCrLf
     s = s & "  Centerline           filled artwork to a single line" & vbCrLf
     s = s & "  Nesting              true shape, offcuts, preview window" & vbCrLf
     s = s & "  Start points         corner, side or centre; direction" & vbCrLf
