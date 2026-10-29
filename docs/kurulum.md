@@ -144,6 +144,19 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.24.0'dan 1.25.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fPanel.bas` | **Değişti** (katmanlar, yerinde bölme) — önce silin, sonra aktarın |
+| `ac2fCore.bas` | **Değişti** (sürüm) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Panel artık dış kesimi `ACP Cut`, derzleri `ACP Grooves` katmanına çizer
+(katmanlar yoksa açılır). Bölünen panelde plakalar net ölçü üzerinde,
+yerinde çizilir; eski gibi ayrı dizmek için plaka satırına `sep` yazın.
+Kayıtlı plaka listesi ve derz payı aynen geçerli.
+
 ### Sürüm 1.23.1'den 1.24.0'a
 
 | Dosya | Ne yapmalı |

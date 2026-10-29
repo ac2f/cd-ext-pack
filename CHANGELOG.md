@@ -2,6 +2,48 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.25.0] - 2026-10-29
+
+### Değişti: ACP panel katmanlara ve gruplara çiziliyor (`ac2fPanelGroove`, `ac2fPanelSplit`)
+
+- **Katmanlar:** plaka dış hattı (kesim) `ACP Cut`, V derz çizgileri
+  `ACP Grooves` katmanına çizilir; yoksa açılır, varsa kullanılır, gizli ya
+  da kilitliyse görünür ve düzenlenebilir yapılır. Makro bitince aktif
+  katmanınız geri gelir. Derzler üstte durur.
+- **Gruplar:** bir grup iki katmana yayılamadığı için artık dış hat ve derz
+  tek grupta değil, her katmanda kendi grubundadır. Tek panelde derz
+  grubu `ac2f ACP grooves 110x210`, dış hat grupsuz bir dörtgendir
+  (`ac2f ACP sheet 110x210`). Eski `ac2f ACP panel ...` dış grubu kalktı.
+
+### Değişti: bölme net ölçü üzerinde, yerinde
+
+Bölünen panelde plakalar artık **asıl yerlerinde** çizilir:
+
+- Yüzler bitmiş ölçüyü boşluksuz kaplar (4000 × 1000: 1. plaka x = 0…3120,
+  2. plaka 3120…4000); derz çizgileri asıl dikdörtgenin üstündedir ve komşu
+  plakaların birleşim derzleri **aynı çizgi** üzerindedir.
+- Derz payları yüzün dışında kalır ve birleşimde komşu plakanınkiyle **üst
+  üste biner**; dekupe gibi işleri asıl ölçüde görerek yapabilirsiniz.
+- `ACP Cut` katmanında tüm plaka dış hatları tek grup
+  (`ac2f ACP cut 4000x1000 (2 plates)`), `ACP Grooves` katmanında tüm
+  derzler tek grup (`ac2f ACP grooves 4000x1000 (2 plates)`); her
+  plakanın dört derzi bunun içinde alt gruptur.
+- **`sep`** (plaka satırına, `3200 j30 sep`): eski düzen, plakalar ayrı
+  dizilir (geniş panelde altına, dik panelde sağına, 100 mm aralıkla).
+  Kalıcı değildir.
+- Seçenek satırları yüz uzunluklarını da gösterir
+  (`1. 3200 + 960  faces 3120 + 880  (left 2240)`); rapor her plakanın yüzünün
+  net ölçü üzerindeki aralığını yazar (`face 0-3120`, `face 3120-4000`).
+- `in` yönünde net dikdörtgen seçimin sol üst köşesinden bir kat içeride
+  başlar.
+
+### Sınama
+
+`tools/test_panel.py` yeni yerleşime göre yenilendi (147 denetim): iki
+katman ve gruplar, yüzlerin bitişikliği, derzlerin asıl ölçü üzerinde olması,
+60 mm üst üste binme, `in` yönü, dik panel, `sep`, katmanın yeniden
+kullanımı ve kilidinin açılması, aktif katmanın geri yüklenmesi.
+
 ## [1.24.0] - 2026-10-29
 
 ### Eklendi: ACP panel plakalara bölme (`ac2fPanelGroove`, `ac2fPanelSplit`)

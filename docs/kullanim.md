@@ -333,22 +333,33 @@ yönde oluşturulur.
 yazmazsanız son kullandığınız yön geçerli olur. Yazdığınız değerler ayar
 sayfasına kaydedilir.
 
-### Renkler ve gruplama
+### Katmanlar, renk ve gruplama
 
-| Renk | Anlamı |
-|---|---|
-| Siyah | Plaka dış hattı (kesim) |
-| Mavi | V derz çizgisi |
+Dış kesim ve derzler **ayrı katmanlara** çizilir. CAM'e ya da dekupe işine
+istediğiniz katmanı açıp kapatarak verirsiniz.
+
+| Katman | İçerik | Renk |
+|---|---|---|
+| `ACP Cut` | Plaka dış hattı (kesim) | Siyah |
+| `ACP Grooves` | V derz çizgileri (kesim katmanının üstünde) | Mavi |
 
 ```
-ac2f ACP panel 110x210        (dis grup)
-├── ac2f ACP sheet 110x210    (plaka dortgeni)
-└── ac2f ACP grooves          (derz grubu)
-    ├── ac2f groove 1 left
-    ├── ac2f groove 2 top
-    ├── ac2f groove 3 right
-    └── ac2f groove 4 bottom
+ACP Cut                              ACP Grooves
+└── ac2f ACP sheet 110x210           └── ac2f ACP grooves 110x210   (grup)
+    (tek dortgen)                        ├── ac2f groove 1 left
+                                         ├── ac2f groove 2 top
+                                         ├── ac2f groove 3 right
+                                         └── ac2f groove 4 bottom
 ```
+
+- Katmanlar **adıyla** bulunur, yoksa açılır; sonraki çalıştırmalar
+  aynılarını kullanır. Gizli ya da kilitli olan görünür ve düzenlenebilir
+  yapılır. Makro bitince aktif katmanınız geri gelir.
+- Bir grup iki katmana yayılamaz; bu yüzden dış hat ve derzler tek
+  grupta değil, **her katmanda kendi grubunda** durur. Tek dörtgen
+  gruplanamayacağı için tek panelde dış hat grupsuz bir dörtgendir.
+- Katmanları CorelDRAW'da yeniden adlandırırsanız makro bir sonraki
+  çalışmada eski adlarla **yeni katman açar**.
 
 ### Uzun panel: plakalara bölme
 
@@ -368,6 +379,7 @@ sığan panelde hiçbir şey değişmez. Her seferinde sormasını isterseniz
 3200 j30         plaka 3200, birleşim derz payı 30
 3200 2440 j20    iki plaka boyu, derz payı 20
 3.2m j3cm        metre ve cm de yazılır
+3200 j30 sep     plakaları ayrı diz (aşağıya bakın)
 0                bölme yok, tek parça çiz
 ```
 
@@ -380,10 +392,14 @@ Boyda birimsiz **50'den küçük** sayı metre sayılır (`3.2` = 3,20 m).
 ```
 Finished 4000 + folds 100 + joints 60 = 4160 flat  (2 plates)
 
-1. 3200 + 960  (2 plates, left 2240)
-2. 2080 + 2080  (2 plates, left 1120+1120)
-3. 1413.3 + 1393.3 + 1413.4  (3 plates, left 1786.7+1806.7+1786.6)
+1. 3200 + 960  faces 3120 + 880  (left 2240)
+2. 2080 + 2080  faces 2000 + 2000  (left 1120+1120)
+3. 1413.3 + 1393.3 + 1413.4  faces 1333.3 + 1333.3 + 1333.4  (left 1786.7+1806.7+1786.6)
 ```
+
+Her satırda ilk sayılar **plakadan kesilecek boy**, `faces` ise bu
+kesimlerin bitmiş ölçü (net) üzerinde verdiği **yüz uzunluklarıdır**;
+birleşim yerleri yüzlerin toplamından okunur (1. seçenekte x = 3120).
 
 - Bir **numara** yazın ya da **her plakadan kesilecek boyu** kendiniz yazın.
 - `3200 960` — bu boylarda kes; plaka, listedeki sığan en kısası seçilir.
@@ -416,6 +432,9 @@ taşır, iki uzun kenar her plakada **kat** taşır. 4000 × 1000 tabela, kat
                                      ^ birleşim
 ```
 
+(Bu çizim plakaların **kesim boylarını** yan yana gösterir. Çizimde plakalar
+yerinde durur ve iki `derz` payı üst üste biner, aşağıya bakın.)
+
 | Plaka | Kesim | Soldan pay | Sağdan pay | Üst/alt | Yüz |
 |---|---|---|---|---|---|
 | 1 | 3200 × 1100 | 50 (kat) | 30 (derz) | 50 / 50 | 3120 |
@@ -428,20 +447,49 @@ olduğunu yazar (`faces add up to 4000 mm`).
 
 `in` yönünde seçtiğiniz dörtgen **toplam açınımdır** (4160); katlar ve
 derz payları düşülünce net ölçü çıkar (4160 − 100 − 60 = 4000) ve soruda
-gösterilir.
+gösterilir. (Yerinde çizimde derz payları üst üste bindiği için çizilen
+bütün, seçtiğiniz açınımdan 2 × derz payı × birleşim kadar kısadır.)
 
-#### Çizim
+#### Çizim: net ölçü üzerinde, yerinde
 
-Her plaka kendi paneli olur (dikdörtgen + dört derz, eskisiyle aynı sıra
-ve başlangıç noktaları), `ac2f ACP panel 1 of 2 3200x1100` gibi adlanır;
-CAM ayrı plakalardan kesebilsin diye **üst üste binmezler**:
+Bölme **bitmiş (net) ölçü üzerinde** yapılır ve plakalar asıl yerlerinde
+çizilir:
 
-- Geniş panelde plakalar kaynağın **altına**, soldan hizalı, 100 mm
-  aralıkla alt alta dizilir.
-- Dik (uzun kenarı yükseklik) panelde plakalar kaynağın **sağına** yan
-  yana dizilir; en üstteki plaka birinci plakadır.
+- **Yüzler** bitmiş ölçüyü boşluksuz kaplar: 4000 × 1000 tabelada 1. plakanın
+  yüzü x = 0…3120, 2. plakanınki 3120…4000.
+- **Derz çizgileri** asıl dikdörtgenin üstüne düşer; komşu plakaların
+  birleşim derzleri **aynı çizgi** üzerindedir.
+- **Derz payları yüzün dışında kalır** ve birleşimde komşu plakanınkiyle
+  **üst üste biner** (30 + 30 = 60 mm). Uçlardaki kat payları da asıl
+  ölçünün dışındadır.
+- Böylece dekupe, desen yerleştirme gibi işleri tabelanın **asıl ölçüsünde**
+  görerek yapabilirsiniz; derz payları net ölçüyü etkilemez.
+
+```
+              ACP Cut (siyah)                     ACP Grooves (mavi)
+   plaka 1:  [-50 ............... 3150]          x=0  ........  x=3120
+   plaka 2:                  [3090 ... 4050]              x=3120 .. x=4000
+                              ^^^^^ 60 mm üst üste
+```
+
+Her plaka `ac2f ACP sheet 1 of 2 3200x1100` gibi adlanır. `ACP Cut`
+katmanında tüm dış hatlar `ac2f ACP cut 4000x1000 (2 plates)` grubunda,
+`ACP Grooves` katmanında tüm derzler `ac2f ACP grooves 4000x1000 (2 plates)`
+grubundadır; her plakanın dört derzi bunun içinde `ac2f ACP grooves 1 of 2
+3200x1100` alt grubudur.
+
+**Plakaları ayrı ayrı kesmek** için plaka satırına `sep` yazın
+(`3200 j30 sep`; kalıcı değildir, her çalıştırmada yazılır). Plakalar
+üst üste binmeyecek biçimde dizilir: geniş panelde kaynağın **altına**,
+soldan hizalı, 100 mm aralıkla alt alta; dik panelde kaynağın **sağına**
+yan yana. Aynısını yerinde çizdikten sonra grupları çözüp plakaları elle
+de ayırabilirsiniz.
+
+- Dik (uzun kenarı yükseklik) panelde en üstteki plaka birinci plakadır.
 - Bölme her zaman **uzun kenar** boyunca yapılır. Plakanın eni (diğer
   kenar) listeden bağımsızdır, makro ona karışmaz.
+- `in` yönünde seçim toplam açınımdır; net dikdörtgen seçimin sol üst
+  köşesinden bir kat içeride başlar (yüzler 50…4050).
 
 ### Bilinmesi gerekenler
 

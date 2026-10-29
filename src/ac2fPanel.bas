@@ -58,6 +58,10 @@ Private Const MIN_FACE   As Double = 100#    ' narrowest face a suggestion makes
 Private Const PIECE_GAP  As Double = 100#    ' space between pieces on the page (mm)
 Private Const PROMPT_ROOM As Long = 700     ' room for the option lines in a prompt
 
+' The cut outline and the V-grooves each get a layer of their own.
+Private Const LAYER_CUT    As String = "ACP Cut"
+Private Const LAYER_GROOVE As String = "ACP Grooves"
+
 '---------------------------------------------------------------------
 ' Registry keys (internal identifiers, kept stable across releases)
 '---------------------------------------------------------------------
@@ -84,6 +88,12 @@ Public Const AC2F_ACP_IN  As Long = 2
 Private m_pn() As Long
 Private m_pplate() As Double       ' plate length, index panel * MAX_PIECES + piece
 Private m_pused() As Double        ' length cut from it, same index
+
+' Layers the panel is drawn on, and whether the plates of a split panel
+' are laid apart (True) instead of in place on the finished size.
+Private m_lyCut As Layer
+Private m_lyGrv As Layer
+Private m_sep As Boolean
 
 ' Candidate plans for the panel being asked about, and the ones shown.
 Private m_cc As Long
@@ -123,6 +133,7 @@ Private Sub ac2fPanelRun(ByVal forceSplit As Boolean)
     Dim rep As String
     Dim planned As Boolean, grouped As Boolean
     Dim why As String
+    Dim oldLayer As Layer
 
     If ActiveDocument Is Nothing Then
         ac2fWarn "Open a document first.", CAPTION_
@@ -175,6 +186,13 @@ Private Sub ac2fPanelRun(ByVal forceSplit As Boolean)
     ActiveDocument.BeginCommandGroup ac2fTitle("ACP grooves")
     grouped = True
 
+    ' Cut outline and grooves on layers of their own (grooves on top).
+    Set oldLayer = ActiveLayer
+    Set m_lyCut = ac2fPanelLayer(LAYER_CUT)
+    If m_lyCut Is Nothing Then Set m_lyCut = ActiveLayer
+    Set m_lyGrv = ac2fPanelLayer(LAYER_GROOVE)
+    If m_lyGrv Is Nothing Then Set m_lyGrv = ActiveLayer
+
     For i = 0 To n - 1
         If m_pn(i) > 0 Then
             pieces = pieces + ac2fPanelDrawSplit(i, bx(i), by(i), bw(i), bh(i), _
@@ -204,6 +222,7 @@ Private Sub ac2fPanelRun(ByVal forceSplit As Boolean)
     grouped = False
 
     On Error Resume Next
+    If Not oldLayer Is Nothing Then oldLayer.Activate
     If unitChanged Then ActiveDocument.Unit = oldUnit
     Application.Optimization = oldOpt
     Application.Refresh
@@ -217,6 +236,7 @@ Fail:
     why = Err.Description
     On Error Resume Next
     If grouped Then ActiveDocument.EndCommandGroup
+    If Not oldLayer Is Nothing Then oldLayer.Activate
     If unitChanged Then ActiveDocument.Unit = oldUnit
     Application.Optimization = oldOpt
     Application.Refresh
@@ -343,6 +363,7 @@ Private Function ac2fPanelPlanAll(ByVal n As Long, ByRef bw() As Double, _
     Dim off As Boolean
     Dim res As Long
 
+    m_sep = False
     ReDim m_pn(0 To n - 1)
     ReDim m_pplate(0 To n * MAX_PIECES - 1)
     ReDim m_pused(0 To n * MAX_PIECES - 1)
@@ -415,7 +436,8 @@ Private Function ac2fAskPlates(ByRef plates As String, ByRef joint As Double, _
           "   3200 j30       one plate length, joint 30" & vbCrLf & _
           "   3200 2440 j20  two plate lengths, joint 20" & vbCrLf & _
           "   3.2m j3cm      metres and cm are read too" & vbCrLf & _
-          "   0              no split, draw one sheet" & vbCrLf & vbCrLf
+          "   0              no split, draw one sheet" & vbCrLf & _
+          "   sep            lay the plates apart, not in place" & vbCrLf & vbCrLf
     msg = msg & "Panel " & ac2fPanelMm(along) & " x " & ac2fPanelMm(across) & " mm " & _
           IIf(dir_ = AC2F_ACP_IN, "(sheet size)", "(finished size)") & _
           ", fold " & ac2fPanelMm(fold) & "." & vbCrLf & _
@@ -425,7 +447,7 @@ Private Function ac2fAskPlates(ByRef plates As String, ByRef joint As Double, _
     Do
         answer = InputBox(msg, ac2fTitle(CAPTION_), defText)
         If StrPtr(answer) = 0 Then Exit Function
-        If ac2fPanelParsePlates(answer, plates, joint, newPlates, newJoint, off, why) Then Exit Do
+        If ac2fPanelParsePlates(answer, plates, joint, newPlates, newJoint, off, m_sep, why) Then Exit Do
         ac2fWarn why, CAPTION_
         defText = Trim$(answer)
     Loop
@@ -444,7 +466,7 @@ End Function
 Private Function ac2fPanelParsePlates(ByVal ans As String, ByVal curPlates As String, _
                                       ByVal curJoint As Double, ByRef outPlates As String, _
                                       ByRef outJoint As Double, ByRef off As Boolean, _
-                                      ByRef why As String) As Boolean
+                                      ByRef sep As Boolean, ByRef why As String) As Boolean
     Dim tok() As String
     Dim t As String, pre As String, valText As String, lst As String
     Dim k As Long, c As Long, i As Long, pc As Long
@@ -452,6 +474,7 @@ Private Function ac2fPanelParsePlates(ByVal ans As String, ByVal curPlates As St
     Dim pv(0 To 12) As Double
 
     off = False
+    sep = False
     outPlates = curPlates
     outJoint = curJoint
     t = LCase$(Trim$(ans))
@@ -465,6 +488,8 @@ Private Function ac2fPanelParsePlates(ByVal ans As String, ByVal curPlates As St
         If Len(t) > 0 Then
             If t = "0" Or t = "no" Or t = "off" Or t = "none" Then
                 off = True
+            ElseIf t = "sep" Or t = "apart" Or t = "ayri" Then
+                sep = True
             Else
                 pre = ""
                 For c = 1 To Len(t)
@@ -870,25 +895,29 @@ Private Function ac2fPanelPicked(ByVal ci As Long) As Boolean
     Next o
 End Function
 
-' One line of the option list: "1. 3200 + 960  (2 plates, left 2240)".
-Private Function ac2fPanelOptLine(ByVal o As Long, ByVal pc As Long) As String
+' One line of the option list, with the cut length taken from each plate
+' and the face each plate then gives on the finished size:
+' "1. 3200 + 960  faces 3120 + 880  (left 2240)".
+Private Function ac2fPanelOptLine(ByVal o As Long, ByVal pc As Long, _
+                                  ByVal fold As Double, ByVal joint As Double) As String
     Dim ci As Long, k As Long, n As Long
-    Dim used(0 To 11) As Double
+    Dim used(0 To 11) As Double, face(0 To 11) As Double
     Dim lft As String, s As String
 
     ci = m_oi(o)
     n = m_cn(ci)
     For k = 0 To n - 1
         used(k) = m_cu(ci * MAX_PIECES + k)
+        face(k) = used(k) - ac2fPanelAllow(k, n, 0, fold, joint) - _
+                  ac2fPanelAllow(k, n, 1, fold, joint)
         If m_cp(ci) - used(k) > 0.5 Then
             If Len(lft) > 0 Then lft = lft & "+"
             lft = lft & ac2fPanelMm(m_cp(ci) - used(k))
         End If
     Next k
-    s = (o + 1) & ". " & ac2fPanelUsedText(n, used) & "  (" & n
-    If n = 1 Then s = s & " plate" Else s = s & " plates"
-    If pc > 1 Then s = s & " of " & ac2fPanelMm(m_cp(ci))
-    If Len(lft) > 0 Then s = s & ", left " & lft Else s = s & ", no offcut"
+    s = (o + 1) & ". " & ac2fPanelUsedText(n, used) & "  faces " & ac2fPanelUsedText(n, face) & "  ("
+    If pc > 1 Then s = s & "of " & ac2fPanelMm(m_cp(ci)) & ", "
+    If Len(lft) > 0 Then s = s & "left " & lft Else s = s & "no offcut"
     ac2fPanelOptLine = s & ")"
 End Function
 
@@ -922,7 +951,7 @@ Private Function ac2fPanelSplitPrompt(ByVal i As Long, ByVal np As Long, _
         ' a line on screen.
         shown = 0
         For o = 0 To m_oc - 1
-            ln = ac2fPanelOptLine(o, pc) & vbCrLf
+            ln = ac2fPanelOptLine(o, pc, fold, joint) & vbCrLf
             If Len(msg) + Len(ln) > PROMPT_ROOM Then Exit For
             msg = msg & ln
             shown = shown + 1
@@ -1111,6 +1140,33 @@ End Function
 
 
 '=====================================================================
+' LAYERS
+'=====================================================================
+
+' The cut outline and the V-grooves live on layers of their own, so the
+' CAM program (or a cut-out against the artwork) can switch either off.
+' Found by name on the active page, created when missing. Nothing when
+' the layer cannot be had; the caller then falls back to the active one.
+Private Function ac2fPanelLayer(ByVal nm As String) As Layer
+    Dim i As Long
+    Dim ly As Layer
+
+    On Error Resume Next
+    For i = 1 To ActivePage.Layers.Count
+        If ActivePage.Layers(i).Name = nm Then
+            Set ly = ActivePage.Layers(i)
+            Exit For
+        End If
+    Next i
+    If ly Is Nothing Then Set ly = ActivePage.CreateLayer(nm)
+    If Not ly Is Nothing Then
+        ly.Visible = True
+        ly.Editable = True
+    End If
+    Set ac2fPanelLayer = ly
+End Function
+
+'=====================================================================
 ' ONE PANEL
 '=====================================================================
 
@@ -1123,6 +1179,7 @@ Private Function ac2fPanelOne(ByVal bx As Double, ByVal by As Double, _
     Dim x0 As Double, y0 As Double, w As Double, h As Double
     Dim why As String
     Dim r As Long
+    Dim sheet As Shape, grv As Shape
 
     If bw <= 0 Or bh <= 0 Then Exit Function
 
@@ -1133,7 +1190,7 @@ Private Function ac2fPanelOne(ByVal bx As Double, ByVal by As Double, _
         w = bw + 2# * fold: h = bh + 2# * fold
     End If
 
-    r = ac2fPanelDraw(x0, y0, w, h, fold, fold, fold, fold, "", why)
+    r = ac2fPanelDraw(x0, y0, w, h, fold, fold, fold, fold, "", sheet, grv, why)
     If r = 0 Then
         If Len(why) > 0 Then
             rep = rep & "   skipped " & ac2fFmt(bw, 0) & "x" & ac2fFmt(bh, 0) & _
@@ -1148,25 +1205,27 @@ Private Function ac2fPanelOne(ByVal bx As Double, ByVal by As Double, _
     ac2fPanelOne = r
 End Function
 
-' Draws one sheet and its four V-grooves. The fold on each side is its
-' own number, so a plate of a split panel can carry the sign's fold on
-' one end and the joint allowance on the other:
+' Draws one sheet outline on the cut layer and its four V-grooves, as a
+' group, on the groove layer. The fold on each side is its own number,
+' so a plate of a split panel can carry the sign's fold on one end and
+' the joint allowance on the other:
 '   fl left, fb bottom, fr right, ft top (all in mm, measured inwards).
 ' tag names the piece ("1 of 2"); "" for an ordinary single panel.
-' Returns 1 drawn and grouped, 2 drawn but not grouped, 0 skipped (why
-' says why when there is something to tell).
+' sheet and grv return the shapes made (grv is Nothing when the four
+' lines could not be grouped). Returns 1 drawn and grouped, 2 drawn but
+' not grouped, 0 skipped (why says why when there is something to tell).
 Private Function ac2fPanelDraw(ByVal x0 As Double, ByVal y0 As Double, _
                                ByVal w As Double, ByVal h As Double, _
                                ByVal fl As Double, ByVal fb As Double, _
                                ByVal fr As Double, ByVal ft As Double, _
-                               ByVal tag As String, ByRef why As String) As Long
+                               ByVal tag As String, ByRef sheet As Shape, _
+                               ByRef grv As Shape, ByRef why As String) As Long
     Dim g(0 To 3) As Shape
-    Dim parts(0 To 1) As Shape
-    Dim sheet As Shape
-    Dim grp As Shape, outer As Shape
     Dim i As Long
     Dim dims As String, pre As String
 
+    Set sheet = Nothing
+    Set grv = Nothing
     If fl + fr >= w Or fb + ft >= h Then
         why = "fold too large for an inward layout"
         Exit Function
@@ -1176,20 +1235,20 @@ Private Function ac2fPanelDraw(ByVal x0 As Double, ByVal y0 As Double, _
     pre = ""
     If Len(tag) > 0 Then pre = tag & " "
 
-    ' --- sheet outline -------------------------------------------------
-    Set sheet = ac2fMakeRect(x0, y0, w, h)
+    ' --- sheet outline, cut layer ---------------------------------------
+    Set sheet = ac2fMakeRect(m_lyCut, x0, y0, w, h)
     If sheet Is Nothing Then Exit Function
     sheet.Name = "ac2f ACP sheet " & pre & dims
 
-    ' --- four groove lines, clockwise, in cutting order ----------------
+    ' --- four groove lines, groove layer, clockwise, in cutting order ----
     ' 1 left: starts at the bottom so the tool enters low
-    Set g(0) = ac2fMakeLine(x0 + fl, y0, x0 + fl, y0 + h, "1 left")
+    Set g(0) = ac2fMakeLine(m_lyGrv, x0 + fl, y0, x0 + fl, y0 + h, "1 left")
     ' 2 top: starts at the left
-    Set g(1) = ac2fMakeLine(x0, y0 + h - ft, x0 + w, y0 + h - ft, "2 top")
+    Set g(1) = ac2fMakeLine(m_lyGrv, x0, y0 + h - ft, x0 + w, y0 + h - ft, "2 top")
     ' 3 right: starts at the top
-    Set g(2) = ac2fMakeLine(x0 + w - fr, y0 + h, x0 + w - fr, y0, "3 right")
+    Set g(2) = ac2fMakeLine(m_lyGrv, x0 + w - fr, y0 + h, x0 + w - fr, y0, "3 right")
     ' 4 bottom: starts at the right
-    Set g(3) = ac2fMakeLine(x0 + w, y0 + fb, x0, y0 + fb, "4 bottom")
+    Set g(3) = ac2fMakeLine(m_lyGrv, x0 + w, y0 + fb, x0, y0 + fb, "4 bottom")
 
     For i = 0 To 3
         If g(i) Is Nothing Then
@@ -1198,29 +1257,26 @@ Private Function ac2fPanelDraw(ByVal x0 As Double, ByVal y0 As Double, _
         End If
     Next i
 
-    ' --- grouping ------------------------------------------------------
-    Set grp = ac2fGroupShapes(g, 4, "ac2f ACP grooves")
-    If grp Is Nothing Then
+    ' --- the four grooves are one group --------------------------------
+    Set grv = ac2fGroupShapes(g, 4, "ac2f ACP grooves " & pre & dims)
+    If grv Is Nothing Then
         ac2fPanelDraw = 2
         Exit Function
     End If
-
-    Set parts(0) = sheet
-    Set parts(1) = grp
-    Set outer = ac2fGroupShapes(parts, 2, "ac2f ACP panel " & pre & dims)
-    If outer Is Nothing Then
-        ac2fPanelDraw = 2
-        Exit Function
-    End If
-
     ac2fPanelDraw = 1
 End Function
 
-' Draws the plates of panel i, one under the other below the source for
-' a wide panel, side by side to its right for a tall one. Every plate is
-' its own panel with its own grooves, so the CAM program can cut them
-' from separate sheets. Returns how many plates were drawn; loose counts
-' those that could not be grouped.
+' Draws the plates of panel i. Normally IN PLACE: the faces tile the
+' finished size exactly, every groove lies on the original outline and
+' the joint allowances stick out past the faces, overlapping the next
+' plate's, so the whole sign can be viewed (and cut out against artwork)
+' at its real size. With "sep" the plates are laid apart instead, one
+' under the other below the source for a wide panel, side by side to its
+' right for a tall one, so they do not overlap.
+' The sheet outlines are one group on the cut layer and the grooves one
+' group on the groove layer (each plate's four lines a group inside it).
+' Returns how many plates were drawn; loose counts groups that could
+' not be made.
 Private Function ac2fPanelDrawSplit(ByVal i As Long, ByVal bx As Double, ByVal by As Double, _
                                     ByVal bw As Double, ByVal bh As Double, _
                                     ByVal fold As Double, ByVal joint As Double, _
@@ -1228,12 +1284,18 @@ Private Function ac2fPanelDrawSplit(ByVal i As Long, ByVal bx As Double, ByVal b
                                     ByRef loose As Long) As Long
     Dim isX As Boolean
     Dim n As Long, k As Long, r As Long, made As Long
-    Dim sel As Double, across As Double, acrossFlat As Double
+    Dim sel As Double, across As Double
+    Dim netAlong As Double, netAcross As Double, acrossFlat As Double
+    Dim nx0 As Double, ny0 As Double, nTop As Double
     Dim w As Double, h As Double, x0 As Double, y0 As Double
     Dim fl As Double, fb As Double, fr As Double, ft As Double
     Dim xCur As Double, yCur As Double
-    Dim a0 As Double, a1 As Double, face As Double, sumFace As Double
-    Dim why As String, line_ As String
+    Dim a0 As Double, a1 As Double, face As Double, offs As Double
+    Dim sheets(0 To 11) As Shape, grvs(0 To 11) As Shape
+    Dim ns As Long, ng As Long
+    Dim sh As Shape, gr As Shape
+    Dim grp As Shape
+    Dim why As String, line_ As String, dims As String
 
     n = m_pn(i)
     isX = (bw >= bh)
@@ -1244,43 +1306,69 @@ Private Function ac2fPanelDrawSplit(ByVal i As Long, ByVal bx As Double, ByVal b
         sel = bh
         across = bw
     End If
-    acrossFlat = across
-    If dir_ <> AC2F_ACP_IN Then acrossFlat = across + 2# * fold
+
+    ' The finished size and where it sits. "out": the selection. "in":
+    ' the selection is the sheet, so the finished size is inset by a fold
+    ' and (along the split) shortened by the joints.
+    netAlong = ac2fPanelNet(sel, fold, joint, n, dir_)
+    netAcross = across
+    nx0 = bx
+    ny0 = by
+    nTop = by + bh
+    If dir_ = AC2F_ACP_IN Then
+        netAcross = across - 2# * fold
+        nx0 = bx + fold
+        ny0 = by + fold
+        nTop = by + bh - fold
+    End If
+    acrossFlat = netAcross + 2# * fold
 
     If isX Then
-        ' below the sheet the panel would have had, left edges aligned
-        If dir_ = AC2F_ACP_IN Then
-            xCur = bx
-            yCur = by - PIECE_GAP
-        Else
-            xCur = bx - fold
-            yCur = by - fold - PIECE_GAP
-        End If
+        dims = ac2fPanelMm(netAlong) & "x" & ac2fPanelMm(netAcross)
     Else
-        ' to the right of the sheet, top edges aligned
-        If dir_ = AC2F_ACP_IN Then
-            xCur = bx + bw + PIECE_GAP
-            yCur = by + bh
+        dims = ac2fPanelMm(netAcross) & "x" & ac2fPanelMm(netAlong)
+    End If
+
+    ' Start of the first plate when they are laid apart.
+    If m_sep Then
+        If isX Then
+            If dir_ = AC2F_ACP_IN Then
+                xCur = bx
+                yCur = by - PIECE_GAP
+            Else
+                xCur = bx - fold
+                yCur = by - fold - PIECE_GAP
+            End If
         Else
-            xCur = bx + bw + fold + PIECE_GAP
-            yCur = by + bh + fold
+            If dir_ = AC2F_ACP_IN Then
+                xCur = bx + bw + PIECE_GAP
+                yCur = by + bh
+            Else
+                xCur = bx + bw + fold + PIECE_GAP
+                yCur = by + bh + fold
+            End If
         End If
     End If
 
-    rep = rep & "   panel " & ac2fPanelMm(sel) & " x " & ac2fPanelMm(across) & _
-          IIf(dir_ = AC2F_ACP_IN, " sheet", " finished") & " -> " & n & " plates" & vbCrLf
+    rep = rep & "   panel " & ac2fPanelMm(netAlong) & " x " & ac2fPanelMm(netAcross) & _
+          " finished -> " & n & " plates" & _
+          IIf(m_sep, ", laid apart", ", in place") & vbCrLf
 
     For k = 0 To n - 1
         a0 = ac2fPanelAllow(k, n, 0, fold, joint)
         a1 = ac2fPanelAllow(k, n, 1, fold, joint)
         face = m_pused(i * MAX_PIECES + k) - a0 - a1
-        sumFace = sumFace + face
 
         If isX Then
             w = m_pused(i * MAX_PIECES + k)
             h = acrossFlat
-            x0 = xCur
-            y0 = yCur - h
+            If m_sep Then
+                x0 = xCur
+                y0 = yCur - h
+            Else
+                x0 = nx0 + offs - a0
+                y0 = ny0 - fold
+            End If
             fl = a0
             fr = a1
             fb = fold
@@ -1288,35 +1376,63 @@ Private Function ac2fPanelDrawSplit(ByVal i As Long, ByVal bx As Double, ByVal b
         Else
             w = acrossFlat
             h = m_pused(i * MAX_PIECES + k)
-            x0 = xCur
-            y0 = yCur - h
+            If m_sep Then
+                x0 = xCur
+                y0 = yCur - h
+            Else
+                x0 = nx0 - fold
+                y0 = nTop - offs + a0 - h
+            End If
             ft = a0
             fb = a1
             fl = fold
             fr = fold
         End If
 
-        r = ac2fPanelDraw(x0, y0, w, h, fl, fb, fr, ft, (k + 1) & " of " & n, why)
+        r = ac2fPanelDraw(x0, y0, w, h, fl, fb, fr, ft, (k + 1) & " of " & n, sh, gr, why)
         If r > 0 Then made = made + 1
         If r = 2 Then loose = loose + 1
+        If Not sh Is Nothing Then
+            Set sheets(ns) = sh
+            ns = ns + 1
+        End If
+        If Not gr Is Nothing Then
+            Set grvs(ng) = gr
+            ng = ng + 1
+        End If
 
         line_ = "    " & (k + 1) & "/" & n & "  " & ac2fPanelMm(w) & " x " & ac2fPanelMm(h) & _
-                "  face " & ac2fPanelMm(face)
+                "  face " & ac2fPanelMm(offs) & "-" & ac2fPanelMm(offs + face)
         If m_pplate(i * MAX_PIECES + k) - m_pused(i * MAX_PIECES + k) > 0.5 Then
-            line_ = line_ & "  left " & ac2fPanelMm(m_pplate(i * MAX_PIECES + k) - m_pused(i * MAX_PIECES + k))
+            line_ = line_ & "  left " & _
+                    ac2fPanelMm(m_pplate(i * MAX_PIECES + k) - m_pused(i * MAX_PIECES + k))
         End If
         If face < MIN_FACE Then line_ = line_ & "  NARROW"
         If r = 0 Then line_ = line_ & "  NOT DRAWN"
         rep = rep & line_ & vbCrLf
 
-        If isX Then
-            yCur = y0 - PIECE_GAP
-        Else
-            xCur = x0 + w + PIECE_GAP
+        offs = offs + face
+        If m_sep Then
+            If isX Then
+                yCur = y0 - PIECE_GAP
+            Else
+                xCur = x0 + w + PIECE_GAP
+            End If
         End If
     Next k
 
-    rep = rep & "    faces add up to " & ac2fPanelMm(sumFace) & " mm" & vbCrLf
+    ' One group of outlines on the cut layer, one of grooves on the
+    ' groove layer. A single shape cannot be grouped and needs no group.
+    If ns >= 2 Then
+        Set grp = ac2fGroupShapes(sheets, ns, "ac2f ACP cut " & dims & " (" & n & " plates)")
+        If grp Is Nothing Then loose = loose + 1
+    End If
+    If ng >= 2 Then
+        Set grp = ac2fGroupShapes(grvs, ng, "ac2f ACP grooves " & dims & " (" & n & " plates)")
+        If grp Is Nothing Then loose = loose + 1
+    End If
+
+    rep = rep & "    faces add up to " & ac2fPanelMm(offs) & " mm" & vbCrLf
     ac2fPanelDrawSplit = made
 End Function
 
@@ -1324,11 +1440,11 @@ End Function
 ' Drawing helpers. Geometry must succeed; styling is best effort.
 '---------------------------------------------------------------------
 
-Private Function ac2fMakeRect(ByVal x0 As Double, ByVal y0 As Double, _
+Private Function ac2fMakeRect(ByVal ly As Layer, ByVal x0 As Double, ByVal y0 As Double, _
                               ByVal w As Double, ByVal h As Double) As Shape
     Dim s As Shape
     On Error GoTo Fail
-    Set s = ActiveLayer.CreateRectangle(x0, y0 + h, x0 + w, y0)
+    Set s = ly.CreateRectangle(x0, y0 + h, x0 + w, y0)
     On Error Resume Next
     s.Fill.ApplyNoFill
     s.Outline.Width = 0.2
@@ -1339,14 +1455,14 @@ Private Function ac2fMakeRect(ByVal x0 As Double, ByVal y0 As Double, _
 Fail:
 End Function
 
-Private Function ac2fMakeLine(ByVal x1 As Double, ByVal y1 As Double, _
+Private Function ac2fMakeLine(ByVal ly As Layer, ByVal x1 As Double, ByVal y1 As Double, _
                               ByVal x2 As Double, ByVal y2 As Double, _
                               ByVal nm As String) As Shape
     Dim s As Shape
     On Error GoTo Fail
     ' The first pair is the start node, which is the point the CAM
     ' program enters the cut at.
-    Set s = ActiveLayer.CreateLineSegment(x1, y1, x2, y2)
+    Set s = ly.CreateLineSegment(x1, y1, x2, y2)
     On Error Resume Next
     s.Name = "ac2f groove " & nm
     s.Outline.Width = 0.15
@@ -1413,8 +1529,13 @@ Private Function ac2fPanelReport(ByVal made As Long, ByVal skipped As Long, _
     End If
 
     If splits > 0 Then
-        s = s & vbCrLf & "   Plates sit below the source (wide panel) or to its" & vbCrLf
-        s = s & "   right (tall panel), each with its own four grooves." & vbCrLf
+        If m_sep Then
+            s = s & vbCrLf & "   Plates laid apart: below the source (wide panel)" & vbCrLf
+            s = s & "   or to its right (tall panel)." & vbCrLf
+        Else
+            s = s & vbCrLf & "   Plates sit in place on the finished size; the joint" & vbCrLf
+            s = s & "   allowances overlap. Type sep to lay them apart." & vbCrLf
+        End If
     Else
         s = s & vbCrLf & "GROOVE ORDER  (clockwise, object order = cut order)" & vbCrLf
         s = s & "   1 left    starts at the bottom, full height" & vbCrLf
@@ -1422,11 +1543,12 @@ Private Function ac2fPanelReport(ByVal made As Long, ByVal skipped As Long, _
         s = s & "   3 right   starts at the top,    full height" & vbCrLf
         s = s & "   4 bottom  starts at the right,  full width" & vbCrLf
     End If
-    s = s & vbCrLf & "   black = sheet outline    blue = V-groove" & vbCrLf
-    s = s & "   The four grooves intersect on the folded size." & vbCrLf
+    s = s & vbCrLf & "   layer " & LAYER_CUT & ": sheet outline (black)" & vbCrLf
+    s = s & "   layer " & LAYER_GROOVE & ": V-grooves (blue)" & vbCrLf
+    s = s & "   The grooves intersect on the folded size." & vbCrLf
 
     If ungrouped > 0 Then
-        s = s & vbCrLf & "WARNING: " & ungrouped & " panel(s) could not be grouped." & _
+        s = s & vbCrLf & "WARNING: " & ungrouped & " group(s) could not be made." & _
                 vbCrLf & "The lines are on the page but left loose."
     End If
 

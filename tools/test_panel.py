@@ -5,12 +5,16 @@ src/ac2fCore.bas + ac2fPanel.bas, tools/vbapy.py ile cevrilir ve
 tools/cdrmock.py belgesinde calistirilir. Makro bittikten sonra belgedeki
 GERCEK sekillere bakilir:
 
-  - tek panel eskisi gibi mi (110x210, dort derz, adlar, baslangic noktalari)
+  - tek panel: 110x210, dort derz, adlar, baslangic noktalari
+  - dis kesim "ACP Cut", derzler "ACP Grooves" katmaninda; her katmanda grup
   - 4 m tabela, 50 mm kat, 30 mm derz payi, 3.20 m plaka: 3200 + 960
+  - plakalar YERINDE: yuzler bitmis olcuyu tam kaplar, derzler asil
+    dikdortgenin ustunde, derz paylari disarida ve komsuyla ust uste biner
   - her plakanin dort kenari dogru pay mi (uc kenar 50, birlesim kenari 30;
     ortadakilerin uzun kenarlari 50, uc kenarlari 30)
   - yuzler toplami tam bitmis olcu mu (derz paylari dusulunce net olcu)
-  - "in" yonu, uzun-dik panel, birden cok dortgen, iptal, hatali giris
+  - "sep": plakalar ayri dizilir; "in" yonu, uzun-dik panel, birden cok
+    dortgen, iptal, hatali giris, katman yeniden kullanimi
   - hicbir InputBox 1000 karakteri asmiyor mu (VBA ~1024'te keser)
 
 Kullanim:  python3 tools/test_panel.py
@@ -76,22 +80,49 @@ class Env(object):
 # --------------------------------------------------------------------
 # reading the drawing back
 # --------------------------------------------------------------------
+CUT, GRV = 'ACP Cut', 'ACP Grooves'
+
+
+def layer(env, name):
+    for ly in env.doc.layers:
+        if ly.name == name:
+            return ly
+    return None
+
+
+def walk(s):
+    """Bir sekil ve (grupsa) altindaki her sey."""
+    yield s
+    for c in s.children:
+        for x in walk(c):
+            yield x
+
+
 def panels(env):
-    """Cizilen panel gruplari: [(ad, (x0,y0,x1,y1), derz cizgileri {ad: (basla, bitis)})]"""
-    out = []
-    for s in env.doc.all_shapes():
-        if s.type != cm.CONSTS['cdrgroupshape'] or not s.name.startswith('ac2f ACP panel'):
-            continue
-        sheet, lines = None, {}
-        for c in s.children:
-            if c.name.startswith('ac2f ACP sheet'):
-                sheet = c.bbox()
-            elif c.type == cm.CONSTS['cdrgroupshape']:
-                for g in c.children:
-                    n = g.paths[0].nodes
-                    lines[g.name.replace('ac2f groove ', '')] = (n[0], n[1])
-        out.append((s.name, sheet, lines))
-    return out
+    """Cizilen plakalar, sirayla: [(anahtar, kesim kutusu, derz cizgileri)].
+    Kesim "ACP Cut" katmaninda, derzler "ACP Grooves" katmanindadir; ikisi
+    ayni anahtarla ("1 of 2 3200x1100" ya da "110x210") eslesir."""
+    cut, grv = layer(env, CUT), layer(env, GRV)
+    sheets, grooves = {}, {}
+    if cut is not None:
+        for top in cut.items:
+            for s in walk(top):
+                if s.name.startswith('ac2f ACP sheet '):
+                    sheets[s.name[len('ac2f ACP sheet '):]] = s.bbox()
+    if grv is not None:
+        for top in grv.items:
+            for s in walk(top):
+                if s.name.startswith('ac2f ACP grooves ') and s.children and \
+                        all(c.name.startswith('ac2f groove ') for c in s.children):
+                    grooves[s.name[len('ac2f ACP grooves '):]] = {
+                        c.name.replace('ac2f groove ', ''): (c.paths[0].nodes[0], c.paths[0].nodes[1])
+                        for c in s.children}
+    import re
+
+    def order(k):
+        m = re.match(r'(\d+) of (\d+) ', k)
+        return int(m.group(1)) if m else 0
+    return [(k, sheets[k], grooves[k]) for k in sorted(sheets, key=order) if k in grooves]
 
 
 def faces(p):
@@ -128,7 +159,14 @@ def t_single_unchanged():
         asked, msgs = e.run('ac2fpanelgroove', '5mm out')
         ps = panels(e)
         expect(len(asked) == 1, 'yalniz kat sorusu soruldu (%d soru)' % len(asked))
-        expect(len(ps) == 1 and ps[0][0] == 'ac2f ACP panel 110x210', 'grup adi: %s' % [p[0] for p in ps])
+        expect(len(ps) == 1 and ps[0][0] == '110x210', 'plaka anahtari: %s' % [p[0] for p in ps])
+        cut, grv = layer(e, CUT), layer(e, GRV)
+        expect(cut is not None and grv is not None, 'iki katman olustu: %s' % [l.name for l in e.doc.layers])
+        expect([s.name for s in cut.items] == ['ac2f ACP sheet 110x210'], 'kesim katmaninda yalniz plaka dis hatti: %s' % [s.name for s in cut.items])
+        expect([s.name for s in grv.items] == ['ac2f ACP grooves 110x210'] and len(grv.items[0].children) == 4,
+               'derz katmaninda tek grup, 4 cizgi: %s' % [s.name for s in grv.items])
+        expect(all(not s.name.startswith('ac2f') for s in e.doc.layers[0].items), 'ilk katmana (kaynagin katmani) dokunulmadi')
+        expect(e.doc.active_layer is e.doc.layers[0], 'aktif katman geri yuklendi')
         expect(near(ps[0][1], (-5, -5, 105, 205)), 'plaka -5,-5 .. 105,205: %s' % (ps[0][1],))
         expect(near(faces(ps[0]), (100, 200)), 'derzler 100x200 uzerinde kesisir')
         expect(sorted(ps[0][2]) == ['1 left', '2 top', '3 right', '4 bottom'], 'dort derz: %s' % sorted(ps[0][2]))
@@ -152,7 +190,15 @@ def t_user_example():
         expect(len(asked) == 3, 'uc soru: kat, plaka+derz, secenek (%d)' % len(asked))
         expect(len(ps) == 2, 'iki plaka cizildi (%d)' % len(ps))
         names = [p[0] for p in ps]
-        expect(names == ['ac2f ACP panel 1 of 2 3200x1100', 'ac2f ACP panel 2 of 2 960x1100'], 'adlar: %s' % names)
+        expect(names == ['1 of 2 3200x1100', '2 of 2 960x1100'], 'plaka anahtarlari: %s' % names)
+        cut, grv = layer(e, CUT), layer(e, GRV)
+        expect([s.name for s in cut.items] == ['ac2f ACP cut 4000x1000 (2 plates)'] and len(cut.items[0].children) == 2,
+               'kesim katmani: iki dis hattin tek grubu: %s' % [s.name for s in cut.items])
+        expect([s.name for s in grv.items] == ['ac2f ACP grooves 4000x1000 (2 plates)'] and len(grv.items[0].children) == 2,
+               'derz katmani: iki plaka derzinin tek grubu: %s' % [s.name for s in grv.items])
+        expect(all(len(c.children) == 4 for c in grv.items[0].children), 'her plakanin dort derzi kendi alt grubunda')
+        src = [s for s in e.doc.layers[0].items if s.type == cm.CONSTS['cdrrectangleshape']]
+        expect(len(src) == 1 and near(src[0].bbox(), (0, 0, 4000, 1000)), 'kaynak dikdortgen yerinde, ilk katmanda')
         a, b = ps
         expect(close(a[1][2] - a[1][0], 3200) and close(a[1][3] - a[1][1], 1100), 'plaka 1 kesim 3200x1100')
         expect(close(b[1][2] - b[1][0], 960) and close(b[1][3] - b[1][1], 1100), 'plaka 2 kesim 960x1100')
@@ -163,14 +209,21 @@ def t_user_example():
         expect(close(fa[0], 3120) and close(fb[0], 880), 'yuz uzunluklari 3120 ve 880: %s %s' % (fa[0], fb[0]))
         expect(close(fa[0] + fb[0], 4000), 'yuzler toplami tam 4000: %s' % (fa[0] + fb[0]))
         expect(close(fa[1], 1000) and close(fb[1], 1000), 'yukseklik net 1000')
-        # Plakalar kaynagin altinda, ust uste binmiyor, aralik >= 100.
-        expect(a[1][3] <= -50 - 100 + 0.05 and close(a[1][0], -50), 'plaka 1 kaynagin altinda, sol kenar hizali: %s' % (a[1],))
-        expect(b[1][3] <= a[1][1] - 100 + 0.05, 'plaka 2, plaka 1in altinda en az 100 aralikla')
+        # Plakalar YERINDE: yuzler 4000x1000'i tam kaplar, derzler asil dikdortgenin ustunde.
+        expect(near(a[1], (-50, -50, 3150, 1050)), 'plaka 1 kutusu -50..3150: %s' % (a[1],))
+        expect(near(b[1], (3090, -50, 4050, 1050)), 'plaka 2 kutusu 3090..4050: %s' % (b[1],))
+        expect(close(a[1][2] - b[1][0], 60), 'birlesimde iki derz payi 60 mm ust uste biner: %s' % (a[1][2] - b[1][0]))
+        la, lb = a[2], b[2]
+        expect(close(la['1 left'][0][0], 0) and close(lb['3 right'][0][0], 4000), 'ilk sol derz x=0, son sag derz x=4000')
+        expect(close(la['3 right'][0][0], 3120) and close(lb['1 left'][0][0], 3120), 'birlesim derzleri ayni x=3120 uzerinde')
+        expect(close(la['4 bottom'][0][1], 0) and close(la['2 top'][0][1], 1000), 'alt/ust derz y=0 ve y=1000 (asil dikdortgen)')
         expect(e.get('ACPPlakaListesi') == '3200' and e.get('ACPBirlesimMM') == '30', 'plaka listesi ve derz payi saklandi')
         expect(all(len(m) <= 1000 for m in asked), 'hicbir soru 1000 karakteri asmiyor: %s' % [len(m) for m in asked])
         expect(len(msgs) == 1 and len(msgs[0]) <= 1000, 'rapor 1000 karakteri asmiyor (%d)' % len(msgs[0]))
         expect('faces add up to 4000' in msgs[0], 'rapor net olcuyu soyluyor')
-        expect('1. 3200 + 960' in asked[2] and '2. 2080 + 2080' in asked[2], 'secenekler: ilk ikisi 3200+960 ve 2080+2080')
+        expect('1. 3200 + 960  faces 3120 + 880  (left 2240)' in asked[2], 'secenek 1 yuzleri de gosterir: %s' % asked[2].split('\n')[4])
+        expect('2. 2080 + 2080  faces 2000 + 2000  (left 1120+1120)' in asked[2], 'secenek 2: 2080+2080, yuzler 2000+2000')
+        expect('Plates sit in place' in msgs[0] and 'layer ACP Cut' in msgs[0] and 'layer ACP Grooves' in msgs[0], 'rapor yerinde yerlesimi ve katmanlari soyler')
     finally:
         e.close()
 
@@ -203,6 +256,10 @@ def t_three_pieces():
         expect(near(allowances(ps[0]), (50, 50, 30, 50)) and near(allowances(ps[2]), (30, 50, 50, 50)), 'bastaki ve sondaki: uc kenar 50, bir kenar 30')
         tot = sum(faces(p)[0] for p in ps)
         expect(close(tot, 7000), 'yuzler toplami 7000: %s' % tot)
+        expect(close(ps[0][2]['3 right'][0][0], ps[1][2]['1 left'][0][0]) and close(ps[1][2]['3 right'][0][0], ps[2][2]['1 left'][0][0]),
+               'komsu plakalarin birlesim derzleri ayni x uzerinde (yuzler bitisik)')
+        expect(close(ps[0][2]['1 left'][0][0], 0) and close(ps[2][2]['3 right'][0][0], 7000), 'ilk sol derz 0, son sag derz 7000 (asil olcu)')
+        expect(close(ps[0][1][2] - ps[1][1][0], 60) and close(ps[1][1][2] - ps[2][1][0], 60), 'her birlesimde 60 mm ust uste')
     finally:
         e.close()
 
@@ -321,8 +378,9 @@ def t_tall_panel():
             a, b = ps
             expect(close(a[1][3] - a[1][1], 3200) and close(b[1][3] - b[1][1], 960), 'boylar 3200 ve 960 (Y yonunde)')
             expect(close(a[1][2] - a[1][0], 1100), 'genislik 1100')
-            expect(a[1][0] >= 1000 + 50 + 100 - 0.05 and b[1][0] >= a[1][2] + 100 - 0.05, 'sagda yan yana, aralik >= 100')
-            expect(close(a[1][3], 4050) and close(b[1][3], 4050), 'ust kenarlar hizali')
+            expect(near(a[1], (-50, 850, 1050, 4050)) and near(b[1], (-50, -50, 1050, 910)), 'yerinde: ust plaka 850..4050, alt plaka -50..910 (60 ust uste): %s %s' % (a[1], b[1]))
+            expect(close(a[2]['4 bottom'][0][1], 880) and close(b[2]['2 top'][0][1], 880), 'birlesim derzleri y=880 uzerinde ust uste')
+            expect(close(a[2]['2 top'][0][1], 4000) and close(b[2]['4 bottom'][0][1], 0), 'ilk ust derz y=4000, son alt derz y=0')
             # ust plaka: ust kenar kat(50), alt kenar derz payi (30)
             expect(near(allowances(a), (50, 30, 50, 50)), 'ust plaka sol/alt/sag/ust = %s' % (allowances(a),))
             expect(near(allowances(b), (50, 50, 50, 30)), 'alt plaka sol/alt/sag/ust = %s' % (allowances(b),))
@@ -358,7 +416,7 @@ def t_zero_and_cancel():
         e.rect(0, 0, 4000, 1000)
         e.run('ac2fpanelgroove', '5cm out', '0')
         ps = panels(e)
-        expect(len(ps) == 1 and ps[0][0] == 'ac2f ACP panel 4100x1100', 'plaka sorusunda 0: tek parca 4100x1100')
+        expect(len(ps) == 1 and ps[0][0] == '4100x1100', 'plaka sorusunda 0: tek parca 4100x1100')
         expect(e.get('ACPPlakaListesi') is None, '0 saklanmadi')
     finally:
         e.close()
@@ -456,7 +514,7 @@ def t_many_rectangles():
         expect(len(asked) == 3, 'kat + plaka + tek secenek sorusu (%d)' % len(asked))
         expect(len(ps) == 3, 'biri tek parca, biri iki plaka = 3 grup (%d)' % len(ps))
         expect(sum(1 for p in ps if 'of' in p[0]) == 2, 'iki plaka bolunmus panelden')
-        expect(any(p[0] == 'ac2f ACP panel 1100x600' for p in ps), 'kisa panel tek parca cizildi')
+        expect(any(p[0] == '1100x600' for p in ps), 'kisa panel tek parca cizildi')
     finally:
         e.close()
 
@@ -500,10 +558,93 @@ def t_waste_order():
         e.rect(0, 0, 4000, 1000)
         asked, msgs = e.run('ac2fpanelgroove', '5cm out', '3200 3050 2440 j30', '1')
         q = asked[2]
-        expect('1. 2080 + 2080  (2 plates of 2440' in q, 'ilk secenek 2 x 2440 plakadan 2080 + 2080: %s' % q.split('\n')[4])
+        expect('1. 2080 + 2080  faces 2000 + 2000  (of 2440, left 360+360)' in q, 'ilk secenek 2 x 2440 plakadan 2080 + 2080: %s' % q.split('\n')[4])
         expect(q.count('2080 + 2080') == 1, '3200 ve 3050 plakadan ayni 2080 + 2080 tekrar listelenmedi')
         ps = panels(e)
         expect(len(ps) == 2 and close(ps[0][1][2] - ps[0][1][0], 2080), 'secim cizildi: 2080 + 2080')
+    finally:
+        e.close()
+
+
+def t_in_place_in_direction():
+    scenario('"in" yerinde: secim toplam acinim; net dikdortgen ic kaydirilmis yerde')
+    e = Env()
+    try:
+        e.rect(100, 200, 4160, 1000)
+        e.run('ac2fpanelgroove', '5cm in', '3200 j30', '1')
+        ps = panels(e)
+        expect(len(ps) == 2, 'iki plaka')
+        a, b = ps
+        expect(near(a[1], (100, 200, 3300, 1200)), 'plaka 1 kutusu secimin sol kenarindan baslar: %s' % (a[1],))
+        expect(close(a[2]['1 left'][0][0], 150) and close(b[2]['3 right'][0][0], 4150), 'net 150..4150 (4000)')
+        expect(close(a[2]['4 bottom'][0][1], 250) and close(a[2]['2 top'][0][1], 1150), 'net yukseklik 250..1150 (900): kat kadar ice')
+        expect(close(a[2]['3 right'][0][0], b[2]['1 left'][0][0]), 'birlesim derzleri ayni x')
+        expect(close(a[1][2] - b[1][0], 60), 'birlesimde 60 mm ust uste')
+    finally:
+        e.close()
+
+
+def t_sep_layout():
+    scenario('sep: plakalar ayri dizilir (kaynagin altina / sagina), sakli degildir')
+    e = Env()
+    try:
+        e.rect(0, 0, 4000, 1000)
+        asked, msgs = e.run('ac2fpanelgroove', '5cm out', '3200 j30 sep', '1')
+        ps = panels(e)
+        expect(len(ps) == 2, 'iki plaka')
+        a, b = ps
+        expect(near(a[1], (-50, -1250, 3150, -150)), 'plaka 1 kaynagin altinda (aralik 100): %s' % (a[1],))
+        expect(b[1][3] <= a[1][1] - 100 + 0.05 and close(b[1][0], -50), 'plaka 2, plaka 1in altinda, sol kenar hizali: %s' % (b[1],))
+        expect(near(allowances(a), (50, 50, 30, 50)) and near(allowances(b), (30, 50, 50, 50)), 'paylar yerindekiyle ayni')
+        expect('laid apart' in msgs[0], 'rapor ayri dizildigini soyler')
+        expect(e.get('ACPPlakaListesi') == '3200', 'sep listeye karismadi')
+    finally:
+        e.close()
+    e = Env()
+    try:
+        e.rect(0, 0, 1000, 4000)
+        e.run('ac2fpanelgroove', '5cm out', '3200 j30 sep', '1')
+        ps = panels(e)
+        a, b = ps
+        expect(a[1][0] >= 1000 + 50 + 100 - 0.05 and b[1][0] >= a[1][2] + 100 - 0.05, 'dik panel: sagda yan yana, aralik >= 100')
+        expect(close(a[1][3], 4050) and close(b[1][3], 4050), 'ust kenarlar hizali')
+    finally:
+        e.close()
+    e = Env()
+    try:
+        e.rect(0, 0, 4000, 1000)
+        asked, msgs = e.run('ac2fpanelgroove', '5cm out', '3200 j30', '1')
+        expect(near(panels(e)[0][1], (-50, -50, 3150, 1050)), 'sep yazilmadiysa yerinde')
+        asked2, _ = e.run('ac2fpanelgroove', '5cm out', '3200 j30', '1')
+        expect(near(panels(e)[0][1], (-50, -50, 3150, 1050)), 'onceki calismadaki sep sonrakini etkilemez')
+    finally:
+        e.close()
+
+
+def t_layers_reused():
+    scenario('Katmanlar yeniden kullanilir; var olan katmanin kilidi acilir')
+    e = Env()
+    try:
+        e.rect(0, 0, 4000, 1000)
+        e.run('ac2fpanelgroove', '5cm out', '3200 j30', '1')
+        names1 = [l.name for l in e.doc.layers]
+        e.doc.selection[:] = []
+        e.rect(0, 5000, 4000, 1000)
+        e.run('ac2fpanelgroove', '5cm out', '3200 j30', '1')
+        names2 = [l.name for l in e.doc.layers]
+        expect(names1 == names2 == ['Layer 1', 'ACP Cut', 'ACP Grooves'], 'ikinci calismada yeni katman acilmadi: %s' % names2)
+        expect(len(layer(e, CUT).items) == 2 and len(layer(e, GRV).items) == 2, 'iki calismanin gruplari ayni katmanlarda')
+        expect(e.doc.active_layer is e.doc.layers[0], 'aktif katman geri yuklendi')
+    finally:
+        e.close()
+    e = Env()
+    try:
+        ly = e.doc.page.createlayer('ACP Grooves')
+        ly.editable = False
+        ly.visible = False
+        e.rect(0, 0, 100, 200)
+        e.run('ac2fpanelgroove', '5mm out')
+        expect(len(ps_ := panels(e)) == 1 and ly.editable is True and ly.visible is True, 'kilitli/gizli derz katmani acildi ve kullanildi')
     finally:
         e.close()
 
@@ -526,6 +667,9 @@ def main():
     t_default_text()
     t_prompt_limits()
     t_waste_order()
+    t_in_place_in_direction()
+    t_sep_layout()
+    t_layers_reused()
     print('\n%s' % ('HATA: %d' % len(FAILS) if FAILS else 'Hepsi gecti'))
     sys.exit(1 if FAILS else 0)
 

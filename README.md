@@ -175,6 +175,13 @@ seçenekleri sunar ve her plaka için ayrı panel çizer:
 1                1. seçenek: 3200 + 960   (2: 2080 + 2080)  ya da kendi boylarınız: 3000 1160
 ```
 
+Plakalar **net ölçü üzerinde, yerinde** çizilir: yüzler bitmiş ölçüyü
+(4000 × 1000) tam kaplar, derzler asıl dikdörtgenin üstüne düşer; derz
+payları yüzün **dışında** kalır ve birleşimde komşu plakanınkiyle **üst üste
+biner**. Böylece dekupe gibi işleri asıl ölçüde görerek yaparsınız.
+Plakaları ayrı ayrı kesmek için ayırmak isterseniz plaka satırına `sep`
+ekleyin (`3200 j30 sep`).
+
 ```
 plaka 1   kesim 3200 = 50 (kat) + 3120 yüz + 30 (derz)
 plaka 2   kesim  960 = 30 (derz) + 880 yüz + 50 (kat)
@@ -184,23 +191,35 @@ plaka 2   kesim  960 = 30 (derz) + 880 yüz + 50 (kat)
 
 Baştaki ve sondaki plakada üç kenar **kat** (50), birleşim kenarı **derz
 payı** (30); ortadaki plakada iki paralel kenar 50, birleşim kenarları 30.
+Dış hat `ACP Cut`, derzler `ACP Grooves` katmanındadır; her katmanda
+plakaların tümü tek grup, her plakanın dört derzi de bunun içinde bir
+alt gruptur.
 Derz payları ve katlar düşülünce **net ölçü** bitmiş ölçüye eşit çıkar ve
 raporda yazılır. Ayrıntı, giriş biçimleri ve çizim düzeni:
 [docs/kullanim.md › Uzun panel](docs/kullanim.md#uzun-panel-plakalara-bölme).
 
-### Renk ve gruplama
+### Katmanlar, renk ve gruplama
 
-Siyah = plaka dış hattı (kesim), mavi = V derz. Yapı:
+Dış kesim ve derzler **ayrı katmanlarda** çizilir; CAM'e ya da dekupe işine
+istediğiniz katmanı açıp kapatarak verirsiniz. Katmanlar adıyla bulunur,
+yoksa açılır; sonraki çalıştırmalar aynılarını kullanır.
+
+| Katman | İçerik | Renk |
+|---|---|---|
+| `ACP Cut` | Plaka dış hattı (kesim) | siyah |
+| `ACP Grooves` | V derz çizgileri (üstte) | mavi |
 
 ```
-ac2f ACP panel 110x210        (grup)
-├── ac2f ACP sheet 110x210    (dörtgen)
-└── ac2f ACP grooves          (grup)
-    ├── ac2f groove 1 left
-    ├── ac2f groove 2 top
-    ├── ac2f groove 3 right
-    └── ac2f groove 4 bottom
+ACP Cut                              ACP Grooves
+└── ac2f ACP sheet 110x210           └── ac2f ACP grooves 110x210   (grup)
+    (tek dörtgen)                        ├── ac2f groove 1 left
+                                         ├── ac2f groove 2 top
+                                         ├── ac2f groove 3 right
+                                         └── ac2f groove 4 bottom
 ```
+
+Bir grup iki katmana yayılamayacağı için dış hat ve derz aynı grupta
+değildir; her katmanda kendi grubu vardır (bölmede aşağıya bakın).
 
 ## Orta hat (tek çizgiye düşürme)
 
