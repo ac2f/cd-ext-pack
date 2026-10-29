@@ -472,11 +472,20 @@ Bölme **bitmiş (net) ölçü üzerinde** yapılır ve plakalar asıl yerlerind
                               ^^^^^ 60 mm üst üste
 ```
 
-Her plaka `ac2f ACP sheet 1 of 2 3200x1100` gibi adlanır. `ACP Cut`
-katmanında tüm dış hatlar `ac2f ACP cut 4000x1000 (2 plates)` grubunda,
-`ACP Grooves` katmanında tüm derzler `ac2f ACP grooves 4000x1000 (2 plates)`
-grubundadır; her plakanın dört derzi bunun içinde `ac2f ACP grooves 1 of 2
-3200x1100` alt grubudur.
+**Her plaka ayrı ayrı gruplanır**; plakaları birlikte saran bir grup
+yoktur:
+
+```
+ACP Cut                                  ACP Grooves
+├── ac2f ACP sheet 1 of 2 3200x1100      ├── ac2f ACP grooves 1 of 2 3200x1100  (grup)
+└── ac2f ACP sheet 2 of 2 960x1100       │   ├── ac2f groove 1 left ... 4 bottom
+                                         └── ac2f ACP grooves 2 of 2 960x1100   (grup)
+```
+
+Bir plakanın dört derzi kendi grubundadır. Dış hattı ise tek bir dörtgendir:
+bir grup iki katmana yayılamadığı ve tek nesne gruplanamadığı için dış hat ile
+derz aynı grupta olamaz. Bir plakayı taşımak için dış hattını ve derz grubunu
+birlikte seçin (aynı `1 of 2` adı taşırlar).
 
 **Plakaları ayrı ayrı kesmek** için plaka satırına `sep` yazın
 (`3200 j30 sep`; kalıcı değildir, her çalıştırmada yazılır). Plakalar

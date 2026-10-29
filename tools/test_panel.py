@@ -192,11 +192,14 @@ def t_user_example():
         names = [p[0] for p in ps]
         expect(names == ['1 of 2 3200x1100', '2 of 2 960x1100'], 'plaka anahtarlari: %s' % names)
         cut, grv = layer(e, CUT), layer(e, GRV)
-        expect([s.name for s in cut.items] == ['ac2f ACP cut 4000x1000 (2 plates)'] and len(cut.items[0].children) == 2,
-               'kesim katmani: iki dis hattin tek grubu: %s' % [s.name for s in cut.items])
-        expect([s.name for s in grv.items] == ['ac2f ACP grooves 4000x1000 (2 plates)'] and len(grv.items[0].children) == 2,
-               'derz katmani: iki plaka derzinin tek grubu: %s' % [s.name for s in grv.items])
-        expect(all(len(c.children) == 4 for c in grv.items[0].children), 'her plakanin dort derzi kendi alt grubunda')
+        # Her plaka AYRI gruplanir: tum plakalari saran tek grup yok.
+        expect([s.name for s in cut.items] == ['ac2f ACP sheet 1 of 2 3200x1100', 'ac2f ACP sheet 2 of 2 960x1100'],
+               'kesim katmani: her plakanin dis hatti ayri nesne, ortak grup yok: %s' % [s.name for s in cut.items])
+        expect(all(s.type == cm.CONSTS['cdrrectangleshape'] for s in cut.items), 'dis hatlar grup degil, dortgen')
+        expect([s.name for s in grv.items] == ['ac2f ACP grooves 1 of 2 3200x1100', 'ac2f ACP grooves 2 of 2 960x1100'],
+               'derz katmani: her plakanin derzi kendi grubunda, ortak grup yok: %s' % [s.name for s in grv.items])
+        expect(all(s.type == cm.CONSTS['cdrgroupshape'] and len(s.children) == 4 for s in grv.items), 'her derz grubunda dort cizgi')
+        expect(all(s.parent is None for s in cut.items + grv.items), 'hicbiri baska bir grubun icinde degil')
         src = [s for s in e.doc.layers[0].items if s.type == cm.CONSTS['cdrrectangleshape']]
         expect(len(src) == 1 and near(src[0].bbox(), (0, 0, 4000, 1000)), 'kaynak dikdortgen yerinde, ilk katmanda')
         a, b = ps
@@ -612,11 +615,14 @@ def t_sep_layout():
         e.close()
     e = Env()
     try:
-        e.rect(0, 0, 4000, 1000)
-        asked, msgs = e.run('ac2fpanelgroove', '5cm out', '3200 j30', '1')
-        expect(near(panels(e)[0][1], (-50, -50, 3150, 1050)), 'sep yazilmadiysa yerinde')
-        asked2, _ = e.run('ac2fpanelgroove', '5cm out', '3200 j30', '1')
-        expect(near(panels(e)[0][1], (-50, -50, 3150, 1050)), 'onceki calismadaki sep sonrakini etkilemez')
+        src = e.rect(0, 0, 4000, 1000)
+        asked, msgs = e.run('ac2fpanelgroove', '5cm out', '3200 j30 sep', '1')
+        expect(near(panels(e)[0][1], (-50, -1250, 3150, -150)), 'sep yazilinca ayri dizilir')
+        # Ikinci calisma: yalniz kaynak secili, ayni belge (eski cizim duruyor).
+        e.doc.selection[:] = [src]
+        asked2, msgs2 = e.run('ac2fpanelgroove', '5cm out', '3200 j30', '1')
+        yeni = [p for p in panels(e) if near(p[1], (-50, -50, 3150, 1050))]
+        expect(len(yeni) == 1 and 'laid apart' not in msgs2[0], 'onceki calismadaki sep sonrakini etkilemez: yerinde cizildi')
     finally:
         e.close()
 
@@ -633,7 +639,7 @@ def t_layers_reused():
         e.run('ac2fpanelgroove', '5cm out', '3200 j30', '1')
         names2 = [l.name for l in e.doc.layers]
         expect(names1 == names2 == ['Layer 1', 'ACP Cut', 'ACP Grooves'], 'ikinci calismada yeni katman acilmadi: %s' % names2)
-        expect(len(layer(e, CUT).items) == 2 and len(layer(e, GRV).items) == 2, 'iki calismanin gruplari ayni katmanlarda')
+        expect(len(layer(e, CUT).items) == 4 and len(layer(e, GRV).items) == 4, 'iki calismanin (2 x 2 plaka) nesneleri ayni katmanlarda')
         expect(e.doc.active_layer is e.doc.layers[0], 'aktif katman geri yuklendi')
     finally:
         e.close()

@@ -1273,10 +1273,12 @@ End Function
 ' at its real size. With "sep" the plates are laid apart instead, one
 ' under the other below the source for a wide panel, side by side to its
 ' right for a tall one, so they do not overlap.
-' The sheet outlines are one group on the cut layer and the grooves one
-' group on the groove layer (each plate's four lines a group inside it).
-' Returns how many plates were drawn; loose counts groups that could
-' not be made.
+' Every plate is grouped on its own: its four grooves are one group on
+' the groove layer and its outline is one shape on the cut layer (a
+' group cannot span layers, and a single shape cannot be grouped). The
+' plates are NOT grouped together, so each can be picked and moved alone.
+' Returns how many plates were drawn; loose counts groove sets that could
+' not be grouped.
 Private Function ac2fPanelDrawSplit(ByVal i As Long, ByVal bx As Double, ByVal by As Double, _
                                     ByVal bw As Double, ByVal bh As Double, _
                                     ByVal fold As Double, ByVal joint As Double, _
@@ -1291,11 +1293,8 @@ Private Function ac2fPanelDrawSplit(ByVal i As Long, ByVal bx As Double, ByVal b
     Dim fl As Double, fb As Double, fr As Double, ft As Double
     Dim xCur As Double, yCur As Double
     Dim a0 As Double, a1 As Double, face As Double, offs As Double
-    Dim sheets(0 To 11) As Shape, grvs(0 To 11) As Shape
-    Dim ns As Long, ng As Long
     Dim sh As Shape, gr As Shape
-    Dim grp As Shape
-    Dim why As String, line_ As String, dims As String
+    Dim why As String, line_ As String
 
     n = m_pn(i)
     isX = (bw >= bh)
@@ -1322,12 +1321,6 @@ Private Function ac2fPanelDrawSplit(ByVal i As Long, ByVal bx As Double, ByVal b
         nTop = by + bh - fold
     End If
     acrossFlat = netAcross + 2# * fold
-
-    If isX Then
-        dims = ac2fPanelMm(netAlong) & "x" & ac2fPanelMm(netAcross)
-    Else
-        dims = ac2fPanelMm(netAcross) & "x" & ac2fPanelMm(netAlong)
-    End If
 
     ' Start of the first plate when they are laid apart.
     If m_sep Then
@@ -1392,14 +1385,6 @@ Private Function ac2fPanelDrawSplit(ByVal i As Long, ByVal bx As Double, ByVal b
         r = ac2fPanelDraw(x0, y0, w, h, fl, fb, fr, ft, (k + 1) & " of " & n, sh, gr, why)
         If r > 0 Then made = made + 1
         If r = 2 Then loose = loose + 1
-        If Not sh Is Nothing Then
-            Set sheets(ns) = sh
-            ns = ns + 1
-        End If
-        If Not gr Is Nothing Then
-            Set grvs(ng) = gr
-            ng = ng + 1
-        End If
 
         line_ = "    " & (k + 1) & "/" & n & "  " & ac2fPanelMm(w) & " x " & ac2fPanelMm(h) & _
                 "  face " & ac2fPanelMm(offs) & "-" & ac2fPanelMm(offs + face)
@@ -1420,17 +1405,6 @@ Private Function ac2fPanelDrawSplit(ByVal i As Long, ByVal bx As Double, ByVal b
             End If
         End If
     Next k
-
-    ' One group of outlines on the cut layer, one of grooves on the
-    ' groove layer. A single shape cannot be grouped and needs no group.
-    If ns >= 2 Then
-        Set grp = ac2fGroupShapes(sheets, ns, "ac2f ACP cut " & dims & " (" & n & " plates)")
-        If grp Is Nothing Then loose = loose + 1
-    End If
-    If ng >= 2 Then
-        Set grp = ac2fGroupShapes(grvs, ng, "ac2f ACP grooves " & dims & " (" & n & " plates)")
-        If grp Is Nothing Then loose = loose + 1
-    End If
 
     rep = rep & "    faces add up to " & ac2fPanelMm(offs) & " mm" & vbCrLf
     ac2fPanelDrawSplit = made

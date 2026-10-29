@@ -144,6 +144,14 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
 
+### Sürüm 1.25.0'dan 1.25.1'e
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fPanel.bas` | **Değişti** (plakalar ayrı gruplanıyor) — önce silin, sonra aktarın |
+| `ac2fCore.bas` | **Değişti** (sürüm) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
 ### Sürüm 1.24.0'dan 1.25.0'a
 
 | Dosya | Ne yapmalı |

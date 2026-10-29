@@ -191,9 +191,11 @@ plaka 2   kesim  960 = 30 (derz) + 880 yüz + 50 (kat)
 
 Baştaki ve sondaki plakada üç kenar **kat** (50), birleşim kenarı **derz
 payı** (30); ortadaki plakada iki paralel kenar 50, birleşim kenarları 30.
-Dış hat `ACP Cut`, derzler `ACP Grooves` katmanındadır; her katmanda
-plakaların tümü tek grup, her plakanın dört derzi de bunun içinde bir
-alt gruptur.
+Dış hat `ACP Cut`, derzler `ACP Grooves` katmanındadır. **Her plaka ayrı
+ayrı gruplanır**: plakanın dört derzi kendi grubunda (`ac2f ACP grooves
+1 of 2 3200x1100`), dış hattı kendi dörtgenidir (`ac2f ACP sheet 1 of 2
+3200x1100`); plakaları birlikte saran bir grup yoktur, hangisini
+isterseniz tek başına seçip taşırsınız.
 Derz payları ve katlar düşülünce **net ölçü** bitmiş ölçüye eşit çıkar ve
 raporda yazılır. Ayrıntı, giriş biçimleri ve çizim düzeni:
 [docs/kullanim.md › Uzun panel](docs/kullanim.md#uzun-panel-plakalara-bölme).
@@ -219,7 +221,8 @@ ACP Cut                              ACP Grooves
 ```
 
 Bir grup iki katmana yayılamayacağı için dış hat ve derz aynı grupta
-değildir; her katmanda kendi grubu vardır (bölmede aşağıya bakın).
+değildir; derzler kendi katmanında bir gruptur (bölmede her plakanın
+derzleri ayrı grup, aşağıya bakın).
 
 ## Orta hat (tek çizgiye düşürme)
 

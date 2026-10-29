@@ -2,6 +2,25 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.25.1] - 2026-10-29
+
+### Düzeltildi: bölünen panelde plakalar tek grupta toplanıyordu
+
+`sep` yazılsın yazılmasın, bölünen panelde bütün plakaların dış hatları tek
+grupta, bütün derzler de tek grupta toplanıyordu; bir plakayı seçmek için
+grubu bozmak gerekiyordu. Artık **her plaka ayrı ayrı gruplanır**:
+
+- `ACP Grooves` katmanında her plakanın dört derzi kendi grubudur
+  (`ac2f ACP grooves 1 of 2 3200x1100`, `... 2 of 2 960x1100`).
+- `ACP Cut` katmanında her plakanın dış hattı kendi dörtgenidir
+  (`ac2f ACP sheet 1 of 2 3200x1100`). Dış hat ile derz aynı grupta olamaz:
+  bir grup iki katmana yayılamaz, tek nesne de gruplanamaz.
+- Plakaları birlikte saran grup yoktur (yerinde ve `sep` düzeninde aynı).
+
+Test: `tools/test_panel.py` ortak grup olmadığını, her derz grubunda dört
+çizgi bulunduğunu ve hiçbir nesnenin başka bir grubun içinde olmadığını
+denetler (149 denetim).
+
 ## [1.25.0] - 2026-10-29
 
 ### Değişti: ACP panel katmanlara ve gruplara çiziliyor (`ac2fPanelGroove`, `ac2fPanelSplit`)
