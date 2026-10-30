@@ -155,6 +155,7 @@ ac2fMenu ────┬──> ac2fLength ─────┐
              ├──> ac2fPlot ───────┤
              ├──> ac2fNest ───────┼──> ac2fCore     (ac2fNest -> ac2fNestCore,
              ├──> ac2fStart ──────┤                  saf motor; -> ac2fStart)
+             ├──> ac2fResize ─────┤
              ├──> ac2fJob ────────┤   (ac2fJob, ac2fNest'in plaka
              ├──> ac2fCheck ──────┤    ayarlarını da okur/yazar)
              ├──> ac2fCutTime ────┤   (ac2fBending'in düzleştirmesini
@@ -751,6 +752,34 @@ yöntem. Yön, örneklenmiş konturun işaretli alanından (y yukarı: pozitif
 `SubPath.ReverseDirection` denenir, sürüm desteklemiyorsa sayılıp
 raporlanır.
 
+## Her nesneyi ayrı ölçüye getirme (`ac2fResize`)
+
+Ölçü, paketin her yerinde olduğu gibi `Shape.GetBoundingBox` kutusudur.
+Boyutlandırma `Shape.SetSize` ile yapılır, ama CorelDRAW'ın makro
+boyutlandırmasında iki belirsizlik vardır: hangi noktadan büyüdüğü
+(belge referans noktası) ve kontur kalınlığının ölçüye katılıp
+katılmadığı. Bunlara güvenmek yerine her nesnede: eski kutunun sabit
+noktası (`@1..@9`) hesaplanır, `SetSize` çağrılır, kutu **geri okunur**,
+fark kadar düzeltilerek en çok üç kez tekrarlanır (kalıcı ofset ve
+oransal sapma ikisi de birkaç turda kapanır), sonunda `Move` ile sabit
+nokta eski yerine getirilir. Tutturulamayan nesne rapora yazılır.
+
+Düz çizgide (bir kenarı sıfır) `SetSize` yerine yalnız `SizeWidth` ya da
+`SizeHeight` yazılır; sıfır kenarı olan bir nesnede o kenara bağlı bir
+ölçü istenirse nesne atlanır (`ac2fRZPlan`). Orantılı kiplerde (`w`, `h`,
+`fit`) katsayı, uygulanan sınırların **en sıkısından** gelir; sıfır
+uzunluklu kenarın sınırı etkisizdir.
+
+Dikkat: VBA `And`/`Or` **kısa devre yapmaz**. `If n > 0 And a(n) = x`
+`n = 0` iken `a(0)`'ı da okur; dizi indisi gerektiren koşullar iç içe
+`If` ile yazılır (sınama taklidi bunu yakalar).
+
+`tools/cdrmock.py` bu iş için `SetSize`/`SizeWidth`/`SizeHeight`'ı
+taklit eder; `size_anchor` (hangi köşeden büyüdüğü) ve `size_pad`
+(kontur payı) nesne başına değiştirilebilir, böylece makro bu iki
+durumda da sınanır. Sınamanın dişi var mı diye düzeltme turu ya da
+`Move` kaldırılarak (mutasyon) denendi: sınama düşüyor.
+
 ## Sınama araçları
 
 ```
@@ -759,6 +788,7 @@ tools/cdrmock.py       CorelDRAW nesne modeli taklidi
 tools/vbacheck.py      gerçek VBA derleyicisinin kuralları (lint çalıştırır)
 tools/test_nest.py     ac2fNestCore, gerçek geometriyle
 tools/test_corel.py    ac2fNest + ac2fStart, taklit belgede uçtan uca
+tools/test_resize.py   ac2fResize: birimler, @ noktası, fit, grup/deep, düz çizgi, geri al
 tools/test_plot.py     ac2fPlot + ac2fBending, HPGL geri okunup gercek Bezier ile karsilastirilir
 tools/test_windows.py  pencere betikleri, PowerShell 7 + tools/winstub.cs
 ```

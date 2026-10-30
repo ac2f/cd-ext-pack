@@ -19,6 +19,7 @@ alüminyum kompozit paneller için V derz çizgilerini üretir ve neon LED
 | `ac2fNest` | **Nesting** — parçaları gerçek konturlarıyla tabakalara yerleştirir (pencere, tabaka listesi, adetler) |
 | `ac2fNestCore` | Nesting motoru — saf hesap, CorelDRAW dışında sınanır |
 | `ac2fStart` | **Başlangıç noktaları** — yolların ilk düğümünü köşeye / kenar ortasına / merkeze taşır, yönü ayarlar |
+| `ac2fResize` | **Her nesneyi ayrı ölçüye getir** — seçimdeki her nesne yazılan ölçüde (`50x30`, `w50`, `h30`, `fit`) |
 | `ac2fBending` | **Bükme sırası** — konturları harflere ayırır, sıraya dizer |
 | `ac2fPlot` | **Plotter** — HPGL üretip ağdan doğrudan gönderir |
 | `ac2fJob` | **Müşteri işi** — StockTrack müşterisi ve stoğuyla export ve takım yolu klasörlerini adlandırır |
@@ -55,6 +56,8 @@ Arayüz dili İngilizcedir; bu belgeler Türkçedir.
 | `ac2fStartPoints` | Başlangıç noktası: konum (7 8 9 / 4 5 6 / 1 2 3), kutu, tam nokta, yön |
 | `ac2fStartPointsAgain` | Son başlangıç noktası ayarıyla sormadan uygular |
 | `ac2fStartPointsShow` | Başlangıç noktalarına işaret koyar / kaldırır |
+| `ac2fResizeEach` | Seçimdeki **her nesneyi ayrı ayrı** yazılan ölçüye getirir (Corel seçimi tek blok sayar) — menü `29` |
+| `ac2fResizeEachAgain` | Son ölçüyle sormadan uygular — menü `30` |
 | `ac2fBendOrder` | Seçili nesneleri bükme sırasına dizer (istif + isim) |
 | `ac2fBendPreview` | Bükme sırasını sayfada numaralandırır |
 | `ac2fBendReport` | Bükme sırasını listeler, hiçbir şeyi değiştirmez |
@@ -89,7 +92,7 @@ powershell -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
 Sonra CorelDRAW'da `Alt+F11` → `ac2fPack` projesi → `File > Import File` ile
-`build\` altındaki on yedi `.bas` dosyasını içe aktarın.
+`build\` altındaki on sekiz `.bas` dosyasını içe aktarın.
 
 Adım adım anlatım ve ekran yolları: **[docs/kurulum.md](docs/kurulum.md)**
 
@@ -338,6 +341,25 @@ nesnenin kutusuna (`O`) ya da bütün seçime (`S`) göre ölçülür; `X` ile
 tam noktaya düğüm eklenir (şekil değişmez), `N` en yakın düğümü kullanır.
 Yön: `W` dış saat yönünde + delikler ters, `C` tersi, `A` / `Z` hepsi bir
 yöne, `K` olduğu gibi. `M` işaret çizer. Örnek: `8 S W`.
+
+## Her nesneyi ayrı ölçüye getirme
+
+CorelDRAW çoklu seçimi **tek blok** sayar: bir ölçü yazarsanız hepsi aynı
+oranda, en büyüğün kutusuna göre boyutlanır. `ac2fResizeEach` (ana menü
+`29`) **her nesneyi ayrı ayrı** yazdığınız ölçüye getirir:
+
+| Yazılan | Anlamı |
+|---|---|
+| `50x30` | her nesne tam 50 × 30 (esnetilir) |
+| `w50` / `h30` | bir kenar verilir, öbürü oranla gelir |
+| `fit 50x30` | şekil korunur, kutuya sığar; `fit 50` en uzun kenar 50 |
+| `12cm x 4cm` | birim: mm (varsayılan), cm, m, in |
+| `@7` | her nesnenin sol üstü yerinde kalır (varsayılan `@5`, merkez) |
+| `deep` | grupların içindeki nesneler tek tek |
+
+Son yanıt hatırlanır; `ac2fResizeEachAgain` (menü `30`) sormadan uygular.
+Tek `Ctrl+Z` hepsini geri alır. Ayrıntı:
+[docs/kullanim.md › Her nesneyi ayrı ölçüye getirme](docs/kullanim.md#18-her-nesneyi-ayrı-ölçüye-getirme).
 
 ## Bükme sırası (`ac2fBending`)
 

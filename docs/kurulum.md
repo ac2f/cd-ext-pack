@@ -23,7 +23,7 @@ olmak için betiği çalıştırın:
 powershell -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
-`build\` klasöründe on yedi dosya oluşur:
+`build\` klasöründe on sekiz dosya oluşur:
 
 ```
 ac2fCore.bas
@@ -37,6 +37,7 @@ ac2fPlot.bas
 ac2fNestCore.bas
 ac2fNest.bas
 ac2fStart.bas
+ac2fResize.bas
 ac2fJob.bas
 ac2fCheck.bas
 ac2fCutTime.bas
@@ -65,7 +66,7 @@ ac2fMenu.bas
 
 ## 3. Modülleri içe aktar
 
-`ac2fPack` projesi seçiliyken, on yedi dosyanın **her biri** için:
+`ac2fPack` projesi seçiliyken, on sekiz dosyanın **her biri** için:
 
 `File > Import File...` → `build\ac2*.bas` → **Open**
 
@@ -85,6 +86,7 @@ ac2fPack
     ├── ac2fNestCore
     ├── ac2fNest
     ├── ac2fStart
+    ├── ac2fResize
     ├── ac2fJob
     ├── ac2fCheck
     ├── ac2fCutTime
@@ -143,6 +145,19 @@ Bu yüzden değişmiş bir modülü aktarmadan **önce** eskisini silin:
 
 Zaten `ac2fMenu1` oluştuysa onu silin, sonra eski `ac2fMenu`'yü silip
 yeniden aktarın.
+
+### Sürüm 1.26.0'dan 1.27.0'a
+
+| Dosya | Ne yapmalı |
+|---|---|
+| `ac2fResize.bas` | **Yeni** — doğrudan içe aktarın |
+| `ac2fMenu.bas` | **Değişti** (menü `29` / `30`, Hakkında satırı) — önce silin, sonra aktarın |
+| `ac2fCore.bas` | **Değişti** (sürüm) — önce silin, sonra aktarın |
+| Diğerleri | Değişmedi |
+
+Yeni makrolar: `ac2fResizeEach` (menü `29`), `ac2fResizeEachAgain` (menü
+`30`). Seçimdeki her nesneyi ayrı ayrı yazdığınız ölçüye getirir. Ayar
+sayfasına yeni ayar eklenmedi; numaralar ve kayıtlı ayarlar değişmedi.
 
 ### Sürüm 1.25.1'den 1.26.0'a
 

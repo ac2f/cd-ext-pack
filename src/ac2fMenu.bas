@@ -24,7 +24,7 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
     Dim m As String
     Dim choice As String
 
-    m = "Enter the number of the action you want:" & vbCrLf & vbCrLf & _
+    m = "Enter the number of the action:" & vbCrLf & vbCrLf & _
         "  1  -  Length measurement" & vbCrLf & _
         "  2  -  Length + label on page" & vbCrLf & _
         "  3  -  3-LED module count" & vbCrLf & _
@@ -33,12 +33,12 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         "  6  -  Box letter strip (pick a profile)" & vbCrLf & _
         "  7  -  Box letter report (no drawing)" & vbCrLf & _
         "  8  -  ACP panel V-grooves   28 - plate split" & vbCrLf & _
-        "  9  -  Centerline (reduce to a single line)" & vbCrLf & _
+        "  9  -  Centerline (to a single line)" & vbCrLf & _
         " 10  -  Nesting: settings, preview, apply" & vbCrLf & _
         " 11  -  Nesting report (nothing moves)" & vbCrLf
     m = m & _
-        " 12  -  Bending order: apply it to the objects" & vbCrLf & _
-        " 13  -  Bending order: number them on the page" & vbCrLf & _
+        " 12  -  Bending order: apply to objects" & vbCrLf & _
+        " 13  -  Bending order: number on page" & vbCrLf & _
         " 14  -  Bending order report (no changes)" & vbCrLf & _
         " 15  -  Send to plotter" & vbCrLf & _
         " 16  -  Plotter test shape (40 x 80 L)" & vbCrLf & _
@@ -50,7 +50,8 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         " 22  -  Nesting again, last settings" & vbCrLf & _
         " 23  -  Start points   24 - again   25 - markers" & vbCrLf & _
         " 26  -  Mark selection as offcut sheets" & vbCrLf & _
-        " 27  -  Plotter orientation wizard" & vbCrLf
+        " 27  -  Plotter orientation wizard" & vbCrLf & _
+        " 29  -  Resize each object   30 - again" & vbCrLf
 
     choice = InputBox(m, ac2fTitle(CAPTION_), "1")
     If StrPtr(choice) = 0 Then Exit Sub          ' Cancel
@@ -86,6 +87,8 @@ Attribute ac2fPack.VB_Description = "ac2f pack: Main menu"
         Case "26": ac2fNestMarkSheets
         Case "27": ac2fPlotCalibrate
         Case "28": ac2fPanelSplit
+        Case "29": ac2fResizeEach
+        Case "30": ac2fResizeEachAgain
         Case Else
             ac2fWarn "Invalid choice: " & choice, CAPTION_
     End Select
@@ -110,6 +113,7 @@ Attribute ac2fAbout.VB_Description = "ac2f pack: Version and contents"
     s = s & "  Centerline           filled artwork to a single line" & vbCrLf
     s = s & "  Nesting              true shape, offcuts, preview window" & vbCrLf
     s = s & "  Start points         corner, side or centre; direction" & vbCrLf
+    s = s & "  Resize each object   every object to its own size" & vbCrLf
     s = s & "  Send to plotter      HPGL straight from the selection" & vbCrLf
     s = s & "  Bending order        letters, setups, counters last" & vbCrLf
     s = s & "  Customer job         StockTrack, DXF name, folders" & vbCrLf

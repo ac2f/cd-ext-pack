@@ -16,11 +16,11 @@
   6  -  Box letter strip (pick profile, tweak, draw)
   7  -  Box letter report (no drawing)
   8  -  ACP panel V-grooves   28 - plate split
-  9  -  Centerline (reduce to a single line)
+  9  -  Centerline (to a single line)
  10  -  Nesting (true shape, sheets window)
  11  -  Nesting report (nothing moves)
- 12  -  Bending order: apply it to the objects
- 13  -  Bending order: number them on the page
+ 12  -  Bending order: apply to objects
+ 13  -  Bending order: number on page
  14  -  Bending order report (nothing changes)
  15  -  Send to plotter
  16  -  Plotter test shape (40 x 80 L)
@@ -32,6 +32,8 @@
  22  -  Nesting again, last settings
  23  -  Start points   24 - again   25 - markers
  26  -  Mark selection as offcut sheets
+ 27  -  Plotter orientation wizard
+ 29  -  Resize each object   30 - again
 ```
 
 Her makro doğrudan da çağrılabilir; ana menü yalnızca kolaylık içindir.
@@ -546,7 +548,64 @@ de ayırabilirsiniz.
 - `in` yönünde seçim toplam açınımdır; net dikdörtgen seçimin sol üst
   köşesinden bir kat içeride başlar (yüzler 50…4050).
 
-### Bilinmesi gerekenler
+### 18. Her nesneyi ayrı ölçüye getirme
+
+CorelDRAW'da birden çok nesne seçip özellik çubuğuna bir ölçü yazarsanız
+seçim **tek blok** sayılır: bütün nesneler aynı oranda, seçimin kutusuna
+göre boyutlanır; nesneler birbirine göre büyür ya da küçülür ama hiçbiri
+yazdığınız ölçüde olmaz. Bu makro **her nesneyi ayrı ayrı** yazdığınız
+ölçüye getirir.
+
+Nesneleri seçin, `ac2fResizeEach` (menü `29`) çalıştırın ve ölçüyü yazın:
+
+| Yazılan | Anlamı |
+|---|---|
+| `50x30` | Her nesne tam 50 geniş, 30 yüksek (gerekirse **esnetilir**) |
+| `w50` | Genişlik 50, yükseklik oranla gelir |
+| `h30` | Yükseklik 30, genişlik oranla gelir |
+| `fit 50x30` | Şekil korunur, 50 x 30'luk kutuya **sığdırılır** (dar kenar kutuya dayanır) |
+| `fit 50` | Şekil korunur, **en uzun kenar** 50 |
+| `w50 h30` | `50x30` ile aynı |
+
+- **Birim** milimetredir; `12cm x 4cm`, `0,5m`, `2in` yazılabilir.
+  `50 x 30`, `50 mm x 30 mm`, `50*30`, `h 3 cm` gibi boşluklu yazımlar ve
+  ondalık virgül (`12,5x30`) kabul edilir. Tek başına `50` hangi kenar
+  olduğunu söylemediği için kabul edilmez; neden söylenir ve kutu aynı
+  metinle yeniden açılır.
+- **`@7` ile yerinde kalan nokta**: her nesnenin kendi kutusunda sayısal
+  tuş takımı düzeni (`7 8 9 / 4 5 6 / 1 2 3`). Yazılmazsa `@5` — nesne
+  merkezinden büyür/küçülür. `@1` her nesnenin sol alt köşesini sabit
+  tutar, `@7` sol üstünü, vb. Nesne, seçimin kutusuna göre değil **kendi**
+  kutusuna göre durur.
+- **`deep`**: grubun içindeki nesneler tek tek boyutlanır. Yazılmazsa bir
+  grup tek nesnedir (DXF'ten gelen her şey tek grup ise `deep` gerekir).
+- Son yanıt hatırlanır ve sonraki açılışta kutuda hazır gelir.
+  `ac2fResizeEachAgain` (menü `30`) son yanıtı **sormadan** uygular.
+- Hepsi tek komut grubudur, `Ctrl+Z` hepsini geri alır. Rapor kaç nesnenin
+  boyutlandığını, kaçının zaten o ölçüde olduğunu ve atlananları söyler.
+
+Ölçü, nesnenin **sınırlayıcı kutusu** üzerindendir (paketin her yerinde
+ölçüm böyle yapılır; çizgi kalınlığı sayılmaz). CorelDRAW makroyla yeniden
+boyutlandırırken başka bir noktadan çıkabilir ya da kontur kalınlığını
+ölçüye katabilir; bu yüzden ölçü okunup farkı kapatılır (en çok üç deneme)
+ve nesne, seçtiğiniz nokta eski yerine gelecek biçimde taşınır.
+
+Bilinmesi gerekenler:
+
+- **Düz çizgi** (yüksekliği ya da genişliği sıfır) yalnız uzunluğu
+  ölçeklenebilir: `w50` yatay çizgiyi 50 yapar; ama `h30` ya da `50x30`
+  ona uygulanamaz, nesne **dokunulmadan** bırakılır ve rapor sayısını
+  yazar.
+- **Dönmüş** nesneler eksenlere hizalı sınırlayıcı kutularıyla
+  boyutlandırılır; çarpık ya da dönmüş nesne ölçüye tam oturmazsa rapor
+  "Not exactly reached" satırıyla bildirir.
+- **Kilitli** nesne ya da kilitli katmandaki nesne boyutlanamaz; rapor
+  "Could not resize" satırında nedenini gösterir, diğerleri yine
+  boyutlanır.
+- Metin, bitmap ve gruplar da boyutlanır (metin harf boyuyla birlikte
+  ölçeklenir).
+
+## Bilinmesi gerekenler
 
 - **Eksene paralel sınırlayıcı kutu kullanılır.** Döndürülmüş bir
   dörtgen seçerseniz onun sınırlayıcı kutusu alınır, döndürülmüş hâli

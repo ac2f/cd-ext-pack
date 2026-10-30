@@ -2,6 +2,54 @@
 
 Bu proje [Semantic Versioning](https://semver.org/lang/tr/) kullanır.
 
+## [1.27.0] - 2026-10-30
+
+### Eklendi: seçimdeki her nesneyi ayrı ayrı yazılan ölçüye getirme
+
+CorelDRAW'da birden çok nesne seçip bir ölçü yazınca seçim **tek blok**
+sayılır: hepsi aynı oranda, en büyüğün kutusuna göre boyutlanır. Yeni
+`ac2fResize` modülü **her nesneyi kendi başına** istenen ölçüye getirir
+(`ac2fResizeEach`, ana menü `29`; `ac2fResizeEachAgain`, menü `30`):
+
+- `50x30` tam ölçü (esnetir); `w50` / `h30` tek kenar, oran korunur;
+  `fit 50x30` kutuya sığdırır, `fit 50` en uzun kenarı 50 yapar.
+- Birim mm; `cm`, `m`, `in` yazılır (`12cm x 4cm`, `0,5m`). `50 x 30`,
+  `50 mm x 30 mm`, `50*30`, `h 3 cm` ve ondalık virgül kabul edilir. Tek
+  başına bir sayı hangi kenar olduğu belli olmadığı için reddedilir;
+  neden söylenir, kutu aynı metinle yeniden açılır.
+- `@1`..`@9`: her nesnenin kendi kutusunda **yerinde kalan nokta**
+  (sayısal tuş takımı düzeni); varsayılan `@5`, yani merkezinden.
+- `deep`: grupların içindeki nesneler tek tek boyutlanır; yazılmazsa grup
+  tek nesnedir.
+- Ölçü, paketin her yerinde kullandığı sınırlayıcı kutu üzerindendir.
+  CorelDRAW'ın makro boyutlandırması başka noktadan çıkabilir ya da kontur
+  kalınlığını ölçüye katabilir; bu yüzden ölçü okunup farkı kapatılır ve
+  nesne seçilen nokta yerinde kalacak biçimde taşınır.
+- Düz çizgi (bir kenarı sıfır) yalnız uzunluğundan ölçeklenir; sıfır kenara
+  bağlı bir ölçü isteniyorsa dokunulmaz ve raporlanır. Kilitli nesne
+  hatadır, diğerleri boyutlanır. Hepsi tek komut grubudur (`Ctrl+Z`).
+- Son yanıt hatırlanır ve kutuda hazır gelir.
+- Ana menü kutusu 1024 karakter sınırına yaklaştığı için birkaç satırın
+  metni kısaltıldı (anlamları aynı).
+
+Yeni dosya: `ac2fResize.bas` (artık on sekiz modül). Ayar sayfası ve
+kayıtlı ayarlar değişmedi.
+
+### Sınama
+
+`tools/test_resize.py` (taklit belgede, 90'dan fazla denetim): her nesne
+ayrı ölçüde (merkezleri yerinde), `w`/`h`/`fit`, on dört yazım biçimi ve
+birim, dokuz sabit nokta × üç farklı taklit çıkış noktası, kontur payı,
+grup / `deep`, düz yatay-dikey çizgi, zaten o ölçüde olan, kilitli nesne ve
+tek Geri Al, belge biriminin geri gelmesi, hatalı girişlerin nedenleri,
+iptal, `Again`, 200 nesne. Sınamanın dişi, makrodan `Move`, düzeltme turu
+ve `@` ayrıştırması çıkarılarak (mutasyon) doğrulandı. Sınama, VBA'nın
+`And`'i kısa devre yapmamasından doğan bir çökmeyi de yakaladı
+(`tok(0)` okuması); düzeltildi.
+
+`tools/cdrmock.py`: `SetSize`, `SizeWidth`, `SizeHeight` taklidi; çıkış
+noktası ve kontur payı nesne başına ayarlanabilir.
+
 ## [1.26.0] - 2026-10-29
 
 ### Eklendi: parçaları yüz (net) ya da kesim olarak yazmak, konumla bölmek

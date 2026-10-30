@@ -443,6 +443,49 @@ class Shape(object):
         dx, dy = float(V(dx)), float(V(dy))
         self._xform(lambda p: (p[0] + dx, p[1] + dy))
 
+    # SetSize / SizeWidth / SizeHeight. CorelDRAW anchors a macro's resize at
+    # the document reference point (not where the caller wants it) and may
+    # count the outline in; both are modelled so a macro has to cope:
+    #   size_anchor: 'tl' 'tr' 'bl' 'br' 'c'    size_pad: extra mm in the size
+    size_anchor = 'tl'
+    size_pad = 0.0
+
+    def _scale_to(self, w, h):
+        self._unlocked()
+        b = self.bbox()
+        cw, ch = b[2] - b[0], b[3] - b[1]
+        gw, gh = w - self.size_pad, h - self.size_pad
+        if cw < 1e-9 and abs(gw) > 1e-9 or ch < 1e-9 and abs(gh) > 1e-9:
+            raise VBError('Cannot scale a side that has no length', 5)
+        sx = gw / cw if cw >= 1e-9 else 1.0
+        sy = gh / ch if ch >= 1e-9 else 1.0
+        ax = {'tl': b[0], 'bl': b[0], 'tr': b[2], 'br': b[2], 'c': (b[0] + b[2]) / 2}[self.size_anchor]
+        ay = {'tl': b[3], 'tr': b[3], 'bl': b[1], 'br': b[1], 'c': (b[1] + b[3]) / 2}[self.size_anchor]
+        self._xform(lambda p: (ax + (p[0] - ax) * sx, ay + (p[1] - ay) * sy))
+
+    def setsize(self, w, h):
+        self._scale_to(float(V(w)), float(V(h)))
+
+    @property
+    def sizewidth(self):
+        b = self.bbox()
+        return b[2] - b[0] + self.size_pad
+
+    @sizewidth.setter
+    def sizewidth(self, w):
+        b = self.bbox()
+        self._scale_to(float(V(w)), b[3] - b[1] + self.size_pad)
+
+    @property
+    def sizeheight(self):
+        b = self.bbox()
+        return b[3] - b[1] + self.size_pad
+
+    @sizeheight.setter
+    def sizeheight(self, h):
+        b = self.bbox()
+        self._scale_to(b[2] - b[0] + self.size_pad, float(V(h)))
+
     def rotate(self, ang):
         self._unlocked()
         a = math.radians(float(V(ang)))
